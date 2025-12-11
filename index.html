@@ -207,9 +207,15 @@
       infoDiv.textContent = (f.time_iso || '') + ' | ' + f.label;
     }
 
-    function updateHoverTemplates(fig) {
-      if (!fig.data) return fig;
-      fig.data.forEach(tr => {
+        function updateHoverTemplates(fig) {
+      // Support both:
+      //  - fig = {data: [...], layout: {...}}
+      //  - fig = [...]
+      const traces = Array.isArray(fig)
+        ? fig
+        : (Array.isArray(fig.data) ? fig.data : []);
+
+      traces.forEach(tr => {
         // Only modify heatmaps (main data maps). Leave RGB image traces alone.
         if (tr.type !== 'heatmap' || !tr.z) return;
 
@@ -268,10 +274,16 @@
         tr.text = text;
         tr.hovertemplate = "%{text}<extra></extra>";
       });
+
+      // Write back into fig if fig is an object
+      if (!Array.isArray(fig)) {
+        fig.data = traces;
+      }
       return fig;
     }
 
-    async function showFrame() {
+
+      async function showFrame() {
       const frames = framesByVar[currentVar] || [];
       const infoDiv = document.getElementById('info');
       if (!frames.length) {
@@ -315,13 +327,21 @@
         return;
       }
 
-      updateHoverTemplates(fig);
+      // Normalize to {data: [...], layout: {...}}
+      const isArrayFig = Array.isArray(fig);
+      let data = isArrayFig ? fig : (fig.data || []);
+      let layout = isArrayFig ? {} : (fig.layout || {});
 
-      if (syncedRanges && fig.layout) {
-        Object.assign(fig.layout, syncedRanges);
+      const wrapped = { data, layout };
+      updateHoverTemplates(wrapped);
+      data = wrapped.data;
+      layout = wrapped.layout;
+
+      if (syncedRanges && layout) {
+        Object.assign(layout, syncedRanges);
       }
 
-      await Plotly.react('plot', fig.data, fig.layout);
+      await Plotly.react('plot', data, layout);
 
       const plotDiv = document.getElementById('plot');
       if (!plotDiv.__hasRelayoutHandler) {
@@ -339,6 +359,7 @@
 
       resizePlot();
     }
+
 
     function resizePlot() {
       const plotDiv = document.getElementById('plot');
