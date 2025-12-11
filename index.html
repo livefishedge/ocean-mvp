@@ -81,6 +81,13 @@
     let playTimer = null;
     let syncedRanges = null; // keep zoom/pan across frames
 
+    function getJsonUrl(frame) {
+      if (!frame) return null;
+      if (frame.json_path) return frame.json_path;  // what our builder uses
+      if (frame.json) return frame.json;            // fallback if you ever change index.json
+      return null;
+    }
+
     async function loadIndex() {
       const resp = await fetch('index.json');
       const idx = await resp.json();
@@ -99,11 +106,11 @@
         setCurrentVar(varSelect.value);
       });
 
+      setupButtons();
+
       if (varSelect.options.length > 0) {
         setCurrentVar(varSelect.value);
       }
-
-      setupButtons();
     }
 
     function setupButtons() {
@@ -203,7 +210,7 @@
     function updateHoverTemplates(fig) {
       if (!fig.data) return fig;
       fig.data.forEach(tr => {
-        // Only touch heatmaps (main data maps). Keep RGB images as-is.
+        // Only modify heatmaps (main data maps). Leave RGB image traces alone.
         if (tr.type !== 'heatmap' || !tr.z) return;
 
         const z = tr.z;
@@ -239,7 +246,7 @@
                 value = cell[2];
               }
             } else {
-              // Fallback: use z as the value
+              // Fallback: use z as value
               value = z[j][i];
             }
 
@@ -264,21 +271,6 @@
       return fig;
     }
 
-        let framesByVar = {};
-    let currentVar = null;
-    let currentIndex = 0;
-    let playing = false;
-    let playTimer = null;
-    let syncedRanges = null; // keep zoom/pan across frames
-
-    // NEW: helper – support both json_path and json keys from index.json
-    function getJsonUrl(frame) {
-      if (!frame) return null;
-      if (frame.json_path) return frame.json_path;
-      if (frame.json) return frame.json;   // fallback to earlier format
-      return null;
-    }
-
     async function showFrame() {
       const frames = framesByVar[currentVar] || [];
       const infoDiv = document.getElementById('info');
@@ -287,6 +279,7 @@
         document.getElementById('frame-label').textContent = '';
         return;
       }
+
       const f = frames[currentIndex];
       if (!f) return;
 
@@ -361,5 +354,6 @@
     window.addEventListener('resize', resizePlot);
     loadIndex();
   </script>
+
 </body>
 </html>
