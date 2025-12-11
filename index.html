@@ -264,16 +264,64 @@
       return fig;
     }
 
+        let framesByVar = {};
+    let currentVar = null;
+    let currentIndex = 0;
+    let playing = false;
+    let playTimer = null;
+    let syncedRanges = null; // keep zoom/pan across frames
+
+    // NEW: helper – support both json_path and json keys from index.json
+    function getJsonUrl(frame) {
+      if (!frame) return null;
+      if (frame.json_path) return frame.json_path;
+      if (frame.json) return frame.json;   // fallback to earlier format
+      return null;
+    }
+
     async function showFrame() {
       const frames = framesByVar[currentVar] || [];
-      if (!frames.length) return;
+      const infoDiv = document.getElementById('info');
+      if (!frames.length) {
+        infoDiv.textContent = 'No frames available for ' + currentVar;
+        document.getElementById('frame-label').textContent = '';
+        return;
+      }
       const f = frames[currentIndex];
       if (!f) return;
 
       updateInfo();
 
-      const resp = await fetch(f.json_path);
-      const fig = await resp.json();
+      const url = getJsonUrl(f);
+      if (!url) {
+        infoDiv.textContent = 'No JSON URL found for this frame.';
+        return;
+      }
+
+      let resp;
+      try {
+        resp = await fetch(url);
+      } catch (err) {
+        console.error('Fetch error:', err);
+        infoDiv.textContent = 'Failed to fetch ' + url;
+        return;
+      }
+
+      if (!resp.ok) {
+        console.error('HTTP error for', url, resp.status, resp.statusText);
+        infoDiv.textContent = 'Failed to load ' + url + ' (' + resp.status + ')';
+        return;
+      }
+
+      let fig;
+      try {
+        fig = await resp.json();
+      } catch (err) {
+        console.error('JSON parse error for', url, err);
+        infoDiv.textContent = 'Invalid JSON in ' + url;
+        return;
+      }
+
       updateHoverTemplates(fig);
 
       if (syncedRanges && fig.layout) {
