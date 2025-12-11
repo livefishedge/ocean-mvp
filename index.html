@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>mbh | CHL / SST / UV Viewer</title>
+  <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 10px;
+      background: #111;
+      color: #eee;
+    }
+    #controls {
+      margin-bottom: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    select, button, input[type="checkbox"], label {
+      font-size: 0.9rem;
+    }
+    button {
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #222;
+      color: #eee;
+    }
+    button:hover {
+      background: #333;
+    }
+    #plot {
+      width: 100%;
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+    #slider-container {
+      flex: 1 1 260px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #time-slider {
+      width: 100%;
+    }
+    #info {
+      font-size: 0.85rem;
+      opacity: 0.8;
+    }
+  </style>
+</head>
+<body>
+  <h2>MBH Ocean Product Viewer</h2>
+  <div id="controls">
+    <label for="var-select"><b>Variable:</b></label>
+    <select id="var-select"></select>
+
+    <div id="slider-container">
+      <button id="btn-prev">&larr;</button>
+      <input id="time-slider" type="range" min="0" max="0" step="1" value="0" />
+      <button id="btn-next">&rarr;</button>
+    </div>
+
+    <button id="btn-play">Play</button>
+    <label><input type="checkbox" id="chk-loop" checked /> Loop</label>
+
+    <span id="frame-label"></span>
+  </div>
+
+  <div id="info"></div>
+  <div id="plot"></div>
+
+  <script>
+    let framesByVar = {};
+    let currentVar = null;
+    let currentIndex = 0;
+    let playing = false;
+    let playTimer = null;
+    let syncedRanges = null; // keep zoom/pan across frames
+
+    async function loadIndex() {
+      const resp = await fetch('index.json');
+      const idx = await resp.json();
+      framesByVar = idx.frames || {};
+
+      const varSelect = document.getElementById('var-select');
+      varSelect.innerHTML = '';
+      (idx.vars || Object.keys(framesByVar)).forEach(v => {
+        const opt = document.createElement('option');
+        opt.value = v;
+        opt.textContent = v.toUpperCase();
+        varSelect.appendChild(opt);
+      });
+
+      varSelect.addEventListener('change', () => {
+        setCurrentVar(varSelect.value);
+      });
+
+      if (varSelect.options.length > 0) {
+        setCurrentVar(varSelect.value);
+      }
+
+      setupButtons();
+    }
+
+    function setupButtons() {
+      const slider = document.getElementById('time-slider');
+      document.getElementById('btn-prev').onclick = () => {
+        stepFrame(-1);
+      };
+      document.getElementById('btn-next').onclick = () => {
+        stepFrame(1);
+      };
+      document.getElementById('btn-play').onclick = togglePlay;
+      slider.addEventListener('input', () => {
+        currentIndex = parseInt(slider.value);
+        showFrame();
+      });
+    }
+
+    function setCurrentVar(v) {
+      currentVar = v;
+      const frames = framesByVar[currentVar] || [];
+      currentIndex = 0;
+      const slider = document.getElementById('time-slider');
+      slider.min = 0;
+      slider.max = Math.max(frames.length - 1, 0);
+      slider.value = 0;
+      updateInfo();
+      showFrame();
+    }
+
+    function stepFrame(delta) {
+      const frames = framesByVar[currentVar] || [];
+      if (!frames.length) return;
+      currentIndex += delta;
+      if (currentIndex < 0) currentIndex = frames.length - 1;
+      if (currentIndex >= frames.length) currentIndex = 0;
+      document.getElementById('time-slider').value = currentIndex;
+      showFrame();
+    }
+
+    function togglePlay() {
+      if (playing) {
+        stopPlay();
+      } else {
+        startPlay();
+      }
+    }
+
+    function startPlay() {
+      const btn = document.getElementById('btn-play');
+      if (playing) return;
+      playing = true;
+      btn.textContent = 'Pause';
+      const loop = document.getElementById('chk-loop').checked;
+      const frames = framesByVar[currentVar] || [];
+      if (!frames.length) return;
+
+      playTimer = setInterval(() => {
+        currentIndex++;
+        if (currentIndex >= frames.length) {
+          if (loop) {
+            currentIndex = 0;
+          } else {
+            stopPlay();
+            return;
+          }
+        }
+        document.getElementById('time-slider').value = currentIndex;
+        showFrame();
+      }, 800); // ms per frame
+    }
+
+    function stopPlay() {
+      const btn = document.getElementById('btn-play');
+      playing = false;
+      btn.textContent = 'Play';
+      if (playTimer) {
+        clearInterval(playTimer);
+        playTimer = null;
+      }
+    }
+
+    function updateInfo() {
+      const frames = framesByVar[currentVar] || [];
+      const infoDiv = document.getElementById('info');
+      if (!frames.length) {
+        infoDiv.textContent = 'No frames available for ' + currentVar;
+        document.getElementById('frame-label').textContent = '';
+        return;
+      }
+      const f = frames[currentIndex];
+      const n = frames.length;
+      document.getElementById('frame-label').textContent =
+        (currentIndex + 1) + ' / ' + n;
+      infoDiv.textContent = (f.time_iso || '') + ' | ' + f.label;
+    }
+
+    function updateHoverTemplates(fig) {
+      if (!fig.data) return fig;
+      fig.data.forEach(tr => {
+        // Only touch heatmaps (main data maps). Keep RGB images as-is.
+        if (tr.type !== 'heatmap' || !tr.z) return;
+
+        const z = tr.z;
+        const ny = z.length;
+        if (!ny) return;
+        const nx = z[0].length || 0;
+        if (!nx) return;
+
+        const x = tr.x || [];
+        const y = tr.y || [];
+        const cd = tr.customdata || null;
+
+        const use1DX = Array.isArray(x) && x.length === nx;
+        const use1DY = Array.isArray(y) && y.length === ny;
+
+        const text = [];
+        for (let j = 0; j < ny; j++) {
+          const row = [];
+          const yVal = use1DY ? y[j] : null;
+          for (let i = 0; i < nx; i++) {
+            const xVal = use1DX ? x[i] : null;
+            let lon = xVal;
+            let lat = yVal;
+            let value = null;
+
+            if (cd && Array.isArray(cd[j]) && Array.isArray(cd[j][i])) {
+              const cell = cd[j][i];
+              if (cell.length >= 2) {
+                lon = cell[0];
+                lat = cell[1];
+              }
+              if (cell.length >= 3) {
+                value = cell[2];
+              }
+            } else {
+              // Fallback: use z as the value
+              value = z[j][i];
+            }
+
+            const lonStr = (lon != null && isFinite(lon)) ? lon.toFixed(3) : '';
+            const latStr = (lat != null && isFinite(lat)) ? lat.toFixed(3) : '';
+
+            let txt;
+            if (value == null || !isFinite(value)) {
+              // Missing data: only lon,lat
+              txt = lonStr + ', ' + latStr;
+            } else {
+              // Data present: lon,lat,value
+              txt = lonStr + ', ' + latStr + ', ' + value.toFixed(3);
+            }
+            row.push(txt);
+          }
+          text.push(row);
+        }
+        tr.text = text;
+        tr.hovertemplate = "%{text}<extra></extra>";
+      });
+      return fig;
+    }
+
+    async function showFrame() {
+      const frames = framesByVar[currentVar] || [];
+      if (!frames.length) return;
+      const f = frames[currentIndex];
+      if (!f) return;
+
+      updateInfo();
+
+      const resp = await fetch(f.json_path);
+      const fig = await resp.json();
+      updateHoverTemplates(fig);
+
+      if (syncedRanges && fig.layout) {
+        Object.assign(fig.layout, syncedRanges);
+      }
+
+      await Plotly.react('plot', fig.data, fig.layout);
+
+      const plotDiv = document.getElementById('plot');
+      if (!plotDiv.__hasRelayoutHandler) {
+        plotDiv.__hasRelayoutHandler = true;
+        plotDiv.on('plotly_relayout', ev => {
+          const r = {};
+          for (const k in ev) {
+            if (k.includes('.range')) r[k] = ev[k];
+          }
+          if (Object.keys(r).length) {
+            syncedRanges = r;
+          }
+        });
+      }
+
+      resizePlot();
+    }
+
+    function resizePlot() {
+      const plotDiv = document.getElementById('plot');
+      const w = plotDiv.clientWidth || window.innerWidth - 20;
+      const h = w * 0.6;
+      Plotly.relayout('plot', {
+        width: w,
+        height: h,
+        margin: { l: 50, r: 50, t: 40, b: 40 },
+      });
+    }
+
+    window.addEventListener('resize', resizePlot);
+    loadIndex();
+  </script>
+</body>
+</html>
