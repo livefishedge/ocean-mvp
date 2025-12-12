@@ -113,252 +113,390 @@
   <div id="plot"></div>
 
   <script>
-    // ---------------------- CONFIG ----------------------
-    const REGION_ID = "mbh";
+  const REGION_ID = "mbh";
 
-    // Human-readable labels
-    const VAR_LABELS = {
-      chl: "Chlorophyll",
-      sst: "SST",
-      uv:  "Currents"
-    };
+  // Human readable labels
+  const VAR_LABELS = {
+    chl: "Chlorophyll",
+    sst: "SST",
+    uv:  "Currents"
+  };
 
-    // Grid JSON names per variable (2-D lon/lat arrays)
-    const VAR_TO_GRID = {
-      chl: "viirs_chl_750_grid.json",
-      sst: "goes_sst_1000_grid.json",
-      uv:  "uv_12500_grid.json"
-    };
+  // Grid JSON filenames (lat/lon axes)
+  const VAR_TO_GRID = {
+    chl: "viirs_chl_750_grid.json",
+    sst: "goes_sst_1000_grid.json",
+    uv:  "uv_12500_grid.json"
+  };
 
-    // ---------------------- STATE ----------------------
-    let indexData = null;
-    // Expect index.json to look like:
-    // {
-    //   "region_id": "mbh",
-    //   "frames": {
-    //      "chl": [ { "var": "chl", "path": "data/mbh/chl/xxx.json", "label": "..." }, ... ],
-    //      "sst": [ ... ],
-    //      "uv":  [ ... ]
-    //   }
-    // }
-    let framesByVar = { chl: [], sst: [], uv: [] };
+  // Fixed color ranges (log10 for chl)
+  const COLOR_CONFIG = {
+    chl: { zmin: -2.0, zmax: 1.0 },    // log10(0.01)–log10(10)
+    sst: { zmin: 18.0, zmax: 32.0 },   // tweak to match your PNGs
+    uv:  { zmin: 0.0,  zmax: 1.5 },    // speed (m/s) if used as heatmap
+    adt: { zmin: -0.5, zmax: 0.5 }     // SSH (m), tweak if needed
+  };
 
-    let currentVar = "chl";
-    let currentFrameIdx = 0;
-    let playing = false;
-    let playTimer = null;
+  // Approximate gist_rainbow
+  const GIST_RAINBOW = [
+    [0.00, "#000000"],
+    [0.10, "#0000ff"],
+    [0.25, "#00ffff"],
+    [0.40, "#00ff00"],
+    [0.55, "#ffff00"],
+    [0.70, "#ff7f00"],
+    [0.85, "#ff0000"],
+    [1.00, "#ffffff"]
+  ];
 
-    const gridCache = {}; // var -> { lon2d, lat2d, xAxis, yAxis, nx, ny }
+  // ---------- STATE ----------
+  let indexData = null;
+  let framesByVar = { chl: [], sst: [], uv: [] };
 
-    const plotDiv   = document.getElementById("plot");
-    const varSelect = document.getElementById("var-select");
-    const slider    = document.getElementById("frame-slider");
-    const frameLbl  = document.getElementById("frame-label");
-    const playBtn   = document.getElementById("play-btn");
-    const prevBtn   = document.getElementById("prev-btn");
-    const nextBtn   = document.getElementById("next-btn");
+  let currentVar = "chl";
+  let currentFrameIdx = 0;
+  let playing = false;
+  let playTimer = null;
 
-    // ---------------------- LOADERS ----------------------
+  // var -> { xAxis, yAxis, nx, ny }
+  const gridCache = {};
 
-    const INDEX_CANDIDATES = [
-      "index.json",
-      "data/index.json",
-      `data/${REGION_ID}/index.json`
+  const plotDiv   = document.getElementById("plot");
+  const varSelect = document.getElementById("var-select");
+  const slider    = document.getElementById("frame-slider");
+  const frameLbl  = document.getElementById("frame-label");
+  const playBtn   = document.getElementById("play-btn");
+  const prevBtn   = document.getElementById("prev-btn");
+  const nextBtn   = document.getElementById("next-btn");
+
+  // ---------- UTILITIES ----------
+  function is2DArray(a) {
+    return Array.isArray(a) &&
+           a.length > 0 &&
+           Array.isArray(a[0]) &&
+           a[0].length > 0;
+  }
+
+  // DFS search for the first 2-D array anywhere inside an object
+  function findFirst2DArray(obj) {
+    const stack = [obj];
+    const seen = new Set();
+    while (stack.length) {
+      const cur = stack.pop();
+      if (!cur || typeof cur !== "object") continue;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      for (const v of Object.values(cur)) {
+        if (is2DArray(v)) return v;
+        if (v && typeof v === "object") stack.push(v);
+      }
+    }
+    return null;
+  }
+
+  // ---------- INDEX LOADING ----------
+  const INDEX_CANDIDATES = [
+    "index.json",
+    "data/index.json",
+    `data/${REGION_ID}/index.json`
+  ];
+
+  async function loadIndex() {
+    let idx = null;
+    let usedUrl = null;
+
+    for (const url of INDEX_CANDIDATES) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          idx = await res.json();
+          usedUrl = url;
+          break;
+        }
+      } catch (e) {
+        // try next
+      }
+    }
+
+    if (!idx) {
+      console.error("Failed to load index.json from any of:", INDEX_CANDIDATES);
+      return;
+    }
+    console.log("Loaded index.json from", usedUrl);
+    indexData = idx;
+
+    framesByVar = idx.frames || idx.framesByVar || framesByVar;
+
+    for (const v of Object.keys(framesByVar)) {
+      framesByVar[v].sort((a, b) => {
+        const ta = a.time_iso || a.timestamp || a.scan_id || "";
+        const tb = b.time_iso || b.timestamp || b.scan_id || "";
+        return String(ta).localeCompare(String(tb));
+      });
+    }
+
+    setCurrentVar(currentVar);
+  }
+
+  // ---------- GRID LOADING (lat/lon axes) ----------
+  async function loadGridForVar(v) {
+    if (gridCache[v]) return gridCache[v];
+
+    const gridName = VAR_TO_GRID[v];
+    const candidates = [
+      `data/${REGION_ID}/grids/${gridName}`,
+      `data/${REGION_ID}/${gridName}`,
+      gridName
     ];
 
-    async function loadIndex() {
-      let idx = null;
-      let usedUrl = null;
-
-      for (const url of INDEX_CANDIDATES) {
-        try {
-          const res = await fetch(url);
-          if (res.ok) {
-            idx = await res.json();
-            usedUrl = url;
-            break;
-          }
-        } catch (e) {
-          // ignore and try next
+    let grid = null;
+    for (const path of candidates) {
+      try {
+        const res = await fetch(path);
+        if (res.ok) {
+          grid = await res.json();
+          console.log(`Loaded grid for ${v} from`, path);
+          break;
         }
+      } catch (e) {
+        // keep trying
       }
-
-      if (!idx) {
-        console.error("Failed to load index.json from any of:", INDEX_CANDIDATES);
-        return;
-      }
-
-      console.log("Loaded index.json from", usedUrl);
-      indexData = idx;
-
-      // Support both {frames:{chl:[...]...}} and {framesByVar:{...}}
-      framesByVar = idx.frames || idx.framesByVar || framesByVar;
-
-      // Set slider / UI for initial var
-      setCurrentVar(currentVar);
     }
 
+    if (!grid) {
+      throw new Error(`Could not load grid for var=${v}`);
+    }
 
-    async function loadGridForVar(v) {
-      if (gridCache[v]) return gridCache[v];
+    let lon = grid.lon;
+    let lat = grid.lat;
 
-      const gridName = VAR_TO_GRID[v];
-      const candidates = [
-        `data/${REGION_ID}/grids/${gridName}`,   // preferred
-        `data/${REGION_ID}/${gridName}`,        // fallback
-        gridName                                // last resort (root)
-      ];
+    if (!Array.isArray(lon) || !Array.isArray(lat)) {
+      throw new Error("grid.lon / grid.lat must be arrays");
+    }
 
-      let grid = null;
-      for (const path of candidates) {
-        try {
-          const res = await fetch(path);
-          if (res.ok) {
-            grid = await res.json();
-            break;
-          }
-        } catch (e) {
-          // ignore and try next
+    let nx, ny, xAxis, yAxis;
+
+    // Case 1: 2-D lon/lat
+    if (Array.isArray(lon[0])) {
+      ny = lon.length;
+      nx = lon[0].length;
+      xAxis = lon[0].slice();
+      yAxis = lat.map(row => row[0]);
+    } else {
+      // Case 2: 1-D lon/lat axes
+      xAxis = lon.slice();
+      yAxis = lat.slice();
+      nx = xAxis.length;
+      ny = yAxis.length;
+    }
+
+    const info = { xAxis, yAxis, nx, ny };
+    gridCache[v] = info;
+    return info;
+  }
+
+  // ---------- FRAME DATA LOADING ----------
+  async function fetchFrameData(varKey, frameMeta) {
+    let path =
+      frameMeta.json_path ||
+      frameMeta.path ||
+      frameMeta.file ||
+      frameMeta.url ||
+      frameMeta.json;
+
+    if (!path) {
+      console.error("Frame meta missing json_path/path:", frameMeta);
+      throw new Error("Frame path missing");
+    }
+
+    if (!path.startsWith("data/")) {
+      path = `data/${REGION_ID}/${varKey}/${path}`;
+    }
+
+    const res = await fetch(path);
+    if (!res.ok) {
+      console.error("Failed to load frame JSON from", path);
+      throw new Error("Frame load failed");
+    }
+    return await res.json();
+  }
+
+  // ---------- TITLES / TIME ----------
+  function frameTitleFromMeta(varKey, frameMeta) {
+    const base = VAR_LABELS[varKey] || varKey;
+    const tIso = frameMeta.time_iso || frameMeta.timestamp_utc || frameMeta.timestamp || null;
+
+    if (!tIso) {
+      const label = frameMeta.label || "";
+      return `${base} | ${label}`;
+    }
+
+    const d = new Date(tIso);
+    const localStr = d.toLocaleString(undefined, {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
+    return `${base} | ${localStr} (local)`;
+  }
+
+  // ---------- FIGURE BUILDER ----------
+  function buildFigureForVar(varKey, gridInfo, dataObj, frameMeta) {
+    const { xAxis, yAxis, nx, ny } = gridInfo;
+
+    // ----- CHL / SST -----
+    if (varKey === "chl" || varKey === "sst") {
+      let zRaw = null;
+
+      if (varKey === "chl" && is2DArray(dataObj.chl)) {
+        zRaw = dataObj.chl;
+      } else if (varKey === "sst" && is2DArray(dataObj.sst)) {
+        zRaw = dataObj.sst;
+      }
+
+      // Fallback: first 2-D array anywhere in the JSON
+      if (!zRaw) {
+        const candidate = findFirst2DArray(dataObj);
+        if (candidate) {
+          zRaw = candidate;
+          console.warn(`Auto-selected 2D array for var=${varKey}`);
         }
       }
 
-      if (!grid) {
-        console.error(`Could not load grid for variable "${v}" from`, candidates);
-        throw new Error("Grid load failed");
+      if (!zRaw) {
+        console.warn(`No data array found for var=${varKey}; drawing empty frame`);
+        zRaw = Array.from({ length: ny }, () => Array(nx).fill(null));
       }
 
-      let lon = grid.lon;
-      let lat = grid.lat;
-
-      if (!Array.isArray(lon) || !Array.isArray(lat)) {
-        throw new Error("grid.lon / grid.lat are not arrays");
-      }
-
-      // Normalize to 2-D [ny][nx].
-      // If they are already 2-D, keep. If 1-D flattened, reshape using ny, nx.
-      if (!Array.isArray(lon[0])) {
-        const nx = grid.nx;
-        const ny = grid.ny;
-        if (!Number.isInteger(nx) || !Number.isInteger(ny)) {
-          throw new Error("Flattened grid arrays require nx, ny in JSON");
-        }
-        const flatLon = lon;
-        const flatLat = lat;
-        lon = [];
-        lat = [];
+      // Ensure 2-D [ny][nx] if flattened
+      if (!Array.isArray(zRaw[0])) {
+        const flat = zRaw;
+        const reshaped = [];
+        let idx = 0;
         for (let j = 0; j < ny; j++) {
-          lon.push(flatLon.slice(j * nx, (j + 1) * nx));
-          lat.push(flatLat.slice(j * nx, (j + 1) * nx));
+          const row = [];
+          for (let i = 0; i < nx; i++) {
+            row.push(flat[idx++]);
+          }
+          reshaped.push(row);
         }
+        zRaw = reshaped;
       }
 
-      const ny = lon.length;
-      const nx = lon[0].length;
+      let zPlot = zRaw;
+      let colorscale = "Turbo";
+      let { zmin, zmax } = COLOR_CONFIG[varKey];
+      let unitLabel = dataObj.unit || (varKey === "chl" ? "mg m⁻³" : "°C");
 
-      const xAxis = lon[0].slice();                        // first row (constant lat)
-      const yAxis = lon.map((_, j) => lat[j][0]);          // first column (constant lon)
-
-      const result = { lon2d: lon, lat2d: lat, xAxis, yAxis, nx, ny };
-      gridCache[v] = result;
-      return result;
-    }
-
-    // Fetch a single frame JSON for current var.
-    async function fetchFrameData(varKey, frameMeta) {
-      // Primary: use json_path from index.json (produced by the Python builder)
-      let path =
-        frameMeta.json_path ||  // e.g. "data/mbh/chl/mbh_....json"
-        frameMeta.path ||
-        frameMeta.file ||
-        frameMeta.url ||
-        frameMeta.json;
-
-      if (!path) {
-        console.error("Frame meta is missing json_path/path fields:", frameMeta);
-        throw new Error("Frame path missing");
-      }
-
-      // If path already starts with "data/", use as-is (it's repo-relative).
-      // Otherwise, assume it's a bare filename under data/{region}/{var}/.
-      if (!path.startsWith("data/")) {
-        path = `data/${REGION_ID}/${varKey}/${path}`;
-      }
-
-      const res = await fetch(path);
-      if (!res.ok) {
-        console.error("Failed to load frame JSON from", path);
-        throw new Error("Frame load failed");
-      }
-      return await res.json();
-    }
-
-
-    // ---------------------- FIGURE BUILDERS ----------------------
-
-    function frameTitleFromMeta(varKey, frameMeta, dataObj) {
-      const label = frameMeta.label || frameMeta.timestamp || frameMeta.scan_id || "";
-      const prettyVar = VAR_LABELS[varKey] || varKey;
-      return `${prettyVar} – ${label}`;
-    }
-
-    function buildFigureForVar(varKey, gridInfo, dataObj, frameMeta) {
-      const { lon2d, lat2d, xAxis, yAxis, nx, ny } = gridInfo;
-
-      function is2DNumberArray(a) {
-        return Array.isArray(a) &&
-               a.length > 0 &&
-               Array.isArray(a[0]) &&
-               a[0].length > 0 &&
-               typeof a[0][0] === "number";
-      }
-
-      // ---- choose z for each var ----
-      let z = null;
-      let zAdt = null;
-      let zSpeed = null;
-
+      // Chl: use log10 for color, but hover shows linear value
       if (varKey === "chl") {
-        if (is2DNumberArray(dataObj.chl)) {
-          z = dataObj.chl;
-        } else if (is2DNumberArray(dataObj.chl_log10)) {
-          z = dataObj.chl_log10; // already log10
+        const zLog = [];
+        for (let j = 0; j < ny; j++) {
+          const row = [];
+          for (let i = 0; i < nx; i++) {
+            const val = zRaw[j][i];
+            const v =
+              val === null || val === undefined || !isFinite(val)
+                ? null
+                : Number(val);
+            if (v !== null && v > 0) {
+              row.push(Math.log10(v));
+            } else {
+              row.push(null);
+            }
+          }
+          zLog.push(row);
         }
-      } else if (varKey === "sst") {
-        if (is2DNumberArray(dataObj.sst)) {
-          z = dataObj.sst;
-        }
-      } else if (varKey === "uv") {
-        const d = dataObj.data || dataObj;
-        if (d && is2DNumberArray(d.speed)) {
-          zSpeed = d.speed;
-        }
-        if (d && is2DNumberArray(d.adt)) {
-          zAdt = d.adt;
-        }
-        if (!zSpeed && is2DNumberArray(dataObj.speed)) {
-          zSpeed = dataObj.speed;
-        }
+        zPlot = zLog;
+        colorscale = GIST_RAINBOW;
+        unitLabel = "log10(mg m⁻³)";
       }
 
-      // Fallback auto-detect for chl/sst if needed
-      if (!z && (varKey === "chl" || varKey === "sst")) {
-        for (const v of Object.values(dataObj)) {
-          if (is2DNumberArray(v)) {
-            z = v;
-            break;
+      // Hover text: numbers only
+      const text = [];
+      for (let j = 0; j < ny; j++) {
+        const rowText = [];
+        const latVal = yAxis[j];
+        for (let i = 0; i < nx; i++) {
+          const lonVal = xAxis[i];
+          const val = zRaw[j][i];
+          const numVal =
+            val === null || val === undefined || !isFinite(val)
+              ? null
+              : Number(val);
+          if (numVal === null) {
+            rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
+          } else {
+            rowText.push(
+              `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
+            );
           }
         }
+        text.push(rowText);
       }
 
-      // -------------- CHL / SST (single heatmap) --------------
-      if (varKey === "chl" || varKey === "sst") {
-        if (!z) {
-          throw new Error(`No data array found for var=${varKey}`);
-        }
+      const trace = {
+        type: "heatmap",
+        x: xAxis,
+        y: yAxis,
+        z: zPlot,
+        text: text,
+        hovertemplate: "%{text}<extra></extra>",
+        zauto: false,
+        zmin,
+        zmax,
+        colorscale,
+        colorbar: { title: unitLabel },
+        zsmooth: false
+      };
 
-        // Ensure 2-D
-        if (!Array.isArray(z[0])) {
-          const flat = z;
+      const layout = {
+        title: frameTitleFromMeta(varKey, frameMeta),
+        xaxis: { title: "Longitude", automargin: true },
+        yaxis: {
+          title: "Latitude",
+          automargin: true,
+          scaleanchor: "x",
+          scaleratio: 1
+        },
+        margin: { l: 70, r: 10, t: 40, b: 60 },
+        paper_bgcolor: "#050b10",
+        plot_bgcolor: "#050b10",
+        font: { color: "#e0e6ee" }
+      };
+
+      return { data: [trace], layout };
+    }
+
+    // ----- CURRENTS (uv): arrows over ADT heatmap -----
+    if (varKey === "uv") {
+      const d = dataObj.data || dataObj;
+
+      let zAdt = d && is2DArray(d.adt) ? d.adt : null;
+      let zSpeed = d && is2DArray(d.speed) ? d.speed : null;
+
+      // Fallback: use first 2D array if we have nothing
+      if (!zAdt && !zSpeed) {
+        const candidate = findFirst2DArray(d);
+        if (candidate) {
+          zAdt = candidate;
+          console.warn("Auto-selected background for uv from first 2D array");
+        }
+      }
+
+      if (!zAdt && !zSpeed) {
+        console.warn("No adt/speed found for uv; drawing empty frame");
+        zAdt = Array.from({ length: ny }, () => Array(nx).fill(null));
+      }
+
+      // Reshape if flattened
+      const reshapeIfNeeded = (arr) => {
+        if (!arr) return null;
+        if (!Array.isArray(arr[0])) {
+          const flat = arr;
           const reshaped = [];
           let idx = 0;
           for (let j = 0; j < ny; j++) {
@@ -368,368 +506,251 @@
             }
             reshaped.push(row);
           }
-          z = reshaped;
+          return reshaped;
         }
+        return arr;
+      };
 
-        let zPlot = z;
-        let colorscale = "Turbo";
-        let zmin = COLOR_CONFIG[varKey].zmin;
-        let zmax = COLOR_CONFIG[varKey].zmax;
-        let unitLabel = dataObj.unit || (varKey === "chl" ? "mg m⁻³" : "°C");
+      zAdt = reshapeIfNeeded(zAdt);
+      zSpeed = reshapeIfNeeded(zSpeed);
 
-        // chl: log10 with gist_rainbow
-        if (varKey === "chl") {
-          const zLog = [];
-          for (let j = 0; j < ny; j++) {
-            const row = [];
-            for (let i = 0; i < nx; i++) {
-              const val = z[j][i];
-              const v = (val === null || val === undefined || !isFinite(val)) ? null : Number(val);
-              if (v !== null && v > 0) {
-                row.push(Math.log10(v));
-              } else {
-                row.push(null);
-              }
-            }
-            zLog.push(row);
+      // Background: ADT if present, else speed
+      const useAdt = !!zAdt;
+      const zBg = useAdt ? zAdt : zSpeed;
+      const cfgBg = useAdt ? COLOR_CONFIG.adt : COLOR_CONFIG.uv;
+      const bgUnit = useAdt ? "ADT (m)" : "Speed (m s⁻¹)";
+      const bgColorscale = useAdt ? "RdBu" : "Viridis";
+      const bgReverse = !!useAdt;
+
+      // Hover for background: numbers only
+      const textBg = [];
+      for (let j = 0; j < ny; j++) {
+        const rowText = [];
+        const latVal = yAxis[j];
+        for (let i = 0; i < nx; i++) {
+          const lonVal = xAxis[i];
+          const val = zBg[j][i];
+          const numVal =
+            val === null || val === undefined || !isFinite(val)
+              ? null
+              : Number(val);
+          if (numVal === null) {
+            rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
+          } else {
+            rowText.push(
+              `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
+            );
           }
-          zPlot = zLog;
-          colorscale = GIST_RAINBOW;
         }
-
-        // Hover: numbers only
-        const text = [];
-        for (let j = 0; j < ny; j++) {
-          const rowText = [];
-          const latVal = yAxis[j];
-          for (let i = 0; i < nx; i++) {
-            const lonVal = xAxis[i];
-            const val = z[j][i];
-            const numVal =
-              val === null || val === undefined || !isFinite(val)
-                ? null
-                : Number(val);
-            if (numVal === null) {
-              rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
-            } else {
-              rowText.push(
-                `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
-              );
-            }
-          }
-          text.push(rowText);
-        }
-
-        const trace = {
-          type: "heatmap",
-          x: xAxis,
-          y: yAxis,
-          z: zPlot,
-          text: text,
-          hovertemplate: "%{text}<extra></extra>",
-          zauto: false,
-          zmin: zmin,
-          zmax: zmax,
-          colorscale: colorscale,
-          colorbar: { title: unitLabel },
-          zsmooth: false
-        };
-
-        const layout = {
-          title: frameTitleFromMeta(varKey, frameMeta),
-          xaxis: { title: "Longitude", automargin: true },
-          yaxis: {
-            title: "Latitude",
-            automargin: true,
-            scaleanchor: "x",
-            scaleratio: 1
-          },
-          margin: { l: 70, r: 10, t: 40, b: 60 },
-          paper_bgcolor: "#050b10",
-          plot_bgcolor: "#050b10",
-          font: { color: "#e0e6ee" }
-        };
-
-        return { data: [trace], layout };
+        textBg.push(rowText);
       }
 
-      // -------------- CURRENTS: arrows over ADT --------------
-      if (varKey === "uv") {
-        // Need at least speed; ideally adt for background
-        if (!zSpeed && !zAdt) {
-          throw new Error("No speed or adt field found for currents");
-        }
+      const bgHeat = {
+        type: "heatmap",
+        x: xAxis,
+        y: yAxis,
+        z: zBg,
+        text: textBg,
+        hovertemplate: "%{text}<extra></extra>",
+        zauto: false,
+        zmin: cfgBg.zmin,
+        zmax: cfgBg.zmax,
+        colorscale: bgColorscale,
+        reversescale: bgReverse,
+        colorbar: { title: bgUnit },
+        zsmooth: false
+      };
 
-        // Reshape if 1-D
-        const reshapeIfNeeded = (arr) => {
-          if (!Array.isArray(arr[0])) {
-            const flat = arr;
-            const reshaped = [];
-            let idx = 0;
-            for (let j = 0; j < ny; j++) {
-              const row = [];
-              for (let i = 0; i < nx; i++) {
-                row.push(flat[idx++]);
-              }
-              reshaped.push(row);
-            }
-            return reshaped;
-          }
-          return arr;
-        };
+      // Arrows: direction + speed
+      const u = d.u;
+      const v = d.v;
+      const arrowX = [];
+      const arrowY = [];
+      const arrowText = [];
 
-        if (zSpeed) zSpeed = reshapeIfNeeded(zSpeed);
-        if (zAdt)   zAdt   = reshapeIfNeeded(zAdt);
+      if (u && v && zSpeed) {
+        let step = 1;
+        if (nx * ny > 50 * 50) step = 2;   // subsample dense grid
 
-        const d = dataObj.data || dataObj;
-        const u = d.u;
-        const v = d.v;
-
-        // Background: ADT if available; else fallback to speed
-        let zBg = zAdt || zSpeed;
-        const cfgBg = zAdt ? COLOR_CONFIG.adt : COLOR_CONFIG.uv;
-        const bgUnit = zAdt ? "m" : "m s⁻¹";
-        const bgColorscale = zAdt ? "RdBu" : "Viridis";
-        const bgReverse = !!zAdt;
-
-        // Hover for background: lon, lat, value
-        const textBg = [];
-        for (let j = 0; j < ny; j++) {
-          const rowText = [];
+        for (let j = 0; j < ny; j += step) {
           const latVal = yAxis[j];
-          for (let i = 0; i < nx; i++) {
+          for (let i = 0; i < nx; i += step) {
             const lonVal = xAxis[i];
-            const val = zBg[j][i];
-            const numVal =
-              val === null || val === undefined || !isFinite(val)
-                ? null
-                : Number(val);
-            if (numVal === null) {
-              rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
-            } else {
-              rowText.push(
-                `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
-              );
+            const uu = u[j][i];
+            const vv = v[j][i];
+            const sp = zSpeed[j][i];
+
+            if (
+              uu === null || uu === undefined || !isFinite(uu) ||
+              vv === null || vv === undefined || !isFinite(vv) ||
+              sp === null || sp === undefined || !isFinite(sp)
+            ) {
+              continue;
             }
-          }
-          textBg.push(rowText);
-        }
 
-        const bgHeat = {
-          type: "heatmap",
-          x: xAxis,
-          y: yAxis,
-          z: zBg,
-          text: textBg,
-          hovertemplate: "%{text}<extra></extra>",
-          zauto: false,
-          zmin: cfgBg.zmin,
-          zmax: cfgBg.zmax,
-          colorscale: bgColorscale,
-          reversescale: bgReverse,
-          colorbar: { title: zAdt ? "ADT (m)" : "Speed (m s⁻¹)" },
-          zsmooth: false
-        };
+            const scale = 0.2; // tweak vector length
+            const x1 = lonVal + uu * scale;
+            const y1 = latVal + vv * scale;
 
-        // Arrows: direction + speed, overlaid on same axes
-        const arrowX = [];
-        const arrowY = [];
-        const arrowText = [];
+            arrowX.push(lonVal, x1, null);
+            arrowY.push(latVal, y1, null);
 
-        if (u && v && zSpeed) {
-          let step = 1;
-          if (nx * ny > 50 * 50) step = 2;   // subsample for dense grids
-
-          for (let j = 0; j < ny; j += step) {
-            const latVal = yAxis[j];
-            for (let i = 0; i < nx; i += step) {
-              const lonVal = xAxis[i];
-              const uu = u[j][i];
-              const vv = v[j][i];
-              const sp = zSpeed[j][i];
-
-              if (
-                uu === null || uu === undefined || !isFinite(uu) ||
-                vv === null || vv === undefined || !isFinite(vv) ||
-                sp === null || sp === undefined || !isFinite(sp)
-              ) {
-                continue;
-              }
-
-              // length scaled by speed; tweak factor as needed
-              const scale = 0.2;
-              const x1 = lonVal + uu * scale;
-              const y1 = latVal + vv * scale;
-
-              arrowX.push(lonVal, x1, null);
-              arrowY.push(latVal, y1, null);
-
-              const txt = `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${sp.toFixed(3)}`;
-              arrowText.push(txt, txt, "");
-            }
+            const txt = `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${sp.toFixed(3)}`;
+            arrowText.push(txt, txt, "");
           }
         }
-
-        const arrows = {
-          type: "scatter",
-          mode: "lines",
-          x: arrowX,
-          y: arrowY,
-          text: arrowText,
-          hovertemplate: "%{text}<extra></extra>",
-          line: { color: "#000000", width: 1.0 },
-          showlegend: false
-        };
-
-        const layout = {
-          title: frameTitleFromMeta(varKey, frameMeta),
-          xaxis: {
-            title: "Longitude",
-            domain: [0.0, 1.0],
-            automargin: true
-          },
-          yaxis: {
-            title: "Latitude",
-            domain: [0.0, 1.0],
-            automargin: true,
-            scaleanchor: "x",
-            scaleratio: 1
-          },
-          margin: { l: 70, r: 10, t: 40, b: 60 },
-          paper_bgcolor: "#050b10",
-          plot_bgcolor: "#050b10",
-          font: { color: "#e0e6ee" }
-        };
-
-        return { data: [bgHeat, arrows], layout };
       }
 
-      throw new Error(`Unsupported varKey=${varKey}`);
+      const arrows = {
+        type: "scatter",
+        mode: "lines",
+        x: arrowX,
+        y: arrowY,
+        text: arrowText,
+        hovertemplate: "%{text}<extra></extra>",
+        line: { color: "#000000", width: 1.0 },
+        showlegend: false
+      };
+
+      const layout = {
+        title: frameTitleFromMeta(varKey, frameMeta),
+        xaxis: {
+          title: "Longitude",
+          domain: [0.0, 1.0],
+          automargin: true
+        },
+        yaxis: {
+          title: "Latitude",
+          domain: [0.0, 1.0],
+          automargin: true,
+          scaleanchor: "x",
+          scaleratio: 1
+        },
+        margin: { l: 70, r: 10, t: 40, b: 60 },
+        paper_bgcolor: "#050b10",
+        plot_bgcolor: "#050b10",
+        font: { color: "#e0e6ee" }
+      };
+
+      return { data: [bgHeat, arrows], layout };
     }
 
+    throw new Error(`Unsupported varKey=${varKey}`);
+  }
 
-    // ---------------------- UI / PLAYER ----------------------
+  // ---------- UI / PLAYER ----------
+  function updateSliderUI() {
+    const frames = framesByVar[currentVar] || [];
+    const n = frames.length;
 
-    function updateSliderUI() {
-      const frames = framesByVar[currentVar] || [];
-      const n = frames.length;
+    slider.min = 0;
+    slider.max = Math.max(0, n - 1);
+    slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
 
-      slider.min = 0;
-      slider.max = Math.max(0, n - 1);
-      slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
+    prevBtn.disabled = n <= 1;
+    nextBtn.disabled = n <= 1;
+    playBtn.disabled = n <= 1;
 
-      prevBtn.disabled = (n <= 1);
-      nextBtn.disabled = (n <= 1);
-      playBtn.disabled = (n <= 1);
+    if (!n) {
+      frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: no frames`;
+    } else {
+      const fm = frames[currentFrameIdx];
+      const label = fm.label || fm.time_iso || fm.timestamp || `${currentFrameIdx + 1}/${n}`;
+      frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: ${label}`;
+    }
+  }
 
-      if (!n) {
-        frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: no frames`;
-      } else {
-        const meta = frames[currentFrameIdx];
-        const label = meta.label || meta.timestamp || `${currentFrameIdx + 1}/${n}`;
-        frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: ${label}`;
+  async function setCurrentVar(v) {
+    currentVar = v;
+    const frames = framesByVar[currentVar] || [];
+    if (currentFrameIdx >= frames.length) currentFrameIdx = 0;
+    varSelect.value = v;
+    updateSliderUI();
+    if (frames.length) {
+      await showFrame();
+    } else {
+      Plotly.purge(plotDiv);
+    }
+  }
+
+  function stepFrame(delta) {
+    const frames = framesByVar[currentVar] || [];
+    const n = frames.length;
+    if (!n) return;
+    currentFrameIdx = (currentFrameIdx + delta + n) % n;
+    slider.value = currentFrameIdx;
+    showFrame();
+  }
+
+  function setPlaying(on) {
+    if (on === playing) return;
+    playing = on;
+    playBtn.textContent = playing ? "Pause" : "Play";
+    if (playing) {
+      if (playTimer) clearInterval(playTimer);
+      playTimer = setInterval(() => stepFrame(+1), 800);
+    } else {
+      if (playTimer) {
+        clearInterval(playTimer);
+        playTimer = null;
       }
     }
+  }
 
-    async function setCurrentVar(v) {
-      currentVar = v;
-      // Reset frame index if this var has fewer frames
-      const frames = framesByVar[currentVar] || [];
-      if (currentFrameIdx >= frames.length) currentFrameIdx = 0;
+  async function showFrame() {
+    const frames = framesByVar[currentVar] || [];
+    const n = frames.length;
+    if (!n) return;
+    const frameMeta = frames[currentFrameIdx];
+
+    try {
+      const [gridInfo, dataObj] = await Promise.all([
+        loadGridForVar(currentVar),
+        fetchFrameData(currentVar, frameMeta)
+      ]);
+      const fig = buildFigureForVar(currentVar, gridInfo, dataObj, frameMeta);
+      await Plotly.react(plotDiv, fig.data, fig.layout, { responsive: true });
       updateSliderUI();
-      if (frames.length) {
-        await showFrame();
-      } else {
-        // Clear plot if no frames
-        Plotly.purge(plotDiv);
-      }
+    } catch (err) {
+      console.error("Error showing frame:", err);
     }
+  }
 
-    function stepFrame(delta) {
-      const frames = framesByVar[currentVar] || [];
-      const n = frames.length;
-      if (!n) return;
-      currentFrameIdx = (currentFrameIdx + delta + n) % n;
-      slider.value = currentFrameIdx;
-      showFrame();
+  // ---------- EVENT HOOKS ----------
+  varSelect.addEventListener("change", () => {
+    setPlaying(false);
+    setCurrentVar(varSelect.value);
+  });
+
+  slider.addEventListener("input", () => {
+    currentFrameIdx = Number(slider.value) || 0;
+    showFrame();
+  });
+
+  playBtn.addEventListener("click", () => {
+    setPlaying(!playing);
+  });
+
+  prevBtn.addEventListener("click", () => {
+    setPlaying(false);
+    stepFrame(-1);
+  });
+
+  nextBtn.addEventListener("click", () => {
+    setPlaying(false);
+    stepFrame(+1);
+  });
+
+  // ---------- INIT ----------
+  (async function init() {
+    try {
+      await loadIndex();
+    } catch (e) {
+      console.error("Failed to init viewer:", e);
     }
+  })();
+</script>
 
-    function setPlaying(on) {
-      if (on === playing) return;
-      playing = on;
-      playBtn.textContent = playing ? "Pause" : "Play";
-
-      if (playing) {
-        if (playTimer) clearInterval(playTimer);
-        playTimer = setInterval(() => {
-          stepFrame(+1);
-        }, 800);  // 0.8 s per frame
-      } else {
-        if (playTimer) {
-          clearInterval(playTimer);
-          playTimer = null;
-        }
-      }
-    }
-
-    async function showFrame() {
-      const frames = framesByVar[currentVar] || [];
-      const n = frames.length;
-      if (!n) return;
-
-      const frameMeta = frames[currentFrameIdx];
-
-      try {
-        const [gridInfo, dataObj] = await Promise.all([
-          loadGridForVar(currentVar),
-          fetchFrameData(currentVar, frameMeta)
-        ]);
-
-        const fig = buildFigureForVar(currentVar, gridInfo, dataObj, frameMeta);
-        await Plotly.react(plotDiv, fig.data, fig.layout, { responsive: true });
-
-        updateSliderUI();
-      } catch (err) {
-        console.error("Error showing frame:", err);
-      }
-    }
-
-    // ---------------------- EVENT HOOKS ----------------------
-
-    varSelect.addEventListener("change", () => {
-      setCurrentVar(varSelect.value);
-    });
-
-    slider.addEventListener("input", () => {
-      currentFrameIdx = Number(slider.value) || 0;
-      showFrame();
-    });
-
-    playBtn.addEventListener("click", () => {
-      setPlaying(!playing);
-    });
-
-    prevBtn.addEventListener("click", () => {
-      setPlaying(false);
-      stepFrame(-1);
-    });
-
-    nextBtn.addEventListener("click", () => {
-      setPlaying(false);
-      stepFrame(+1);
-    });
-
-    // ---------------------- INIT ----------------------
-    (async function init() {
-      try {
-        await loadIndex();
-        // Ensure dropdown matches currentVar
-        varSelect.value = currentVar;
-      } catch (e) {
-        console.error("Failed to initialize viewer:", e);
-      }
-    })();
-  </script>
 </body>
 </html>
 
