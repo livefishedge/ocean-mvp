@@ -1,754 +1,838 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>LiveFish Edge – mbh</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LiveFish Edge</title>
+  <link rel="icon" href="data:,">
+
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+
   <style>
-    body {
+    :root {
+      /* JS will overwrite this to sit just below the sticky controls bar */
+      --floating-top: 64px;
+    }
+
+    html, body {
+      height: 100%;
       margin: 0;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #050b10;
       color: #e0e6ee;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      overflow: auto;
     }
-    header {
-      padding: 8px 14px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      border-bottom: 1px solid #1b2836;
-      background: #050b10;
-    }
-    header h1 {
-      font-size: 16px;
-      margin: 0;
-      font-weight: 500;
-    }
-    header .region {
-      font-size: 12px;
-      opacity: 0.8;
-    }
+
     #controls {
-      padding: 8px 14px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
       display: flex;
-      flex-wrap: wrap;
+      gap: 12px;
       align-items: center;
-      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(5, 11, 16, 0.92);
       border-bottom: 1px solid #1b2836;
-      background: #070d14;
-      font-size: 13px;
+      backdrop-filter: blur(6px);
     }
-    label {
-      display: inline-flex;
+
+    #var-select {
+      background: #0c1723;
+      color: #e0e6ee;
+      border: 1px solid #273649;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    #timeline {
+      flex: 1;
+      display: flex;
+      gap: 8px;
       align-items: center;
-      gap: 4px;
+      min-width: 360px;
     }
-    select,
+
     button {
       background: #0c1723;
       color: #e0e6ee;
       border: 1px solid #273649;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-size: 13px;
-    }
-    button {
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 14px;
       cursor: pointer;
     }
-    button:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-    #timeline {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 200px;
-    }
-    #frame-slider {
-      flex: 1;
-      accent-color: #2fb3ff;
-    }
+    button:disabled { opacity: 0.45; cursor: default; }
+
+    #frame-slider { flex: 1; }
+
     #frame-label {
-      min-width: 180px;
+      min-width: 190px;
       text-align: right;
+      font-size: 18px;
+      font-weight: 650;
       font-variant-numeric: tabular-nums;
+      white-space: nowrap;
     }
+
+    #plot-wrap {
+      position: relative;
+      width: 100%;
+      overflow: auto;
+    }
+
     #plot {
-      flex: 1;
-      min-height: 0;
+      width: 100%;
+      height: calc(100vh - 56px - 56px);
+      min-height: 860px;
+    }
+
+    #ranges {
+      position: sticky;
+      bottom: 0;
+      z-index: 40;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(5, 11, 16, 0.92);
+      border-top: 1px solid #1b2836;
+      backdrop-filter: blur(6px);
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    .range-block {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 6px 8px;
+      border: 1px solid #1b2836;
+      border-radius: 8px;
+      background: rgba(12, 23, 35, 0.65);
+    }
+
+    .range-block .name {
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    input[type="number"] {
+      width: 92px;
+      background: #0c1723;
+      color: #e0e6ee;
+      border: 1px solid #273649;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 13px;
+    }
+
+    /* Cursor info FLOATING (fixed), upper-right, avoid colorbar */
+    #readout {
+      position: fixed;
+      top: var(--floating-top);
+      right: 110px;
+      z-index: 90;
+      padding: 6px 8px;
+      background: rgba(255,255,255,0.55);
+      color: #000;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 8px;
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+      white-space: nowrap;
+      min-width: 170px;
+      text-align: right;
+    }
+
+    /* Modebar FLOATING (fixed) in upper-left */
+    #plot .modebar {
+      position: fixed !important;
+      top: var(--floating-top) !important;
+      left: 8px !important;
+      right: auto !important;
+      z-index: 95 !important;
     }
   </style>
 </head>
-<body>
-  <header>
-    <h1>LiveFish Edge</h1>
-    <span class="region">Region: mbh</span>
-  </header>
 
+<body>
   <div id="controls">
-    <label>
-      Variable:
-      <select id="var-select">
-        <option value="chl">Chlorophyll</option>
-        <option value="sst">SST</option>
-        <option value="uv">Currents</option>
-      </select>
-    </label>
+    <select id="var-select">
+      <option value="chl">Chlorophyll</option>
+      <option value="sst">Temperature</option>
+      <option value="uv">Currents</option>
+    </select>
 
     <div id="timeline">
       <button id="prev-btn">&#9664;</button>
       <button id="play-btn">Play</button>
       <button id="next-btn">&#9654;</button>
       <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
-      <span id="frame-label">No frames</span>
+      <span id="frame-label"></span>
     </div>
   </div>
 
-  <div id="plot"></div>
+  <div id="plot-wrap">
+    <div id="readout"></div>
+    <div id="plot"></div>
+  </div>
 
-  <script>
-  const REGION_ID = "mbh";
+  <div id="ranges">
+    <div class="range-block">
+      <span class="name" id="range-title">Range</span>
+      <span>vmin</span><input id="vmin-input" type="number" step="any" />
+      <span>vmax</span><input id="vmax-input" type="number" step="any" />
+      <button id="apply-range">Apply</button>
+      <button id="reset-range">Reset</button>
+    </div>
+  </div>
 
-  // Human readable labels
-  const VAR_LABELS = {
-    chl: "Chlorophyll",
-    sst: "SST",
-    uv:  "Currents"
+<script>
+/* ========================= CONFIG ========================= */
+const REGION_ID = "mbh";
+
+const VAR_LABELS = { chl: "Chlorophyll", sst: "Temperature", uv: "Currents" };
+
+const VAR_TO_GRID = {
+  chl: "viirs_chl_750_grid.json",
+  sst: "goes_sst_1000_grid.json",
+  uv:  "uv_12500_grid.json"
+};
+
+const INDEX_CANDIDATES = [
+  "index.json",
+  "data/index.json",
+  `data/${REGION_ID}/index.json`
+];
+
+const DEFAULT_RANGES = {
+  chl: { vmin: 0.01, vmax: 10.0, unit: "mg/m³" },
+  sst: { vmin: 23.0, vmax: 28.0, unit: "°C" },
+  uv:  { vmin: 0.0,  vmax: 2.0,  unit: "m/s" }
+};
+
+let userRanges = {
+  chl: { ...DEFAULT_RANGES.chl },
+  sst: { ...DEFAULT_RANGES.sst },
+  uv:  { ...DEFAULT_RANGES.uv }
+};
+
+const CHL_ALGAE = [
+  [0.00, "#081d38"],
+  [0.10, "#1d4f91"],
+  [0.22, "#00a6ca"],
+  [0.36, "#00d17f"],
+  [0.52, "#a3f700"],
+  [0.70, "#ffe600"],
+  [0.86, "#ff7a00"],
+  [1.00, "#b30000"]
+];
+
+const CHL_TICKS_LINEAR = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
+const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
+const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10) ? String(v) : "");
+
+/* Currents arrow styling (VISIBLE heads) */
+const CURRENT_ARROW_STEP_MAXPTS = 50 * 50;
+const CURRENT_ARROW_SCALE = 1;
+const CURRENT_HEAD_SIZE = 0.2;
+const CURRENT_LINE_W = 1;
+
+/* ========================= STATE ========================= */
+let framesByVar = { chl: [], sst: [], uv: [] };
+let frameTimesByVar = { chl: [], sst: [], uv: [] }; // epoch ms for closest-time match
+let currentVar = "chl";
+let currentFrameIdx = 0;
+let playing = false;
+let playTimer = null;
+
+const gridCache = {};
+let _readoutHooked = false;
+
+let viewState = { hasRange:false, xRange:null, yRange:null, autorange:true };
+
+/* ========================= DOM ========================= */
+const plotDiv   = document.getElementById("plot");
+const varSelect = document.getElementById("var-select");
+const slider    = document.getElementById("frame-slider");
+const frameLbl  = document.getElementById("frame-label");
+const playBtn   = document.getElementById("play-btn");
+const prevBtn   = document.getElementById("prev-btn");
+const nextBtn   = document.getElementById("next-btn");
+const readoutDiv = document.getElementById("readout");
+
+const rangeTitle = document.getElementById("range-title");
+const vminInput = document.getElementById("vmin-input");
+const vmaxInput = document.getElementById("vmax-input");
+const applyBtn = document.getElementById("apply-range");
+const resetBtn = document.getElementById("reset-range");
+
+function setReadout(txt) { readoutDiv.textContent = txt || ""; }
+
+/* ========================= FLOATING UI ========================= */
+/* Keeps modebar + readout visible when scrolling; positions them below sticky controls. */
+function refreshFloatingTop() {
+  const controls = document.getElementById("controls");
+  if (!controls) return;
+  const r = controls.getBoundingClientRect();
+  const topPx = Math.max(0, Math.round(r.bottom + 8));
+  document.documentElement.style.setProperty("--floating-top", `${topPx}px`);
+}
+window.addEventListener("scroll", refreshFloatingTop, { passive: true });
+window.addEventListener("resize", refreshFloatingTop);
+document.addEventListener("DOMContentLoaded", refreshFloatingTop);
+
+/* ========================= TIME PARSERS ========================= */
+function parseChlUtcFromName(filename) {
+  const m = filename.match(/_(\d{4})(\d{3})\.(\d{4})_/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const jjj  = Number(m[2]);
+  const hhmm = m[3];
+  const hh = Number(hhmm.slice(0, 2));
+  const mm = Number(hhmm.slice(2, 4));
+  const d0 = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+  return new Date(d0.getTime() + (jjj - 1) * 86400e3 + hh * 3600e3 + mm * 60e3);
+}
+function parseSstUtcFromName(filename) {
+  const m = filename.match(/sst_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const jjj  = Number(m[2]);
+  const hh   = Number(m[4]);
+  const d0 = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+  return new Date(d0.getTime() + (jjj - 1) * 86400e3 + hh * 3600e3);
+}
+function parseUvDateFromName(filename) {
+  const m = filename.match(/_(\d{8})_/);
+  if (!m) return null;
+  const y = Number(m[1].slice(0, 4));
+  const mo = Number(m[1].slice(4, 6)) - 1;
+  const d = Number(m[1].slice(6, 8));
+  return new Date(Date.UTC(y, mo, d));
+}
+function fmtLocalDateTime(dt) {
+  return dt.toLocaleString(undefined, {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+    hour12: false
+  });
+}
+function fmtLocalDateOnly(dt) {
+  return dt.toLocaleDateString(undefined, {
+    year: "numeric", month: "2-digit", day: "2-digit"
+  });
+}
+
+function epochMsForFrame(varKey, f) {
+  const fn = frameFilenameOf(f);
+  if (varKey === "chl") {
+    const d = parseChlUtcFromName(fn);
+    return d ? d.getTime() : null;
+  }
+  if (varKey === "sst") {
+    const d = parseSstUtcFromName(fn);
+    return d ? d.getTime() : null;
+  }
+  if (varKey === "uv") {
+    const d = parseUvDateFromName(fn);
+    return d ? d.getTime() : null;
+  }
+  return null;
+}
+function timeOnlyLabel(varKey, f) {
+  const fn = frameFilenameOf(f);
+  const d = (varKey==="chl") ? parseChlUtcFromName(fn)
+          : (varKey==="sst") ? parseSstUtcFromName(fn)
+          : parseUvDateFromName(fn);
+  if (!d) return "";
+  return (varKey==="uv") ? fmtLocalDateOnly(d) : fmtLocalDateTime(d);
+}
+
+/* ========================= HELPERS ========================= */
+function isArray(a){ return Array.isArray(a); }
+function is2D(a){ return isArray(a) && a.length > 0 && Array.isArray(a[0]) && a[0].length > 0; }
+function framePathOf(f) { return String(f?.json_path || f?.path || f?.file || f?.url || f?.json || ""); }
+function frameFilenameOf(f) { const p = framePathOf(f); return p.split("/").pop() || p; }
+function filterFramesForVar(varKey, frames) {
+  const out = [];
+  for (const f of (frames || [])) {
+    const fn = frameFilenameOf(f).toLowerCase();
+    if (!fn.endsWith(".json")) continue;
+    if (fn.includes("grid")) continue;
+    if (varKey === "chl" && !fn.includes("_chl")) continue;
+    if (varKey === "sst" && !fn.includes("sst_")) continue;
+    if (varKey === "uv"  && !fn.includes("uv_")) continue;
+    out.push(f);
+  }
+  return out;
+}
+function closestIndex(sortedEpochs, targetEpoch) {
+  if (!sortedEpochs || !sortedEpochs.length) return 0;
+  let lo = 0, hi = sortedEpochs.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (sortedEpochs[mid] < targetEpoch) lo = mid + 1;
+    else hi = mid;
+  }
+  const i = lo;
+  if (i <= 0) return 0;
+  if (i >= sortedEpochs.length) return sortedEpochs.length - 1;
+  const a = sortedEpochs[i - 1], b = sortedEpochs[i];
+  return (Math.abs(a - targetEpoch) <= Math.abs(b - targetEpoch)) ? (i - 1) : i;
+}
+
+/* ========================= STABLE LAYOUT ========================= */
+function stableLayout() {
+  const layout = {
+    uirevision: "sync_fov_v3",
+    margin: { l: 52, r: 92, t: 10, b: 40 },
+    paper_bgcolor: "#050b10",
+    plot_bgcolor: "#050b10",
+    font: { color: "#e0e6ee" },
+    xaxis: { title: "Longitude", automargin: true },
+    yaxis: { title: "Latitude", automargin: true, scaleanchor: "x", scaleratio: 1 },
+    hovermode: "closest",
   };
 
-  // Grid JSON filenames (lat/lon axes)
-  const VAR_TO_GRID = {
-    chl: "viirs_chl_750_grid.json",
-    sst: "goes_sst_1000_grid.json",
-    uv:  "uv_12500_grid.json"
-  };
+  if (viewState.hasRange && viewState.xRange && viewState.yRange) {
+    layout.xaxis.range = viewState.xRange;
+    layout.yaxis.range = viewState.yRange;
+    layout.xaxis.autorange = false;
+    layout.yaxis.autorange = false;
+  } else {
+    layout.xaxis.autorange = true;
+    layout.yaxis.autorange = true;
+  }
+  return layout;
+}
 
-  // Fixed color ranges (log10 for chl)
-  const COLOR_CONFIG = {
-    chl: { zmin: -2.0, zmax: 1.0 },    // log10(0.01)–log10(10)
-    sst: { zmin: 18.0, zmax: 32.0 },   // tweak to match your PNGs
-    uv:  { zmin: 0.0,  zmax: 1.5 },    // speed (m/s) if used as heatmap
-    adt: { zmin: -0.5, zmax: 0.5 }     // SSH (m), tweak if needed
-  };
+/* ========================= FIGURES ========================= */
+function buildChl(gridInfo, dataObj) {
+  const { xAxis, yAxis, nx, ny } = gridInfo;
+  if (!is2D(dataObj.chl)) throw new Error("CHL JSON missing 2-D key: chl");
 
-  // Approximate gist_rainbow
-  const GIST_RAINBOW = [
-    [0.00, "#000000"],
-    [0.10, "#0000ff"],
-    [0.25, "#00ffff"],
-    [0.40, "#00ff00"],
-    [0.55, "#ffff00"],
-    [0.70, "#ff7f00"],
-    [0.85, "#ff0000"],
-    [1.00, "#ffffff"]
-  ];
+  const vmin = userRanges.chl.vmin;
+  const vmax = userRanges.chl.vmax;
+  const zmin = Math.log10(vmin);
+  const zmax = Math.log10(vmax);
 
-  // ---------- STATE ----------
-  let indexData = null;
-  let framesByVar = { chl: [], sst: [], uv: [] };
+  const z = Array.from({ length: ny }, () => Array(nx).fill(null));
+  const cd = Array.from({ length: ny }, () => Array(nx).fill(null));
 
-  let currentVar = "chl";
-  let currentFrameIdx = 0;
-  let playing = false;
-  let playTimer = null;
-
-  // var -> { xAxis, yAxis, nx, ny }
-  const gridCache = {};
-
-  const plotDiv   = document.getElementById("plot");
-  const varSelect = document.getElementById("var-select");
-  const slider    = document.getElementById("frame-slider");
-  const frameLbl  = document.getElementById("frame-label");
-  const playBtn   = document.getElementById("play-btn");
-  const prevBtn   = document.getElementById("prev-btn");
-  const nextBtn   = document.getElementById("next-btn");
-
-  // ---------- UTILITIES ----------
-  function is2DArray(a) {
-    return Array.isArray(a) &&
-           a.length > 0 &&
-           Array.isArray(a[0]) &&
-           a[0].length > 0;
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const vv = dataObj.chl[j][i];
+      const num = (vv === null || vv === undefined || !isFinite(vv)) ? null : Number(vv);
+      cd[j][i] = num;
+      z[j][i] = (num !== null && num > 0) ? Math.log10(num) : null;
+    }
   }
 
-  // DFS search for the first 2-D array anywhere inside an object
-  function findFirst2DArray(obj) {
-    const stack = [obj];
-    const seen = new Set();
-    while (stack.length) {
-      const cur = stack.pop();
-      if (!cur || typeof cur !== "object") continue;
-      if (seen.has(cur)) continue;
-      seen.add(cur);
-      for (const v of Object.values(cur)) {
-        if (is2DArray(v)) return v;
-        if (v && typeof v === "object") stack.push(v);
-      }
+  return {
+    data: [{
+      type: "heatmap",
+      x: xAxis, y: yAxis,
+      z,
+      customdata: cd,
+      hoverinfo: "none",
+      zauto: false,
+      zmin, zmax,
+      colorscale: CHL_ALGAE,
+      colorbar: {
+        title: { text: DEFAULT_RANGES.chl.unit, side: "top" },
+        x: 1.02, xanchor: "left", len: 0.92,
+        tickmode: "array",
+        tickvals: CHL_TICKVALS,
+        ticktext: CHL_TICKTEXT,
+        ticks: "outside"
+      },
+      zsmooth: false
+    }],
+    layout: stableLayout()
+  };
+}
+
+function buildSst(gridInfo, dataObj) {
+  const { xAxis, yAxis } = gridInfo;
+  if (!is2D(dataObj.sst)) throw new Error("SST JSON missing 2-D key: sst");
+
+  const vmin = userRanges.sst.vmin;
+  const vmax = userRanges.sst.vmax;
+
+  return {
+    data: [{
+      type: "heatmap",
+      x: xAxis, y: yAxis,
+      z: dataObj.sst,
+      customdata: dataObj.sst,
+      hoverinfo: "none",
+      zauto: false,
+      zmin: vmin, zmax: vmax,
+      colorscale: "RdBu",
+      reversescale: false,
+      colorbar: { title: { text: DEFAULT_RANGES.sst.unit, side: "top" }, x: 1.02, xanchor: "left", len: 0.92 },
+      zsmooth: false
+    }],
+    layout: stableLayout()
+  };
+}
+
+function buildUv(gridInfo, dataObj) {
+  const { xAxis, yAxis, nx, ny } = gridInfo;
+
+  // placeholder background = speed
+  const speed = dataObj.speed || dataObj.data?.speed;
+  const u = dataObj.u || dataObj.data?.u;
+  const v = dataObj.v || dataObj.data?.v;
+
+  if (!is2D(speed)) throw new Error("UV JSON missing 2-D key: speed");
+  if (!is2D(u) || !is2D(v)) throw new Error("UV JSON missing u/v arrays");
+
+  const vmin = userRanges.uv.vmin;
+  const vmax = userRanges.uv.vmax;
+
+  const bg = {
+    type: "heatmap",
+    x: xAxis, y: yAxis,
+    z: speed,
+    customdata: speed,
+    hoverinfo: "none",
+    zauto: false,
+    zmin: vmin, zmax: vmax,
+    colorscale: "Viridis",
+    colorbar: { title: { text: DEFAULT_RANGES.uv.unit, side: "top" }, x: 1.02, xanchor: "left", len: 0.92 },
+    zsmooth: false
+  };
+
+  // downsample arrows
+  const total = nx * ny;
+  const step = Math.max(1, Math.ceil(Math.sqrt(total / CURRENT_ARROW_STEP_MAXPTS)));
+
+  const lineX = [];
+  const lineY = [];
+
+  // Use grid spacing to set a visible minimum head length in *axis units*
+  let dxg = 0.01, dyg = 0.01;
+  if (nx > 1) dxg = Math.abs(xAxis[1] - xAxis[0]);
+  if (ny > 1) dyg = Math.abs(yAxis[1] - yAxis[0]);
+  const minHead = 0.5 * Math.max(dxg, dyg);
+  const headFrac = 0.35;
+  const headAngleDeg = 10;
+  const headAngle = headAngleDeg * Math.PI / 180;
+
+  for (let j = 0; j < ny; j += step) {
+    const lat0 = yAxis[j];
+    for (let i = 0; i < nx; i += step) {
+      const lon0 = xAxis[i];
+      const uu = u[j][i];
+      const vv = v[j][i];
+      const sp = speed[j][i];
+      if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp)) continue;
+
+      const lon1 = lon0 + uu * CURRENT_ARROW_SCALE;
+      const lat1 = lat0 + vv * CURRENT_ARROW_SCALE;
+
+      const dx = lon1 - lon0;
+      const dy = lat1 - lat0;
+      const L = Math.hypot(dx, dy);
+      if (!(L > 0)) continue;
+
+      // Shaft
+      lineX.push(lon0, lon1, null);
+      lineY.push(lat0, lat1, null);
+
+      // Open "V" head
+      const theta = Math.atan2(dy, dx);
+      const hl = Math.max(minHead, headFrac * L);
+
+      const xL = lon1 + hl * Math.cos(theta + Math.PI - headAngle);
+      const yL = lat1 + hl * Math.sin(theta + Math.PI - headAngle);
+
+      const xR = lon1 + hl * Math.cos(theta + Math.PI + headAngle);
+      const yR = lat1 + hl * Math.sin(theta + Math.PI + headAngle);
+
+      lineX.push(lon1, xL, null, lon1, xR, null);
+      lineY.push(lat1, yL, null, lat1, yR, null);
     }
-    return null;
   }
 
-  // ---------- INDEX LOADING ----------
-  const INDEX_CANDIDATES = [
-    "index.json",
-    "data/index.json",
-    `data/${REGION_ID}/index.json`
-  ];
+  const arrows = {
+    type: "scatter",
+    mode: "lines",
+    x: lineX, y: lineY,
+    hoverinfo: "none",
+    line: { color: "#000000", width: 1.4 },
+    showlegend: false
+  };
 
-  async function loadIndex() {
-    let idx = null;
-    let usedUrl = null;
+  return { data: [bg, arrows], layout: stableLayout() };
+}
 
-    for (const url of INDEX_CANDIDATES) {
-      try {
-        const res = await fetch(url);
-        if (res.ok) {
-          idx = await res.json();
-          usedUrl = url;
-          break;
-        }
-      } catch (e) {
-        // try next
-      }
-    }
+function buildForVar(varKey, gridInfo, dataObj) {
+  if (varKey === "chl") return buildChl(gridInfo, dataObj);
+  if (varKey === "sst") return buildSst(gridInfo, dataObj);
+  if (varKey === "uv")  return buildUv(gridInfo, dataObj);
+  throw new Error(`Unsupported varKey=${varKey}`);
+}
 
-    if (!idx) {
-      console.error("Failed to load index.json from any of:", INDEX_CANDIDATES);
+/* ========================= READOUT ========================= */
+function setupReadoutHandlersOnce() {
+  if (_readoutHooked) return;
+  _readoutHooked = true;
+
+  plotDiv.on("plotly_unhover", () => setReadout(""));
+
+  plotDiv.on("plotly_hover", (ev) => {
+    const p = ev.points && ev.points[0];
+    if (!p) return;
+    const lon = Number(p.x);
+    const lat = Number(p.y);
+    if (!isFinite(lon) || !isFinite(lat)) return;
+
+    const base = `${lon.toFixed(3)} ${lat.toFixed(3)}`;
+    const cd = p.customdata;
+
+    if (cd === null || cd === undefined || !isFinite(cd)) { setReadout(base); return; }
+
+    const val = Number(cd);
+    if (currentVar === "sst") setReadout(`${base} ${val.toFixed(2)}`);
+    else setReadout(`${base} ${val.toFixed(3)}`);
+  });
+}
+
+/* ========================= UI ========================= */
+function syncRangeInputsToVar() {
+  const r = userRanges[currentVar];
+  rangeTitle.textContent = `${VAR_LABELS[currentVar]} range`;
+  vminInput.value = r.vmin;
+  vmaxInput.value = r.vmax;
+}
+
+function updateSliderUI() {
+  const frames = framesByVar[currentVar] || [];
+  const n = frames.length;
+
+  slider.min = 0;
+  slider.max = Math.max(0, n - 1);
+  slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
+
+  prevBtn.disabled = n <= 1;
+  nextBtn.disabled = n <= 1;
+  playBtn.disabled = n <= 1;
+
+  frameLbl.textContent = n ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
+}
+
+/* ========================= VIEW SYNC ========================= */
+let _relayoutHooked = false;
+function attachRelayoutListenerOnce() {
+  if (_relayoutHooked) return;
+  _relayoutHooked = true;
+
+  plotDiv.on("plotly_relayout", (ev) => {
+    if (!ev) return;
+    const xr0 = ev["xaxis.range[0]"], xr1 = ev["xaxis.range[1]"];
+    const yr0 = ev["yaxis.range[0]"], yr1 = ev["yaxis.range[1]"];
+    if (xr0 !== undefined && xr1 !== undefined && yr0 !== undefined && yr1 !== undefined) {
+      viewState.hasRange = true;
+      viewState.autorange = false;
+      viewState.xRange = [xr0, xr1];
+      viewState.yRange = [yr0, yr1];
       return;
     }
-    console.log("Loaded index.json from", usedUrl);
-    indexData = idx;
-
-    framesByVar = idx.frames || idx.framesByVar || framesByVar;
-
-    for (const v of Object.keys(framesByVar)) {
-      framesByVar[v].sort((a, b) => {
-        const ta = a.time_iso || a.timestamp || a.scan_id || "";
-        const tb = b.time_iso || b.timestamp || b.scan_id || "";
-        return String(ta).localeCompare(String(tb));
-      });
+    if (ev["xaxis.autorange"] === true || ev["yaxis.autorange"] === true) {
+      viewState.hasRange = false;
+      viewState.autorange = true;
+      viewState.xRange = null;
+      viewState.yRange = null;
     }
+  });
+}
 
-    setCurrentVar(currentVar);
+/* ========================= LOADING ========================= */
+async function loadIndex() {
+  let idx = null;
+  for (const url of INDEX_CANDIDATES) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) { idx = await res.json(); break; }
+    } catch (_) {}
   }
+  if (!idx) throw new Error("Failed to load index.json");
 
-  // ---------- GRID LOADING (lat/lon axes) ----------
-  async function loadGridForVar(v) {
-    if (gridCache[v]) return gridCache[v];
+  const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
+  framesByVar = {
+    chl: filterFramesForVar("chl", fbv.chl || []),
+    sst: filterFramesForVar("sst", fbv.sst || []),
+    uv:  filterFramesForVar("uv",  fbv.uv  || [])
+  };
 
-    const gridName = VAR_TO_GRID[v];
-    const candidates = [
-      `data/${REGION_ID}/grids/${gridName}`,
-      `data/${REGION_ID}/${gridName}`,
-      gridName
-    ];
-
-    let grid = null;
-    for (const path of candidates) {
-      try {
-        const res = await fetch(path);
-        if (res.ok) {
-          grid = await res.json();
-          console.log(`Loaded grid for ${v} from`, path);
-          break;
-        }
-      } catch (e) {
-        // keep trying
-      }
-    }
-
-    if (!grid) {
-      throw new Error(`Could not load grid for var=${v}`);
-    }
-
-    let lon = grid.lon;
-    let lat = grid.lat;
-
-    if (!Array.isArray(lon) || !Array.isArray(lat)) {
-      throw new Error("grid.lon / grid.lat must be arrays");
-    }
-
-    let nx, ny, xAxis, yAxis;
-
-    // Case 1: 2-D lon/lat
-    if (Array.isArray(lon[0])) {
-      ny = lon.length;
-      nx = lon[0].length;
-      xAxis = lon[0].slice();
-      yAxis = lat.map(row => row[0]);
-    } else {
-      // Case 2: 1-D lon/lat axes
-      xAxis = lon.slice();
-      yAxis = lat.slice();
-      nx = xAxis.length;
-      ny = yAxis.length;
-    }
-
-    const info = { xAxis, yAxis, nx, ny };
-    gridCache[v] = info;
-    return info;
-  }
-
-  // ---------- FRAME DATA LOADING ----------
-  async function fetchFrameData(varKey, frameMeta) {
-    let path =
-      frameMeta.json_path ||
-      frameMeta.path ||
-      frameMeta.file ||
-      frameMeta.url ||
-      frameMeta.json;
-
-    if (!path) {
-      console.error("Frame meta missing json_path/path:", frameMeta);
-      throw new Error("Frame path missing");
-    }
-
-    if (!path.startsWith("data/")) {
-      path = `data/${REGION_ID}/${varKey}/${path}`;
-    }
-
-    const res = await fetch(path);
-    if (!res.ok) {
-      console.error("Failed to load frame JSON from", path);
-      throw new Error("Frame load failed");
-    }
-    return await res.json();
-  }
-
-  // ---------- TITLES / TIME ----------
-  function frameTitleFromMeta(varKey, frameMeta) {
-    const base = VAR_LABELS[varKey] || varKey;
-    const tIso = frameMeta.time_iso || frameMeta.timestamp_utc || frameMeta.timestamp || null;
-
-    if (!tIso) {
-      const label = frameMeta.label || "";
-      return `${base} | ${label}`;
-    }
-
-    const d = new Date(tIso);
-    const localStr = d.toLocaleString(undefined, {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
+  for (const v of Object.keys(framesByVar)) {
+    framesByVar[v].sort((a, b) => {
+      const ta = epochMsForFrame(v, a) ?? 0;
+      const tb = epochMsForFrame(v, b) ?? 0;
+      return ta - tb;
     });
-    return `${base} | ${localStr} (local)`;
+    frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f));
   }
 
-  // ---------- FIGURE BUILDER ----------
-  function buildFigureForVar(varKey, gridInfo, dataObj, frameMeta) {
-    const { xAxis, yAxis, nx, ny } = gridInfo;
+  await setCurrentVar(currentVar, /*keepTime*/ false);
+}
 
-    // ----- CHL / SST -----
-    if (varKey === "chl" || varKey === "sst") {
-      let zRaw = null;
+async function loadGridForVar(v) {
+  if (gridCache[v]) return gridCache[v];
+  const gridName = VAR_TO_GRID[v];
+  const url = `data/${REGION_ID}/grids/${gridName}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not load grid for ${v}: ${url}`);
+  const grid = await res.json();
 
-      if (varKey === "chl" && is2DArray(dataObj.chl)) {
-        zRaw = dataObj.chl;
-      } else if (varKey === "sst" && is2DArray(dataObj.sst)) {
-        zRaw = dataObj.sst;
-      }
-
-      // Fallback: first 2-D array anywhere in the JSON
-      if (!zRaw) {
-        const candidate = findFirst2DArray(dataObj);
-        if (candidate) {
-          zRaw = candidate;
-          console.warn(`Auto-selected 2D array for var=${varKey}`);
-        }
-      }
-
-      if (!zRaw) {
-        console.warn(`No data array found for var=${varKey}; drawing empty frame`);
-        zRaw = Array.from({ length: ny }, () => Array(nx).fill(null));
-      }
-
-      // Ensure 2-D [ny][nx] if flattened
-      if (!Array.isArray(zRaw[0])) {
-        const flat = zRaw;
-        const reshaped = [];
-        let idx = 0;
-        for (let j = 0; j < ny; j++) {
-          const row = [];
-          for (let i = 0; i < nx; i++) {
-            row.push(flat[idx++]);
-          }
-          reshaped.push(row);
-        }
-        zRaw = reshaped;
-      }
-
-      let zPlot = zRaw;
-      let colorscale = "Turbo";
-      let { zmin, zmax } = COLOR_CONFIG[varKey];
-      let unitLabel = dataObj.unit || (varKey === "chl" ? "mg m⁻³" : "°C");
-
-      // Chl: use log10 for color, but hover shows linear value
-      if (varKey === "chl") {
-        const zLog = [];
-        for (let j = 0; j < ny; j++) {
-          const row = [];
-          for (let i = 0; i < nx; i++) {
-            const val = zRaw[j][i];
-            const v =
-              val === null || val === undefined || !isFinite(val)
-                ? null
-                : Number(val);
-            if (v !== null && v > 0) {
-              row.push(Math.log10(v));
-            } else {
-              row.push(null);
-            }
-          }
-          zLog.push(row);
-        }
-        zPlot = zLog;
-        colorscale = GIST_RAINBOW;
-        unitLabel = "log10(mg m⁻³)";
-      }
-
-      // Hover text: numbers only
-      const text = [];
-      for (let j = 0; j < ny; j++) {
-        const rowText = [];
-        const latVal = yAxis[j];
-        for (let i = 0; i < nx; i++) {
-          const lonVal = xAxis[i];
-          const val = zRaw[j][i];
-          const numVal =
-            val === null || val === undefined || !isFinite(val)
-              ? null
-              : Number(val);
-          if (numVal === null) {
-            rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
-          } else {
-            rowText.push(
-              `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
-            );
-          }
-        }
-        text.push(rowText);
-      }
-
-      const trace = {
-        type: "heatmap",
-        x: xAxis,
-        y: yAxis,
-        z: zPlot,
-        text: text,
-        hovertemplate: "%{text}<extra></extra>",
-        zauto: false,
-        zmin,
-        zmax,
-        colorscale,
-        colorbar: { title: unitLabel },
-        zsmooth: false
-      };
-
-      const layout = {
-        title: frameTitleFromMeta(varKey, frameMeta),
-        xaxis: { title: "Longitude", automargin: true },
-        yaxis: {
-          title: "Latitude",
-          automargin: true,
-          scaleanchor: "x",
-          scaleratio: 1
-        },
-        margin: { l: 70, r: 10, t: 40, b: 60 },
-        paper_bgcolor: "#050b10",
-        plot_bgcolor: "#050b10",
-        font: { color: "#e0e6ee" }
-      };
-
-      return { data: [trace], layout };
-    }
-
-    // ----- CURRENTS (uv): arrows over ADT heatmap -----
-    if (varKey === "uv") {
-      const d = dataObj.data || dataObj;
-
-      let zAdt = d && is2DArray(d.adt) ? d.adt : null;
-      let zSpeed = d && is2DArray(d.speed) ? d.speed : null;
-
-      // Fallback: use first 2D array if we have nothing
-      if (!zAdt && !zSpeed) {
-        const candidate = findFirst2DArray(d);
-        if (candidate) {
-          zAdt = candidate;
-          console.warn("Auto-selected background for uv from first 2D array");
-        }
-      }
-
-      if (!zAdt && !zSpeed) {
-        console.warn("No adt/speed found for uv; drawing empty frame");
-        zAdt = Array.from({ length: ny }, () => Array(nx).fill(null));
-      }
-
-      // Reshape if flattened
-      const reshapeIfNeeded = (arr) => {
-        if (!arr) return null;
-        if (!Array.isArray(arr[0])) {
-          const flat = arr;
-          const reshaped = [];
-          let idx = 0;
-          for (let j = 0; j < ny; j++) {
-            const row = [];
-            for (let i = 0; i < nx; i++) {
-              row.push(flat[idx++]);
-            }
-            reshaped.push(row);
-          }
-          return reshaped;
-        }
-        return arr;
-      };
-
-      zAdt = reshapeIfNeeded(zAdt);
-      zSpeed = reshapeIfNeeded(zSpeed);
-
-      // Background: ADT if present, else speed
-      const useAdt = !!zAdt;
-      const zBg = useAdt ? zAdt : zSpeed;
-      const cfgBg = useAdt ? COLOR_CONFIG.adt : COLOR_CONFIG.uv;
-      const bgUnit = useAdt ? "ADT (m)" : "Speed (m s⁻¹)";
-      const bgColorscale = useAdt ? "RdBu" : "Viridis";
-      const bgReverse = !!useAdt;
-
-      // Hover for background: numbers only
-      const textBg = [];
-      for (let j = 0; j < ny; j++) {
-        const rowText = [];
-        const latVal = yAxis[j];
-        for (let i = 0; i < nx; i++) {
-          const lonVal = xAxis[i];
-          const val = zBg[j][i];
-          const numVal =
-            val === null || val === undefined || !isFinite(val)
-              ? null
-              : Number(val);
-          if (numVal === null) {
-            rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
-          } else {
-            rowText.push(
-              `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
-            );
-          }
-        }
-        textBg.push(rowText);
-      }
-
-      const bgHeat = {
-        type: "heatmap",
-        x: xAxis,
-        y: yAxis,
-        z: zBg,
-        text: textBg,
-        hovertemplate: "%{text}<extra></extra>",
-        zauto: false,
-        zmin: cfgBg.zmin,
-        zmax: cfgBg.zmax,
-        colorscale: bgColorscale,
-        reversescale: bgReverse,
-        colorbar: { title: bgUnit },
-        zsmooth: false
-      };
-
-      // Arrows: direction + speed
-      const u = d.u;
-      const v = d.v;
-      const arrowX = [];
-      const arrowY = [];
-      const arrowText = [];
-
-      if (u && v && zSpeed) {
-        let step = 1;
-        if (nx * ny > 50 * 50) step = 2;   // subsample dense grid
-
-        for (let j = 0; j < ny; j += step) {
-          const latVal = yAxis[j];
-          for (let i = 0; i < nx; i += step) {
-            const lonVal = xAxis[i];
-            const uu = u[j][i];
-            const vv = v[j][i];
-            const sp = zSpeed[j][i];
-
-            if (
-              uu === null || uu === undefined || !isFinite(uu) ||
-              vv === null || vv === undefined || !isFinite(vv) ||
-              sp === null || sp === undefined || !isFinite(sp)
-            ) {
-              continue;
-            }
-
-            const scale = 0.2; // tweak vector length
-            const x1 = lonVal + uu * scale;
-            const y1 = latVal + vv * scale;
-
-            arrowX.push(lonVal, x1, null);
-            arrowY.push(latVal, y1, null);
-
-            const txt = `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${sp.toFixed(3)}`;
-            arrowText.push(txt, txt, "");
-          }
-        }
-      }
-
-      const arrows = {
-        type: "scatter",
-        mode: "lines",
-        x: arrowX,
-        y: arrowY,
-        text: arrowText,
-        hovertemplate: "%{text}<extra></extra>",
-        line: { color: "#000000", width: 1.0 },
-        showlegend: false
-      };
-
-      const layout = {
-        title: frameTitleFromMeta(varKey, frameMeta),
-        xaxis: {
-          title: "Longitude",
-          domain: [0.0, 1.0],
-          automargin: true
-        },
-        yaxis: {
-          title: "Latitude",
-          domain: [0.0, 1.0],
-          automargin: true,
-          scaleanchor: "x",
-          scaleratio: 1
-        },
-        margin: { l: 70, r: 10, t: 40, b: 60 },
-        paper_bgcolor: "#050b10",
-        plot_bgcolor: "#050b10",
-        font: { color: "#e0e6ee" }
-      };
-
-      return { data: [bgHeat, arrows], layout };
-    }
-
-    throw new Error(`Unsupported varKey=${varKey}`);
+  const lon = grid.lon, lat = grid.lat;
+  if (!Array.isArray(lon) || !Array.isArray(lat) || !Array.isArray(lon[0]) || !Array.isArray(lat[0])) {
+    throw new Error("Grid JSON must contain 2-D lon/lat arrays");
   }
 
-  // ---------- UI / PLAYER ----------
-  function updateSliderUI() {
-    const frames = framesByVar[currentVar] || [];
-    const n = frames.length;
+  const ny = lon.length;
+  const nx = lon[0].length;
+  const xAxis = lon[0].slice();
+  const yAxis = lat.map(r => r[0]);
 
-    slider.min = 0;
-    slider.max = Math.max(0, n - 1);
-    slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
+  const info = { xAxis, yAxis, nx, ny };
+  gridCache[v] = info;
+  return info;
+}
 
-    prevBtn.disabled = n <= 1;
-    nextBtn.disabled = n <= 1;
-    playBtn.disabled = n <= 1;
+async function fetchFrameData(varKey, frameMeta) {
+  const p = framePathOf(frameMeta);
+  if (!p) throw new Error("Frame has no json path");
+  const url = p.startsWith("data/") ? p : `data/${REGION_ID}/${varKey}/${p}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Frame load failed: ${url}`);
+  return await res.json();
+}
 
-    if (!n) {
-      frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: no frames`;
-    } else {
-      const fm = frames[currentFrameIdx];
-      const label = fm.label || fm.time_iso || fm.timestamp || `${currentFrameIdx + 1}/${n}`;
-      frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: ${label}`;
-    }
+/* Fix #1: when switching vars, jump to closest time */
+async function setCurrentVar(v, keepTime = true) {
+  const prevVar = currentVar;
+  const prevFrames = framesByVar[prevVar] || [];
+  const prevFrame = prevFrames[currentFrameIdx] || null;
+  const prevT = (keepTime && prevFrame) ? epochMsForFrame(prevVar, prevFrame) : null;
+
+  currentVar = v;
+  varSelect.value = v;
+
+  const frames = framesByVar[currentVar] || [];
+  const times = frameTimesByVar[currentVar] || [];
+
+  if (frames.length) {
+    currentFrameIdx = (keepTime && prevT !== null) ? closestIndex(times, prevT) : 0;
+  } else {
+    currentFrameIdx = 0;
   }
 
-  async function setCurrentVar(v) {
-    currentVar = v;
-    const frames = framesByVar[currentVar] || [];
-    if (currentFrameIdx >= frames.length) currentFrameIdx = 0;
-    varSelect.value = v;
+  syncRangeInputsToVar();
+  updateSliderUI();
+
+  if (frames.length) await showFrame();
+  else Plotly.purge(plotDiv);
+}
+
+function stepFrame(delta) {
+  const frames = framesByVar[currentVar] || [];
+  const n = frames.length;
+  if (!n) return;
+  currentFrameIdx = (currentFrameIdx + delta + n) % n;
+  slider.value = currentFrameIdx;
+  showFrame();
+}
+
+function setPlaying(on) {
+  if (on === playing) return;
+  playing = on;
+  playBtn.textContent = playing ? "Pause" : "Play";
+  if (playing) {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = setInterval(() => stepFrame(+1), 800);
+  } else {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = null;
+  }
+}
+
+/* ========================= RENDER ========================= */
+async function showFrame() {
+  const frames = framesByVar[currentVar] || [];
+  if (!frames.length) return;
+
+  const frameMeta = frames[currentFrameIdx];
+
+  try {
+    const [gridInfo, dataObj] = await Promise.all([
+      loadGridForVar(currentVar),
+      fetchFrameData(currentVar, frameMeta)
+    ]);
+
+    const fig = buildForVar(currentVar, gridInfo, dataObj);
+
+    await Plotly.react(plotDiv, fig.data, fig.layout, {
+      responsive: true,
+      displayModeBar: true,
+      scrollZoom: true
+    });
+
+    setupReadoutHandlersOnce();
+    attachRelayoutListenerOnce();
     updateSliderUI();
-    if (frames.length) {
-      await showFrame();
-    } else {
-      Plotly.purge(plotDiv);
-    }
+
+    // ensure floating positions are correct after Plotly builds the modebar
+    refreshFloatingTop();
+  } catch (err) {
+    console.error("Error showing frame:", err);
   }
+}
 
-  function stepFrame(delta) {
-    const frames = framesByVar[currentVar] || [];
-    const n = frames.length;
-    if (!n) return;
-    currentFrameIdx = (currentFrameIdx + delta + n) % n;
-    slider.value = currentFrameIdx;
-    showFrame();
+/* ========================= EVENTS ========================= */
+varSelect.addEventListener("change", () => {
+  setPlaying(false);
+  setCurrentVar(varSelect.value, true);
+});
+
+slider.addEventListener("input", () => {
+  currentFrameIdx = Number(slider.value) || 0;
+  showFrame();
+});
+
+playBtn.addEventListener("click", () => setPlaying(!playing));
+prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
+nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
+
+applyBtn.addEventListener("click", () => {
+  const vmin = Number(vminInput.value);
+  const vmax = Number(vmaxInput.value);
+  if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+  userRanges[currentVar].vmin = vmin;
+  userRanges[currentVar].vmax = vmax;
+  showFrame();
+});
+
+resetBtn.addEventListener("click", () => {
+  userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
+  syncRangeInputsToVar();
+  showFrame();
+});
+
+/* ========================= INIT ========================= */
+(async function init() {
+  try {
+    await loadIndex();
+    syncRangeInputsToVar();
+  } catch (e) {
+    console.error("Init failed:", e);
   }
-
-  function setPlaying(on) {
-    if (on === playing) return;
-    playing = on;
-    playBtn.textContent = playing ? "Pause" : "Play";
-    if (playing) {
-      if (playTimer) clearInterval(playTimer);
-      playTimer = setInterval(() => stepFrame(+1), 800);
-    } else {
-      if (playTimer) {
-        clearInterval(playTimer);
-        playTimer = null;
-      }
-    }
-  }
-
-  async function showFrame() {
-    const frames = framesByVar[currentVar] || [];
-    const n = frames.length;
-    if (!n) return;
-    const frameMeta = frames[currentFrameIdx];
-
-    try {
-      const [gridInfo, dataObj] = await Promise.all([
-        loadGridForVar(currentVar),
-        fetchFrameData(currentVar, frameMeta)
-      ]);
-      const fig = buildFigureForVar(currentVar, gridInfo, dataObj, frameMeta);
-      await Plotly.react(plotDiv, fig.data, fig.layout, { responsive: true });
-      updateSliderUI();
-    } catch (err) {
-      console.error("Error showing frame:", err);
-    }
-  }
-
-  // ---------- EVENT HOOKS ----------
-  varSelect.addEventListener("change", () => {
-    setPlaying(false);
-    setCurrentVar(varSelect.value);
-  });
-
-  slider.addEventListener("input", () => {
-    currentFrameIdx = Number(slider.value) || 0;
-    showFrame();
-  });
-
-  playBtn.addEventListener("click", () => {
-    setPlaying(!playing);
-  });
-
-  prevBtn.addEventListener("click", () => {
-    setPlaying(false);
-    stepFrame(-1);
-  });
-
-  nextBtn.addEventListener("click", () => {
-    setPlaying(false);
-    stepFrame(+1);
-  });
-
-  // ---------- INIT ----------
-  (async function init() {
-    try {
-      await loadIndex();
-    } catch (e) {
-      console.error("Failed to init viewer:", e);
-    }
-  })();
+})();
 </script>
 
 </body>
