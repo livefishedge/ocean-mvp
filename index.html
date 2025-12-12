@@ -1,443 +1,499 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>mbh | CHL / SST / UV Viewer</title>
+  <meta charset="UTF-8" />
+  <title>LiveFish Edge – mbh</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
   <style>
     body {
+      margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 10px;
-      background: #111;
-      color: #eee;
+      background: #050b10;
+      color: #e0e6ee;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    header {
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #1b2836;
+      background: #050b10;
+    }
+    header h1 {
+      font-size: 16px;
+      margin: 0;
+      font-weight: 500;
+    }
+    header .region {
+      font-size: 12px;
+      opacity: 0.8;
     }
     #controls {
-      margin-bottom: 10px;
+      padding: 8px 14px;
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
       align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #1b2836;
+      background: #070d14;
+      font-size: 13px;
     }
-    select, button, input[type="checkbox"], label {
-      font-size: 0.9rem;
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    select,
+    button {
+      background: #0c1723;
+      color: #e0e6ee;
+      border: 1px solid #273649;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 13px;
     }
     button {
       cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 4px;
-      border: 1px solid #444;
-      background: #222;
-      color: #eee;
     }
-    button:hover {
-      background: #333;
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
     }
-    #plot {
-      width: 100%;
-      max-width: 1300px;
-      margin: 0 auto;
-    }
-    #slider-container {
-      flex: 1 1 260px;
+    #timeline {
+      flex: 1;
       display: flex;
       align-items: center;
       gap: 6px;
+      min-width: 200px;
     }
-    #time-slider {
-      width: 100%;
+    #frame-slider {
+      flex: 1;
+      accent-color: #2fb3ff;
     }
-    #info {
-      font-size: 0.85rem;
-      opacity: 0.8;
+    #frame-label {
+      min-width: 180px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    #plot {
+      flex: 1;
+      min-height: 0;
     }
   </style>
 </head>
 <body>
-  <h2>MBH Ocean Product Viewer</h2>
+  <header>
+    <h1>LiveFish Edge</h1>
+    <span class="region">Region: mbh</span>
+  </header>
+
   <div id="controls">
-    <label for="var-select"><b>Variable:</b></label>
-    <select id="var-select"></select>
+    <label>
+      Variable:
+      <select id="var-select">
+        <option value="chl">Chlorophyll</option>
+        <option value="sst">SST</option>
+        <option value="uv">Currents</option>
+      </select>
+    </label>
 
-    <div id="slider-container">
-      <button id="btn-prev">&larr;</button>
-      <input id="time-slider" type="range" min="0" max="0" step="1" value="0" />
-      <button id="btn-next">&rarr;</button>
+    <div id="timeline">
+      <button id="prev-btn">&#9664;</button>
+      <button id="play-btn">Play</button>
+      <button id="next-btn">&#9654;</button>
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
+      <span id="frame-label">No frames</span>
     </div>
-
-    <button id="btn-play">Play</button>
-    <label><input type="checkbox" id="chk-loop" checked /> Loop</label>
-
-    <span id="frame-label"></span>
   </div>
 
-  <div id="info"></div>
   <div id="plot"></div>
 
   <script>
-    let framesByVar = {};
-    let currentVar = null;
-    let currentIndex = 0;
-    let playing = false;
-    let playTimer = null;
-    let syncedRanges = null;
+    // ---------------------- CONFIG ----------------------
+    const REGION_ID = "mbh";
 
-    // Per-variable grids
-    let grids = {};
-
+    // Human-readable labels
     const VAR_LABELS = {
-      chl: "Chl",
+      chl: "Chlorophyll",
       sst: "SST",
       uv:  "Currents"
     };
 
-    const GRID_FILES = {
+    // Grid JSON names per variable (2-D lon/lat arrays)
+    const VAR_TO_GRID = {
       chl: "viirs_chl_750_grid.json",
       sst: "goes_sst_1000_grid.json",
       uv:  "uv_12500_grid.json"
     };
 
-    async function loadGridForVar(regionId, vname) {
-      const gridFile = GRID_FILES[vname];
-      if (!gridFile) {
-        console.warn('No grid file mapping for', vname);
-        return;
-      }
+    // ---------------------- STATE ----------------------
+    let indexData = null;
+    // Expect index.json to look like:
+    // {
+    //   "region_id": "mbh",
+    //   "frames": {
+    //      "chl": [ { "var": "chl", "path": "data/mbh/chl/xxx.json", "label": "..." }, ... ],
+    //      "sst": [ ... ],
+    //      "uv":  [ ... ]
+    //   }
+    // }
+    let framesByVar = { chl: [], sst: [], uv: [] };
 
-      const url = `data/${regionId}/${gridFile}`;
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) {
-          console.warn('No grid JSON for', vname, 'at', url, resp.status);
-          return;
-        }
-        const grid = await resp.json();
+    let currentVar = "chl";
+    let currentFrameIdx = 0;
+    let playing = false;
+    let playTimer = null;
 
-        const lon = grid.lon || grid.lon2d || grid.lon1d;
-        const lat = grid.lat || grid.lat2d || grid.lat1d;
-        if (!lon || !lat) {
-          console.warn('Grid JSON missing lon/lat for', vname);
-          return;
-        }
+    const gridCache = {}; // var -> { lon2d, lat2d, xAxis, yAxis, nx, ny }
 
-        let x, y;
-        if (Array.isArray(lon) && Array.isArray(lon[0])) {
-          // 2D grid → derive 1D axes
-          x = lon[0];
-          y = lat.map(row => row[0]);
-        } else {
-          x = lon;
-          y = lat;
-        }
+    const plotDiv   = document.getElementById("plot");
+    const varSelect = document.getElementById("var-select");
+    const slider    = document.getElementById("frame-slider");
+    const frameLbl  = document.getElementById("frame-label");
+    const playBtn   = document.getElementById("play-btn");
+    const prevBtn   = document.getElementById("prev-btn");
+    const nextBtn   = document.getElementById("next-btn");
 
-        grids[vname] = { x, y };
-        console.log(`Loaded grid for ${vname}: nx=${x.length}, ny=${y.length}`);
-      } catch (e) {
-        console.error('Error loading grid for', vname, e);
-      }
-    }
-
-
-    function getJsonUrl(frame) {
-      if (!frame) return null;
-      if (frame.json_path) return frame.json_path;  // what our builder uses
-      if (frame.json) return frame.json;            // fallback if you ever change index.json
-      return null;
-    }
+    // ---------------------- LOADERS ----------------------
 
     async function loadIndex() {
-      const resp = await fetch('index.json');
-      const idx = await resp.json();
-      framesByVar = idx.frames || {};
+      const url = `data/${REGION_ID}/index.json`;
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.error("Failed to load index.json from", url);
+        return;
+      }
+      indexData = await res.json();
+      framesByVar = indexData.frames || framesByVar;
 
-      const regionId = idx.region || 'mbh';
-      const vars = idx.vars || Object.keys(framesByVar);
+      // Set slider / UI for initial var
+      setCurrentVar(currentVar);
+    }
 
-      // Load a grid JSON for each variable
-      await Promise.all(vars.map(v => loadGridForVar(regionId, v)));
+    async function loadGridForVar(v) {
+      if (gridCache[v]) return gridCache[v];
 
-      const varSelect = document.getElementById('var-select');
-      varSelect.innerHTML = '';
-      vars.forEach(v => {
-        const opt = document.createElement('option');
-        opt.value = v;  // 'chl', 'sst', 'uv'
-        opt.textContent = VAR_LABELS[v] || v.toUpperCase(); // shows 'Chl', 'SST', 'Currents'
-        varSelect.appendChild(opt);
-      });
+      const gridName = VAR_TO_GRID[v];
+      const candidates = [
+        `data/${REGION_ID}/grids/${gridName}`,   // preferred
+        `data/${REGION_ID}/${gridName}`,        // fallback
+        gridName                                // last resort (root)
+      ];
 
-      varSelect.addEventListener('change', () => {
-        setCurrentVar(varSelect.value);
-      });
+      let grid = null;
+      for (const path of candidates) {
+        try {
+          const res = await fetch(path);
+          if (res.ok) {
+            grid = await res.json();
+            break;
+          }
+        } catch (e) {
+          // ignore and try next
+        }
+      }
 
-      setupButtons();
+      if (!grid) {
+        console.error(`Could not load grid for variable "${v}" from`, candidates);
+        throw new Error("Grid load failed");
+      }
 
-      if (varSelect.options.length > 0) {
-        setCurrentVar(varSelect.value);
+      let lon = grid.lon;
+      let lat = grid.lat;
+
+      if (!Array.isArray(lon) || !Array.isArray(lat)) {
+        throw new Error("grid.lon / grid.lat are not arrays");
+      }
+
+      // Normalize to 2-D [ny][nx].
+      // If they are already 2-D, keep. If 1-D flattened, reshape using ny, nx.
+      if (!Array.isArray(lon[0])) {
+        const nx = grid.nx;
+        const ny = grid.ny;
+        if (!Number.isInteger(nx) || !Number.isInteger(ny)) {
+          throw new Error("Flattened grid arrays require nx, ny in JSON");
+        }
+        const flatLon = lon;
+        const flatLat = lat;
+        lon = [];
+        lat = [];
+        for (let j = 0; j < ny; j++) {
+          lon.push(flatLon.slice(j * nx, (j + 1) * nx));
+          lat.push(flatLat.slice(j * nx, (j + 1) * nx));
+        }
+      }
+
+      const ny = lon.length;
+      const nx = lon[0].length;
+
+      const xAxis = lon[0].slice();                        // first row (constant lat)
+      const yAxis = lon.map((_, j) => lat[j][0]);          // first column (constant lon)
+
+      const result = { lon2d: lon, lat2d: lat, xAxis, yAxis, nx, ny };
+      gridCache[v] = result;
+      return result;
+    }
+
+    // Fetch a single frame JSON for current var.
+    async function fetchFrameData(varKey, frameMeta) {
+      // Expect frameMeta.path to be present; otherwise guess.
+      let path = frameMeta.path || frameMeta.file || frameMeta.json || frameMeta.url;
+      if (!path) {
+        // Fallback: assume basename and put under data/mbh/{var}/
+        const base = frameMeta.basename || frameMeta.name;
+        path = `data/${REGION_ID}/${varKey}/${base}`;
+      }
+      // If path is not already rooted under data/, prepend region.
+      if (!path.startsWith("data/")) {
+        path = `data/${REGION_ID}/${path}`;
+      }
+
+      const res = await fetch(path);
+      if (!res.ok) {
+        console.error("Failed to load frame JSON from", path);
+        throw new Error("Frame load failed");
+      }
+      const obj = await res.json();
+      return obj;
+    }
+
+    // ---------------------- FIGURE BUILDERS ----------------------
+
+    function frameTitleFromMeta(varKey, frameMeta, dataObj) {
+      const label = frameMeta.label || frameMeta.timestamp || frameMeta.scan_id || "";
+      const prettyVar = VAR_LABELS[varKey] || varKey;
+      return `${prettyVar} – ${label}`;
+    }
+
+    function buildFigureForVar(varKey, gridInfo, dataObj, frameMeta) {
+      const { lon2d, lat2d, xAxis, yAxis, nx, ny } = gridInfo;
+
+      let z = null;
+      let unitLabel = "";
+      if (varKey === "chl") {
+        z = dataObj.chl;
+        unitLabel = dataObj.unit || "mg m⁻³";
+      } else if (varKey === "sst") {
+        z = dataObj.sst;
+        unitLabel = dataObj.unit || "°C";
+      } else if (varKey === "uv") {
+        // Use speed for color; u/v optional for future quivers
+        if (dataObj.data && dataObj.data.speed) {
+          z = dataObj.data.speed;
+        } else {
+          z = dataObj.speed || null;
+        }
+        unitLabel = (dataObj.unit || "m s⁻¹");
+      }
+
+      if (!z) {
+        throw new Error(`No data array found for var=${varKey}`);
+      }
+
+      // Expect z to be 2-D [ny][nx].
+      // If it's flattened, reshape using ny,nx.
+      if (!Array.isArray(z[0])) {
+        const flat = z;
+        const reshaped = [];
+        let idx = 0;
+        for (let j = 0; j < ny; j++) {
+          const row = [];
+          for (let i = 0; i < nx; i++) {
+            row.push(flat[idx++]);
+          }
+          reshaped.push(row);
+        }
+        z = reshaped;
+      }
+
+      // Build customdata[ny][nx] = [lon, lat]
+      const customdata = [];
+      const text = [];
+      for (let j = 0; j < ny; j++) {
+        const rowCD = [];
+        const rowText = [];
+        for (let i = 0; i < nx; i++) {
+          const lonVal = lon2d[j][i];
+          const latVal = lat2d[j][i];
+          rowCD.push([lonVal, latVal]);
+
+          const val = z[j][i];
+          let t = "";
+          const numVal = (val === null || val === undefined || Number.isNaN(Number(val)))
+            ? null
+            : Number(val);
+          if (numVal !== null && Number.isFinite(numVal)) {
+            t = `<br>value=${numVal.toFixed(3)} ${unitLabel}`;
+          }
+          rowText.push(t);
+        }
+        customdata.push(rowCD);
+        text.push(rowText);
+      }
+
+      const trace = {
+        type: "heatmap",
+        x: xAxis,
+        y: yAxis,
+        z: z,
+        customdata: customdata,
+        text: text,
+        // Show lon/lat always; value only if text is non-empty
+        hovertemplate: "lon=%{customdata[0]:.4f}<br>lat=%{customdata[1]:.4f}%{text}<extra></extra>",
+        zauto: true,
+        zsmooth: false,
+        colorbar: {
+          title: unitLabel
+        }
+      };
+
+      const layout = {
+        title: frameTitleFromMeta(varKey, frameMeta, dataObj),
+        xaxis: {
+          title: "Longitude",
+          automargin: true
+        },
+        yaxis: {
+          title: "Latitude",
+          scaleanchor: "x",
+          scaleratio: 1,
+          automargin: true
+        },
+        margin: { l: 70, r: 10, t: 40, b: 60 },
+        paper_bgcolor: "#050b10",
+        plot_bgcolor: "#050b10",
+        font: { color: "#e0e6ee" }
+      };
+
+      return { data: [trace], layout };
+    }
+
+    // ---------------------- UI / PLAYER ----------------------
+
+    function updateSliderUI() {
+      const frames = framesByVar[currentVar] || [];
+      const n = frames.length;
+
+      slider.min = 0;
+      slider.max = Math.max(0, n - 1);
+      slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
+
+      prevBtn.disabled = (n <= 1);
+      nextBtn.disabled = (n <= 1);
+      playBtn.disabled = (n <= 1);
+
+      if (!n) {
+        frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: no frames`;
+      } else {
+        const meta = frames[currentFrameIdx];
+        const label = meta.label || meta.timestamp || `${currentFrameIdx + 1}/${n}`;
+        frameLbl.textContent = `${VAR_LABELS[currentVar] || currentVar}: ${label}`;
       }
     }
 
-
-    function setupButtons() {
-      const slider = document.getElementById('time-slider');
-      document.getElementById('btn-prev').onclick = () => {
-        stepFrame(-1);
-      };
-      document.getElementById('btn-next').onclick = () => {
-        stepFrame(1);
-      };
-      document.getElementById('btn-play').onclick = togglePlay;
-      slider.addEventListener('input', () => {
-        currentIndex = parseInt(slider.value);
-        showFrame();
-      });
-    }
-
-    function setCurrentVar(v) {
+    async function setCurrentVar(v) {
       currentVar = v;
+      // Reset frame index if this var has fewer frames
       const frames = framesByVar[currentVar] || [];
-      currentIndex = 0;
-      const slider = document.getElementById('time-slider');
-      slider.min = 0;
-      slider.max = Math.max(frames.length - 1, 0);
-      slider.value = 0;
-      updateInfo();
-      showFrame();
+      if (currentFrameIdx >= frames.length) currentFrameIdx = 0;
+      updateSliderUI();
+      if (frames.length) {
+        await showFrame();
+      } else {
+        // Clear plot if no frames
+        Plotly.purge(plotDiv);
+      }
     }
 
     function stepFrame(delta) {
       const frames = framesByVar[currentVar] || [];
-      if (!frames.length) return;
-      currentIndex += delta;
-      if (currentIndex < 0) currentIndex = frames.length - 1;
-      if (currentIndex >= frames.length) currentIndex = 0;
-      document.getElementById('time-slider').value = currentIndex;
+      const n = frames.length;
+      if (!n) return;
+      currentFrameIdx = (currentFrameIdx + delta + n) % n;
+      slider.value = currentFrameIdx;
       showFrame();
     }
 
-    function togglePlay() {
+    function setPlaying(on) {
+      if (on === playing) return;
+      playing = on;
+      playBtn.textContent = playing ? "Pause" : "Play";
+
       if (playing) {
-        stopPlay();
+        if (playTimer) clearInterval(playTimer);
+        playTimer = setInterval(() => {
+          stepFrame(+1);
+        }, 800);  // 0.8 s per frame
       } else {
-        startPlay();
-      }
-    }
-
-    function startPlay() {
-      const btn = document.getElementById('btn-play');
-      if (playing) return;
-      playing = true;
-      btn.textContent = 'Pause';
-      const loop = document.getElementById('chk-loop').checked;
-      const frames = framesByVar[currentVar] || [];
-      if (!frames.length) return;
-
-      playTimer = setInterval(() => {
-        currentIndex++;
-        if (currentIndex >= frames.length) {
-          if (loop) {
-            currentIndex = 0;
-          } else {
-            stopPlay();
-            return;
-          }
+        if (playTimer) {
+          clearInterval(playTimer);
+          playTimer = null;
         }
-        document.getElementById('time-slider').value = currentIndex;
-        showFrame();
-      }, 800); // ms per frame
-    }
-
-    function stopPlay() {
-      const btn = document.getElementById('btn-play');
-      playing = false;
-      btn.textContent = 'Play';
-      if (playTimer) {
-        clearInterval(playTimer);
-        playTimer = null;
       }
     }
 
-    function updateInfo() {
+    async function showFrame() {
       const frames = framesByVar[currentVar] || [];
-      const infoDiv = document.getElementById('info');
-      if (!frames.length) {
-        infoDiv.textContent = 'No frames available for ' + currentVar;
-        document.getElementById('frame-label').textContent = '';
-        return;
-      }
-      const f = frames[currentIndex];
       const n = frames.length;
-      document.getElementById('frame-label').textContent =
-        (currentIndex + 1) + ' / ' + n;
-      infoDiv.textContent = (f.time_iso || '') + ' | ' + f.label;
-    }
+      if (!n) return;
 
-        function updateHoverTemplates(fig) {
-      // Support both:
-      //  - fig = {data: [...], layout: {...}}
-      //  - fig = [...]
-      const traces = Array.isArray(fig)
-        ? fig
-        : (Array.isArray(fig.data) ? fig.data : []);
+      const frameMeta = frames[currentFrameIdx];
 
-      traces.forEach(tr => {
-        // Only modify heatmaps (main data maps). Leave RGB image traces alone.
-        if (tr.type !== 'heatmap' || !tr.z) return;
-
-        const z = tr.z;
-        const ny = z.length;
-        if (!ny) return;
-        const nx = z[0].length || 0;
-        if (!nx) return;
-
-        const x = tr.x || [];
-        const y = tr.y || [];
-        const cd = tr.customdata || null;
-
-        const use1DX = Array.isArray(x) && x.length === nx;
-        const use1DY = Array.isArray(y) && y.length === ny;
-
-        const text = [];
-        for (let j = 0; j < ny; j++) {
-          const row = [];
-          const yVal = use1DY ? y[j] : null;
-          for (let i = 0; i < nx; i++) {
-            const xVal = use1DX ? x[i] : null;
-            let lon = xVal;
-            let lat = yVal;
-            let value = null;
-
-            if (cd && Array.isArray(cd[j]) && Array.isArray(cd[j][i])) {
-              const cell = cd[j][i];
-              if (cell.length >= 2) {
-                lon = cell[0];
-                lat = cell[1];
-              }
-              if (cell.length >= 3) {
-                value = cell[2];
-              }
-            } else {
-              // Fallback: use z as value
-              value = z[j][i];
-            }
-
-            const lonStr = (lon != null && isFinite(lon)) ? lon.toFixed(3) : '';
-            const latStr = (lat != null && isFinite(lat)) ? lat.toFixed(3) : '';
-
-            let txt;
-            if (value == null || !isFinite(value)) {
-              // Missing data: only lon,lat
-              txt = lonStr + ', ' + latStr;
-            } else {
-              // Data present: lon,lat,value
-              txt = lonStr + ', ' + latStr + ', ' + value.toFixed(3);
-            }
-            row.push(txt);
-          }
-          text.push(row);
-        }
-        tr.text = text;
-        tr.hovertemplate = "%{text}<extra></extra>";
-      });
-
-      // Write back into fig if fig is an object
-      if (!Array.isArray(fig)) {
-        fig.data = traces;
-      }
-      return fig;
-    }
-
-
-      async function showFrame() {
-      const frames = framesByVar[currentVar] || [];
-      const infoDiv = document.getElementById('info');
-      if (!frames.length) {
-        infoDiv.textContent = 'No frames available for ' + currentVar;
-        document.getElementById('frame-label').textContent = '';
-        return;
-      }
-
-      const f = frames[currentIndex];
-      if (!f) return;
-
-      updateInfo();
-
-      const url = getJsonUrl(f);
-      if (!url) {
-        infoDiv.textContent = 'No JSON URL found for this frame.';
-        return;
-      }
-
-      let resp;
       try {
-        resp = await fetch(url);
+        const [gridInfo, dataObj] = await Promise.all([
+          loadGridForVar(currentVar),
+          fetchFrameData(currentVar, frameMeta)
+        ]);
+
+        const fig = buildFigureForVar(currentVar, gridInfo, dataObj, frameMeta);
+        await Plotly.react(plotDiv, fig.data, fig.layout, { responsive: true });
+
+        updateSliderUI();
       } catch (err) {
-        console.error('Fetch error:', err);
-        infoDiv.textContent = 'Failed to fetch ' + url;
-        return;
+        console.error("Error showing frame:", err);
       }
+    }
 
-      if (!resp.ok) {
-        console.error('HTTP error for', url, resp.status, resp.statusText);
-        infoDiv.textContent = 'Failed to load ' + url + ' (' + resp.status + ')';
-        return;
-      }
+    // ---------------------- EVENT HOOKS ----------------------
 
-      let fig;
+    varSelect.addEventListener("change", () => {
+      setCurrentVar(varSelect.value);
+    });
+
+    slider.addEventListener("input", () => {
+      currentFrameIdx = Number(slider.value) || 0;
+      showFrame();
+    });
+
+    playBtn.addEventListener("click", () => {
+      setPlaying(!playing);
+    });
+
+    prevBtn.addEventListener("click", () => {
+      setPlaying(false);
+      stepFrame(-1);
+    });
+
+    nextBtn.addEventListener("click", () => {
+      setPlaying(false);
+      stepFrame(+1);
+    });
+
+    // ---------------------- INIT ----------------------
+    (async function init() {
       try {
-        fig = await resp.json();
-      } catch (err) {
-        console.error('JSON parse error for', url, err);
-        infoDiv.textContent = 'Invalid JSON in ' + url;
-        return;
+        await loadIndex();
+        // Ensure dropdown matches currentVar
+        varSelect.value = currentVar;
+      } catch (e) {
+        console.error("Failed to initialize viewer:", e);
       }
-
-      // Normalize to {data: [...], layout: {...}}
-      const isArrayFig = Array.isArray(fig);
-      let data = isArrayFig ? fig : (fig.data || []);
-      let layout = isArrayFig ? {} : (fig.layout || {});
-
-      const wrapped = { data, layout };
-      updateHoverTemplates(wrapped);
-      data = wrapped.data;
-      layout = wrapped.layout;
-
-      if (syncedRanges && layout) {
-        Object.assign(layout, syncedRanges);
-      }
-
-      await Plotly.react('plot', data, layout);
-
-      const plotDiv = document.getElementById('plot');
-      if (!plotDiv.__hasRelayoutHandler) {
-        plotDiv.__hasRelayoutHandler = true;
-        plotDiv.on('plotly_relayout', ev => {
-          const r = {};
-          for (const k in ev) {
-            if (k.includes('.range')) r[k] = ev[k];
-          }
-          if (Object.keys(r).length) {
-            syncedRanges = r;
-          }
-        });
-      }
-
-      resizePlot();
-    }
-
-
-    function resizePlot() {
-      const plotDiv = document.getElementById('plot');
-      const w = plotDiv.clientWidth || window.innerWidth - 20;
-      const h = w * 0.6;
-      Plotly.relayout('plot', {
-        width: w,
-        height: h,
-        margin: { l: 50, r: 50, t: 40, b: 40 },
-      });
-    }
-
-    window.addEventListener('resize', resizePlot);
-    loadIndex();
+    })();
   </script>
-
 </body>
 </html>
+
