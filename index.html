@@ -160,19 +160,44 @@
 
     // ---------------------- LOADERS ----------------------
 
+    const INDEX_CANDIDATES = [
+      "index.json",
+      "data/index.json",
+      `data/${REGION_ID}/index.json`
+    ];
+
     async function loadIndex() {
-      const url = `data/${REGION_ID}/index.json`;
-      const res = await fetch(url);
-      if (!res.ok) {
-        console.error("Failed to load index.json from", url);
+      let idx = null;
+      let usedUrl = null;
+
+      for (const url of INDEX_CANDIDATES) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            idx = await res.json();
+            usedUrl = url;
+            break;
+          }
+        } catch (e) {
+          // ignore and try next
+        }
+      }
+
+      if (!idx) {
+        console.error("Failed to load index.json from any of:", INDEX_CANDIDATES);
         return;
       }
-      indexData = await res.json();
-      framesByVar = indexData.frames || framesByVar;
+
+      console.log("Loaded index.json from", usedUrl);
+      indexData = idx;
+
+      // Support both {frames:{chl:[...]...}} and {framesByVar:{...}}
+      framesByVar = idx.frames || idx.framesByVar || framesByVar;
 
       // Set slider / UI for initial var
       setCurrentVar(currentVar);
     }
+
 
     async function loadGridForVar(v) {
       if (gridCache[v]) return gridCache[v];
