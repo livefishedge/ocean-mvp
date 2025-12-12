@@ -79,7 +79,63 @@
     let currentIndex = 0;
     let playing = false;
     let playTimer = null;
-    let syncedRanges = null; // keep zoom/pan across frames
+    let syncedRanges = null;
+
+    // Per-variable grids
+    let grids = {};
+
+    const VAR_LABELS = {
+      chl: "Chl",
+      sst: "SST",
+      uv:  "Currents"
+    };
+
+    const GRID_FILES = {
+      chl: "viirs_chl_750_grid.json",
+      sst: "goes_sst_1000_grid.json",
+      uv:  "uv_12500_grid.json"
+    };
+
+    async function loadGridForVar(regionId, vname) {
+      const gridFile = GRID_FILES[vname];
+      if (!gridFile) {
+        console.warn('No grid file mapping for', vname);
+        return;
+      }
+
+      const url = `data/${regionId}/${gridFile}`;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          console.warn('No grid JSON for', vname, 'at', url, resp.status);
+          return;
+        }
+        const grid = await resp.json();
+
+        const lon = grid.lon || grid.lon2d || grid.lon1d;
+        const lat = grid.lat || grid.lat2d || grid.lat1d;
+        if (!lon || !lat) {
+          console.warn('Grid JSON missing lon/lat for', vname);
+          return;
+        }
+
+        let x, y;
+        if (Array.isArray(lon) && Array.isArray(lon[0])) {
+          // 2D grid → derive 1D axes
+          x = lon[0];
+          y = lat.map(row => row[0]);
+        } else {
+          x = lon;
+          y = lat;
+        }
+
+        grids[vname] = { x, y };
+        console.log(`Loaded grid for ${vname}: nx=${x.length}, ny=${y.length}`);
+      } catch (e) {
+        console.error('Error loading grid for', vname, e);
+      }
+    }
+
 
     function getJsonUrl(frame) {
       if (!frame) return null;
@@ -93,12 +149,18 @@
       const idx = await resp.json();
       framesByVar = idx.frames || {};
 
+      const regionId = idx.region || 'mbh';
+      const vars = idx.vars || Object.keys(framesByVar);
+
+      // Load a grid JSON for each variable
+      await Promise.all(vars.map(v => loadGridForVar(regionId, v)));
+
       const varSelect = document.getElementById('var-select');
       varSelect.innerHTML = '';
-      (idx.vars || Object.keys(framesByVar)).forEach(v => {
+      vars.forEach(v => {
         const opt = document.createElement('option');
-        opt.value = v;
-        opt.textContent = v.toUpperCase();
+        opt.value = v;  // 'chl', 'sst', 'uv'
+        opt.textContent = VAR_LABELS[v] || v.toUpperCase(); // shows 'Chl', 'SST', 'Currents'
         varSelect.appendChild(opt);
       });
 
@@ -112,6 +174,7 @@
         setCurrentVar(varSelect.value);
       }
     }
+
 
     function setupButtons() {
       const slider = document.getElementById('time-slider');
