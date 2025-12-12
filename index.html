@@ -304,105 +304,309 @@
     function buildFigureForVar(varKey, gridInfo, dataObj, frameMeta) {
       const { lon2d, lat2d, xAxis, yAxis, nx, ny } = gridInfo;
 
+      function is2DNumberArray(a) {
+        return Array.isArray(a) &&
+               a.length > 0 &&
+               Array.isArray(a[0]) &&
+               a[0].length > 0 &&
+               typeof a[0][0] === "number";
+      }
+
+      // ---- choose z for each var ----
       let z = null;
-      let unitLabel = "";
+      let zAdt = null;
+      let zSpeed = null;
+
       if (varKey === "chl") {
-        z = dataObj.chl;
-        unitLabel = dataObj.unit || "mg m⁻³";
+        if (is2DNumberArray(dataObj.chl)) {
+          z = dataObj.chl;
+        } else if (is2DNumberArray(dataObj.chl_log10)) {
+          z = dataObj.chl_log10; // already log10
+        }
       } else if (varKey === "sst") {
-        z = dataObj.sst;
-        unitLabel = dataObj.unit || "°C";
+        if (is2DNumberArray(dataObj.sst)) {
+          z = dataObj.sst;
+        }
       } else if (varKey === "uv") {
-        // Use speed for color; u/v optional for future quivers
-        if (dataObj.data && dataObj.data.speed) {
-          z = dataObj.data.speed;
-        } else {
-          z = dataObj.speed || null;
+        const d = dataObj.data || dataObj;
+        if (d && is2DNumberArray(d.speed)) {
+          zSpeed = d.speed;
         }
-        unitLabel = (dataObj.unit || "m s⁻¹");
+        if (d && is2DNumberArray(d.adt)) {
+          zAdt = d.adt;
+        }
+        if (!zSpeed && is2DNumberArray(dataObj.speed)) {
+          zSpeed = dataObj.speed;
+        }
       }
 
-      if (!z) {
-        throw new Error(`No data array found for var=${varKey}`);
+      // Fallback auto-detect for chl/sst if needed
+      if (!z && (varKey === "chl" || varKey === "sst")) {
+        for (const v of Object.values(dataObj)) {
+          if (is2DNumberArray(v)) {
+            z = v;
+            break;
+          }
+        }
       }
 
-      // Expect z to be 2-D [ny][nx].
-      // If it's flattened, reshape using ny,nx.
-      if (!Array.isArray(z[0])) {
-        const flat = z;
-        const reshaped = [];
-        let idx = 0;
+      // -------------- CHL / SST (single heatmap) --------------
+      if (varKey === "chl" || varKey === "sst") {
+        if (!z) {
+          throw new Error(`No data array found for var=${varKey}`);
+        }
+
+        // Ensure 2-D
+        if (!Array.isArray(z[0])) {
+          const flat = z;
+          const reshaped = [];
+          let idx = 0;
+          for (let j = 0; j < ny; j++) {
+            const row = [];
+            for (let i = 0; i < nx; i++) {
+              row.push(flat[idx++]);
+            }
+            reshaped.push(row);
+          }
+          z = reshaped;
+        }
+
+        let zPlot = z;
+        let colorscale = "Turbo";
+        let zmin = COLOR_CONFIG[varKey].zmin;
+        let zmax = COLOR_CONFIG[varKey].zmax;
+        let unitLabel = dataObj.unit || (varKey === "chl" ? "mg m⁻³" : "°C");
+
+        // chl: log10 with gist_rainbow
+        if (varKey === "chl") {
+          const zLog = [];
+          for (let j = 0; j < ny; j++) {
+            const row = [];
+            for (let i = 0; i < nx; i++) {
+              const val = z[j][i];
+              const v = (val === null || val === undefined || !isFinite(val)) ? null : Number(val);
+              if (v !== null && v > 0) {
+                row.push(Math.log10(v));
+              } else {
+                row.push(null);
+              }
+            }
+            zLog.push(row);
+          }
+          zPlot = zLog;
+          colorscale = GIST_RAINBOW;
+        }
+
+        // Hover: numbers only
+        const text = [];
         for (let j = 0; j < ny; j++) {
-          const row = [];
+          const rowText = [];
+          const latVal = yAxis[j];
           for (let i = 0; i < nx; i++) {
-            row.push(flat[idx++]);
+            const lonVal = xAxis[i];
+            const val = z[j][i];
+            const numVal =
+              val === null || val === undefined || !isFinite(val)
+                ? null
+                : Number(val);
+            if (numVal === null) {
+              rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
+            } else {
+              rowText.push(
+                `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
+              );
+            }
           }
-          reshaped.push(row);
+          text.push(rowText);
         }
-        z = reshaped;
+
+        const trace = {
+          type: "heatmap",
+          x: xAxis,
+          y: yAxis,
+          z: zPlot,
+          text: text,
+          hovertemplate: "%{text}<extra></extra>",
+          zauto: false,
+          zmin: zmin,
+          zmax: zmax,
+          colorscale: colorscale,
+          colorbar: { title: unitLabel },
+          zsmooth: false
+        };
+
+        const layout = {
+          title: frameTitleFromMeta(varKey, frameMeta),
+          xaxis: { title: "Longitude", automargin: true },
+          yaxis: {
+            title: "Latitude",
+            automargin: true,
+            scaleanchor: "x",
+            scaleratio: 1
+          },
+          margin: { l: 70, r: 10, t: 40, b: 60 },
+          paper_bgcolor: "#050b10",
+          plot_bgcolor: "#050b10",
+          font: { color: "#e0e6ee" }
+        };
+
+        return { data: [trace], layout };
       }
 
-      // Build customdata[ny][nx] = [lon, lat]
-      const customdata = [];
-      const text = [];
-      for (let j = 0; j < ny; j++) {
-        const rowCD = [];
-        const rowText = [];
-        for (let i = 0; i < nx; i++) {
-          const lonVal = lon2d[j][i];
-          const latVal = lat2d[j][i];
-          rowCD.push([lonVal, latVal]);
-
-          const val = z[j][i];
-          let t = "";
-          const numVal = (val === null || val === undefined || Number.isNaN(Number(val)))
-            ? null
-            : Number(val);
-          if (numVal !== null && Number.isFinite(numVal)) {
-            t = `<br>value=${numVal.toFixed(3)} ${unitLabel}`;
-          }
-          rowText.push(t);
+      // -------------- CURRENTS: arrows over ADT --------------
+      if (varKey === "uv") {
+        // Need at least speed; ideally adt for background
+        if (!zSpeed && !zAdt) {
+          throw new Error("No speed or adt field found for currents");
         }
-        customdata.push(rowCD);
-        text.push(rowText);
+
+        // Reshape if 1-D
+        const reshapeIfNeeded = (arr) => {
+          if (!Array.isArray(arr[0])) {
+            const flat = arr;
+            const reshaped = [];
+            let idx = 0;
+            for (let j = 0; j < ny; j++) {
+              const row = [];
+              for (let i = 0; i < nx; i++) {
+                row.push(flat[idx++]);
+              }
+              reshaped.push(row);
+            }
+            return reshaped;
+          }
+          return arr;
+        };
+
+        if (zSpeed) zSpeed = reshapeIfNeeded(zSpeed);
+        if (zAdt)   zAdt   = reshapeIfNeeded(zAdt);
+
+        const d = dataObj.data || dataObj;
+        const u = d.u;
+        const v = d.v;
+
+        // Background: ADT if available; else fallback to speed
+        let zBg = zAdt || zSpeed;
+        const cfgBg = zAdt ? COLOR_CONFIG.adt : COLOR_CONFIG.uv;
+        const bgUnit = zAdt ? "m" : "m s⁻¹";
+        const bgColorscale = zAdt ? "RdBu" : "Viridis";
+        const bgReverse = !!zAdt;
+
+        // Hover for background: lon, lat, value
+        const textBg = [];
+        for (let j = 0; j < ny; j++) {
+          const rowText = [];
+          const latVal = yAxis[j];
+          for (let i = 0; i < nx; i++) {
+            const lonVal = xAxis[i];
+            const val = zBg[j][i];
+            const numVal =
+              val === null || val === undefined || !isFinite(val)
+                ? null
+                : Number(val);
+            if (numVal === null) {
+              rowText.push(`${lonVal.toFixed(3)}, ${latVal.toFixed(3)}`);
+            } else {
+              rowText.push(
+                `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${numVal.toFixed(3)}`
+              );
+            }
+          }
+          textBg.push(rowText);
+        }
+
+        const bgHeat = {
+          type: "heatmap",
+          x: xAxis,
+          y: yAxis,
+          z: zBg,
+          text: textBg,
+          hovertemplate: "%{text}<extra></extra>",
+          zauto: false,
+          zmin: cfgBg.zmin,
+          zmax: cfgBg.zmax,
+          colorscale: bgColorscale,
+          reversescale: bgReverse,
+          colorbar: { title: zAdt ? "ADT (m)" : "Speed (m s⁻¹)" },
+          zsmooth: false
+        };
+
+        // Arrows: direction + speed, overlaid on same axes
+        const arrowX = [];
+        const arrowY = [];
+        const arrowText = [];
+
+        if (u && v && zSpeed) {
+          let step = 1;
+          if (nx * ny > 50 * 50) step = 2;   // subsample for dense grids
+
+          for (let j = 0; j < ny; j += step) {
+            const latVal = yAxis[j];
+            for (let i = 0; i < nx; i += step) {
+              const lonVal = xAxis[i];
+              const uu = u[j][i];
+              const vv = v[j][i];
+              const sp = zSpeed[j][i];
+
+              if (
+                uu === null || uu === undefined || !isFinite(uu) ||
+                vv === null || vv === undefined || !isFinite(vv) ||
+                sp === null || sp === undefined || !isFinite(sp)
+              ) {
+                continue;
+              }
+
+              // length scaled by speed; tweak factor as needed
+              const scale = 0.2;
+              const x1 = lonVal + uu * scale;
+              const y1 = latVal + vv * scale;
+
+              arrowX.push(lonVal, x1, null);
+              arrowY.push(latVal, y1, null);
+
+              const txt = `${lonVal.toFixed(3)}, ${latVal.toFixed(3)}, ${sp.toFixed(3)}`;
+              arrowText.push(txt, txt, "");
+            }
+          }
+        }
+
+        const arrows = {
+          type: "scatter",
+          mode: "lines",
+          x: arrowX,
+          y: arrowY,
+          text: arrowText,
+          hovertemplate: "%{text}<extra></extra>",
+          line: { color: "#000000", width: 1.0 },
+          showlegend: false
+        };
+
+        const layout = {
+          title: frameTitleFromMeta(varKey, frameMeta),
+          xaxis: {
+            title: "Longitude",
+            domain: [0.0, 1.0],
+            automargin: true
+          },
+          yaxis: {
+            title: "Latitude",
+            domain: [0.0, 1.0],
+            automargin: true,
+            scaleanchor: "x",
+            scaleratio: 1
+          },
+          margin: { l: 70, r: 10, t: 40, b: 60 },
+          paper_bgcolor: "#050b10",
+          plot_bgcolor: "#050b10",
+          font: { color: "#e0e6ee" }
+        };
+
+        return { data: [bgHeat, arrows], layout };
       }
 
-      const trace = {
-        type: "heatmap",
-        x: xAxis,
-        y: yAxis,
-        z: z,
-        customdata: customdata,
-        text: text,
-        // Show lon/lat always; value only if text is non-empty
-        hovertemplate: "lon=%{customdata[0]:.4f}<br>lat=%{customdata[1]:.4f}%{text}<extra></extra>",
-        zauto: true,
-        zsmooth: false,
-        colorbar: {
-          title: unitLabel
-        }
-      };
-
-      const layout = {
-        title: frameTitleFromMeta(varKey, frameMeta, dataObj),
-        xaxis: {
-          title: "Longitude",
-          automargin: true
-        },
-        yaxis: {
-          title: "Latitude",
-          scaleanchor: "x",
-          scaleratio: 1,
-          automargin: true
-        },
-        margin: { l: 70, r: 10, t: 40, b: 60 },
-        paper_bgcolor: "#050b10",
-        plot_bgcolor: "#050b10",
-        font: { color: "#e0e6ee" }
-      };
-
-      return { data: [trace], layout };
+      throw new Error(`Unsupported varKey=${varKey}`);
     }
+
 
     // ---------------------- UI / PLAYER ----------------------
 
