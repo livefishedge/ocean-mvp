@@ -265,16 +265,23 @@
 
     // Fetch a single frame JSON for current var.
     async function fetchFrameData(varKey, frameMeta) {
-      // Expect frameMeta.path to be present; otherwise guess.
-      let path = frameMeta.path || frameMeta.file || frameMeta.json || frameMeta.url;
+      // Primary: use json_path from index.json (produced by the Python builder)
+      let path =
+        frameMeta.json_path ||  // e.g. "data/mbh/chl/mbh_....json"
+        frameMeta.path ||
+        frameMeta.file ||
+        frameMeta.url ||
+        frameMeta.json;
+
       if (!path) {
-        // Fallback: assume basename and put under data/mbh/{var}/
-        const base = frameMeta.basename || frameMeta.name;
-        path = `data/${REGION_ID}/${varKey}/${base}`;
+        console.error("Frame meta is missing json_path/path fields:", frameMeta);
+        throw new Error("Frame path missing");
       }
-      // If path is not already rooted under data/, prepend region.
+
+      // If path already starts with "data/", use as-is (it's repo-relative).
+      // Otherwise, assume it's a bare filename under data/{region}/{var}/.
       if (!path.startsWith("data/")) {
-        path = `data/${REGION_ID}/${path}`;
+        path = `data/${REGION_ID}/${varKey}/${path}`;
       }
 
       const res = await fetch(path);
@@ -282,9 +289,9 @@
         console.error("Failed to load frame JSON from", path);
         throw new Error("Frame load failed");
       }
-      const obj = await res.json();
-      return obj;
+      return await res.json();
     }
+
 
     // ---------------------- FIGURE BUILDERS ----------------------
 
