@@ -9,20 +9,25 @@
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
 
   <style>
-    :root {
-      /* JS will overwrite this to sit just below the sticky controls bar */
-      --floating-top: 64px;
+    :root{
+      --bg: #050b10;
+      --fg: #e0e6ee;
+      --panel: rgba(5, 11, 16, 0.92);
+      --border: #1b2836;
+      --ctrlH: 56px;
+      --rangesH: 64px;
     }
 
     html, body {
       height: 100%;
       margin: 0;
-      background: #050b10;
-      color: #e0e6ee;
+      background: var(--bg);
+      color: var(--fg);
       font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
       overflow: auto;
     }
 
+    /* Top controls */
     #controls {
       position: sticky;
       top: 0;
@@ -31,63 +36,78 @@
       gap: 12px;
       align-items: center;
       padding: 8px 12px;
-      background: rgba(5, 11, 16, 0.92);
-      border-bottom: 1px solid #1b2836;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
       backdrop-filter: blur(6px);
+      flex-wrap: wrap;
     }
 
     #var-select {
       background: #0c1723;
-      color: #e0e6ee;
+      color: var(--fg);
       border: 1px solid #273649;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 18px;
-      font-weight: 650;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 20px;
+      font-weight: 750;
+      min-height: 44px;
     }
 
     #timeline {
       flex: 1;
       display: flex;
-      gap: 8px;
+      gap: 10px;
       align-items: center;
-      min-width: 360px;
+      min-width: 320px;
+      flex-wrap: wrap;
     }
 
     button {
       background: #0c1723;
-      color: #e0e6ee;
+      color: var(--fg);
       border: 1px solid #273649;
-      border-radius: 6px;
-      padding: 6px 10px;
-      font-size: 14px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 16px;
       cursor: pointer;
+      min-height: 44px; /* mobile tap target */
     }
     button:disabled { opacity: 0.45; cursor: default; }
 
-    #frame-slider { flex: 1; }
+    #frame-slider {
+      flex: 1;
+      min-width: 220px;
+      height: 24px;
+    }
 
     #frame-label {
-      min-width: 190px;
+      min-width: 220px;
       text-align: right;
-      font-size: 18px;
-      font-weight: 650;
+      font-size: 20px;
+      font-weight: 750;
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
     }
 
+    /* Plot area */
     #plot-wrap {
       position: relative;
       width: 100%;
-      overflow: auto;
     }
 
     #plot {
       width: 100%;
-      height: calc(100vh - 56px - 56px);
-      min-height: 860px;
+      /* use dvh for mobile browser UI */
+      height: calc(100dvh - var(--ctrlH) - var(--rangesH));
+      min-height: 520px;
+      /* Important for touch devices:
+         - allow page scroll vertically
+         - allow pinch zoom inside plot
+      */
+      touch-action: pan-y pinch-zoom;
     }
 
+    /* Bottom range controls */
     #ranges {
       position: sticky;
       bottom: 0;
@@ -95,50 +115,71 @@
       display: flex;
       gap: 10px;
       align-items: center;
-      padding: 8px 12px;
-      background: rgba(5, 11, 16, 0.92);
-      border-top: 1px solid #1b2836;
+      padding: 10px 12px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
       backdrop-filter: blur(6px);
-      font-size: 13px;
+      font-size: 14px;
       flex-wrap: wrap;
     }
 
     .range-block {
       display: flex;
-      gap: 8px;
+      gap: 10px;
       align-items: center;
-      padding: 6px 8px;
-      border: 1px solid #1b2836;
-      border-radius: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
       background: rgba(12, 23, 35, 0.65);
+      flex-wrap: wrap;
     }
 
     .range-block .name {
-      font-weight: 700;
-      margin-right: 4px;
+      font-weight: 800;
+      margin-right: 2px;
     }
 
     input[type="number"] {
-      width: 92px;
+      width: 110px;
       background: #0c1723;
-      color: #e0e6ee;
+      color: var(--fg);
       border: 1px solid #273649;
-      border-radius: 6px;
-      padding: 6px 8px;
-      font-size: 13px;
+      border-radius: 10px;
+      padding: 10px 10px;
+      font-size: 16px;
+      min-height: 44px; /* mobile tap target */
     }
 
-    /* Cursor info FLOATING (fixed), upper-right, avoid colorbar */
+    /* Floating UI overlay (always visible) */
+    #floating-ui {
+      position: fixed;
+      top: calc(var(--ctrlH) + 6px);
+      left: 0;
+      right: 0;
+      z-index: 200;
+      pointer-events: none; /* let touches go to plot */
+    }
+
+    /* Floating modebar host (upper-left) */
+    #modebar-host {
+      position: fixed;
+      top: calc(var(--ctrlH) + 10px);
+      left: 10px;
+      z-index: 210;
+      pointer-events: auto; /* allow clicking buttons */
+    }
+
+    /* Floating readout (upper-right) */
     #readout {
       position: fixed;
-      top: var(--floating-top);
-      right: 110px;
-      z-index: 90;
-      padding: 6px 8px;
-      background: rgba(255,255,255,0.55);
+      top: calc(var(--ctrlH) + 10px);
+      right: 12px;
+      z-index: 210;
+      padding: 8px 10px;
+      background: rgba(255,255,255,0.60);
       color: #000;
       border: 1px solid rgba(0,0,0,0.12);
-      border-radius: 8px;
+      border-radius: 12px;
       font-variant-numeric: tabular-nums;
       pointer-events: none;
       white-space: nowrap;
@@ -146,13 +187,25 @@
       text-align: right;
     }
 
-    /* Modebar FLOATING (fixed) in upper-left */
-    #plot .modebar {
-      position: fixed !important;
-      top: var(--floating-top) !important;
-      left: 8px !important;
-      right: auto !important;
-      z-index: 95 !important;
+    /* Make Plotly modebar fit the floating host nicely */
+    .modebar {
+      background: rgba(5, 11, 16, 0.65) !important;
+      border-radius: 12px !important;
+      padding: 6px 6px !important;
+    }
+
+    /* Mobile layout tweaks */
+    @media (max-width: 820px) {
+      :root{ --ctrlH: 72px; --rangesH: 92px; }
+      #frame-label { text-align: left; min-width: 0; width: 100%; }
+      #timeline { min-width: 0; width: 100%; }
+      #frame-slider { min-width: 0; width: 100%; }
+      #var-select { font-size: 18px; }
+      #readout {
+        right: 10px;
+        min-width: 140px;
+        font-size: 14px;
+      }
     }
   </style>
 </head>
@@ -174,18 +227,26 @@
     </div>
   </div>
 
-  <div id="plot-wrap">
+  <!-- floating overlay -->
+  <div id="floating-ui">
+    <div id="modebar-host"></div>
     <div id="readout"></div>
+  </div>
+
+  <div id="plot-wrap">
     <div id="plot"></div>
   </div>
 
   <div id="ranges">
     <div class="range-block">
       <span class="name" id="range-title">Range</span>
-      <span>vmin</span><input id="vmin-input" type="number" step="any" />
-      <span>vmax</span><input id="vmax-input" type="number" step="any" />
+      <span>vmin</span><input id="vmin-input" type="number" step="any" inputmode="decimal" />
+      <span>vmax</span><input id="vmax-input" type="number" step="any" inputmode="decimal" />
       <button id="apply-range">Apply</button>
       <button id="reset-range">Reset</button>
+    </div>
+    <div style="opacity:0.8">
+      Note: CHL inputs are linear (mg/m³). Viewer internally colors log10.
     </div>
   </div>
 
@@ -219,6 +280,7 @@ let userRanges = {
   uv:  { ...DEFAULT_RANGES.uv }
 };
 
+/* chlorophyll colorscale (nice algae-like) */
 const CHL_ALGAE = [
   [0.00, "#081d38"],
   [0.10, "#1d4f91"],
@@ -230,19 +292,18 @@ const CHL_ALGAE = [
   [1.00, "#b30000"]
 ];
 
+/* chlorophyll tick labels (show only 0.01, 0.1, 1, 10) */
 const CHL_TICKS_LINEAR = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
 const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
 const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10) ? String(v) : "");
 
-/* Currents arrow styling (VISIBLE heads) */
+/* Currents arrow styling */
 const CURRENT_ARROW_STEP_MAXPTS = 50 * 50;
 const CURRENT_ARROW_SCALE = 1;
-const CURRENT_HEAD_SIZE = 0.2;
-const CURRENT_LINE_W = 1;
 
 /* ========================= STATE ========================= */
 let framesByVar = { chl: [], sst: [], uv: [] };
-let frameTimesByVar = { chl: [], sst: [], uv: [] }; // epoch ms for closest-time match
+let frameTimesByVar = { chl: [], sst: [], uv: [] }; // epoch ms
 let currentVar = "chl";
 let currentFrameIdx = 0;
 let playing = false;
@@ -250,8 +311,12 @@ let playTimer = null;
 
 const gridCache = {};
 let _readoutHooked = false;
+let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null, autorange:true };
+
+/* Touch detection */
+const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 
 /* ========================= DOM ========================= */
 const plotDiv   = document.getElementById("plot");
@@ -262,6 +327,7 @@ const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
 const readoutDiv = document.getElementById("readout");
+const modebarHost = document.getElementById("modebar-host");
 
 const rangeTitle = document.getElementById("range-title");
 const vminInput = document.getElementById("vmin-input");
@@ -270,19 +336,6 @@ const applyBtn = document.getElementById("apply-range");
 const resetBtn = document.getElementById("reset-range");
 
 function setReadout(txt) { readoutDiv.textContent = txt || ""; }
-
-/* ========================= FLOATING UI ========================= */
-/* Keeps modebar + readout visible when scrolling; positions them below sticky controls. */
-function refreshFloatingTop() {
-  const controls = document.getElementById("controls");
-  if (!controls) return;
-  const r = controls.getBoundingClientRect();
-  const topPx = Math.max(0, Math.round(r.bottom + 8));
-  document.documentElement.style.setProperty("--floating-top", `${topPx}px`);
-}
-window.addEventListener("scroll", refreshFloatingTop, { passive: true });
-window.addEventListener("resize", refreshFloatingTop);
-document.addEventListener("DOMContentLoaded", refreshFloatingTop);
 
 /* ========================= TIME PARSERS ========================= */
 function parseChlUtcFromName(filename) {
@@ -296,6 +349,7 @@ function parseChlUtcFromName(filename) {
   const d0 = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
   return new Date(d0.getTime() + (jjj - 1) * 86400e3 + hh * 3600e3 + mm * 60e3);
 }
+
 function parseSstUtcFromName(filename) {
   const m = filename.match(/sst_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
   if (!m) return null;
@@ -305,6 +359,7 @@ function parseSstUtcFromName(filename) {
   const d0 = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
   return new Date(d0.getTime() + (jjj - 1) * 86400e3 + hh * 3600e3);
 }
+
 function parseUvDateFromName(filename) {
   const m = filename.match(/_(\d{8})_/);
   if (!m) return null;
@@ -313,6 +368,7 @@ function parseUvDateFromName(filename) {
   const d = Number(m[1].slice(6, 8));
   return new Date(Date.UTC(y, mo, d));
 }
+
 function fmtLocalDateTime(dt) {
   return dt.toLocaleString(undefined, {
     year: "numeric", month: "2-digit", day: "2-digit",
@@ -320,68 +376,86 @@ function fmtLocalDateTime(dt) {
     hour12: false
   });
 }
-function fmtLocalDateOnly(dt) {
+function fmtLocalDate(dt) {
   return dt.toLocaleDateString(undefined, {
     year: "numeric", month: "2-digit", day: "2-digit"
   });
 }
 
-function epochMsForFrame(varKey, f) {
-  const fn = frameFilenameOf(f);
-  if (varKey === "chl") {
-    const d = parseChlUtcFromName(fn);
-    return d ? d.getTime() : null;
-  }
-  if (varKey === "sst") {
-    const d = parseSstUtcFromName(fn);
-    return d ? d.getTime() : null;
-  }
-  if (varKey === "uv") {
-    const d = parseUvDateFromName(fn);
-    return d ? d.getTime() : null;
-  }
-  return null;
+function timeOnlyLabel(varKey, frameMeta) {
+  const path = framePathOf(frameMeta);
+  const filename = String(path).split("/").pop() || "";
+  if (varKey === "chl") { const dt = parseChlUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
+  if (varKey === "sst") { const dt = parseSstUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
+  if (varKey === "uv")  { const dt = parseUvDateFromName(filename);  return dt ? fmtLocalDate(dt) : ""; }
+  return "";
 }
-function timeOnlyLabel(varKey, f) {
-  const fn = frameFilenameOf(f);
-  const d = (varKey==="chl") ? parseChlUtcFromName(fn)
-          : (varKey==="sst") ? parseSstUtcFromName(fn)
-          : parseUvDateFromName(fn);
-  if (!d) return "";
-  return (varKey==="uv") ? fmtLocalDateOnly(d) : fmtLocalDateTime(d);
+
+function epochMsForFrame(varKey, frameMeta) {
+  const path = framePathOf(frameMeta);
+  const filename = String(path).split("/").pop() || "";
+  let dt = null;
+  if (varKey === "chl") dt = parseChlUtcFromName(filename);
+  if (varKey === "sst") dt = parseSstUtcFromName(filename);
+  if (varKey === "uv")  dt = parseUvDateFromName(filename);
+  return dt ? dt.getTime() : null;
 }
 
 /* ========================= HELPERS ========================= */
-function isArray(a){ return Array.isArray(a); }
-function is2D(a){ return isArray(a) && a.length > 0 && Array.isArray(a[0]) && a[0].length > 0; }
+function is2D(a) { return Array.isArray(a) && a.length > 0 && Array.isArray(a[0]) && a[0].length > 0; }
 function framePathOf(f) { return String(f?.json_path || f?.path || f?.file || f?.url || f?.json || ""); }
 function frameFilenameOf(f) { const p = framePathOf(f); return p.split("/").pop() || p; }
+
 function filterFramesForVar(varKey, frames) {
   const out = [];
   for (const f of (frames || [])) {
     const fn = frameFilenameOf(f).toLowerCase();
     if (!fn.endsWith(".json")) continue;
     if (fn.includes("grid")) continue;
-    if (varKey === "chl" && !fn.includes("_chl")) continue;
-    if (varKey === "sst" && !fn.includes("sst_")) continue;
-    if (varKey === "uv"  && !fn.includes("uv_")) continue;
+    if (varKey === "chl" && !fn.includes("_chl_")) continue;
+    if (varKey === "sst" && !fn.startsWith("sst_")) continue;
+    if (varKey === "uv"  && !fn.startsWith("uv_")) continue;
     out.push(f);
   }
   return out;
 }
-function closestIndex(sortedEpochs, targetEpoch) {
-  if (!sortedEpochs || !sortedEpochs.length) return 0;
-  let lo = 0, hi = sortedEpochs.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (sortedEpochs[mid] < targetEpoch) lo = mid + 1;
-    else hi = mid;
+
+function closestIndex(times, targetMs) {
+  if (!times.length || targetMs === null) return 0;
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    if (t === null) continue;
+    const d = Math.abs(t - targetMs);
+    if (d < bestDist) { bestDist = d; best = i; }
   }
-  const i = lo;
-  if (i <= 0) return 0;
-  if (i >= sortedEpochs.length) return sortedEpochs.length - 1;
-  const a = sortedEpochs[i - 1], b = sortedEpochs[i];
-  return (Math.abs(a - targetEpoch) <= Math.abs(b - targetEpoch)) ? (i - 1) : i;
+  return best;
+}
+
+/* ========================= VIEW SYNC ========================= */
+function attachRelayoutListenerOnce() {
+  if (_relayoutHooked) return;
+  _relayoutHooked = true;
+
+  plotDiv.on("plotly_relayout", (ev) => {
+    if (!ev) return;
+    const xr0 = ev["xaxis.range[0]"], xr1 = ev["xaxis.range[1]"];
+    const yr0 = ev["yaxis.range[0]"], yr1 = ev["yaxis.range[1]"];
+    if (xr0 !== undefined && xr1 !== undefined && yr0 !== undefined && yr1 !== undefined) {
+      viewState.hasRange = true;
+      viewState.autorange = false;
+      viewState.xRange = [xr0, xr1];
+      viewState.yRange = [yr0, yr1];
+      return;
+    }
+    if (ev["xaxis.autorange"] === true || ev["yaxis.autorange"] === true) {
+      viewState.hasRange = false;
+      viewState.autorange = true;
+      viewState.xRange = null;
+      viewState.yRange = null;
+    }
+  });
 }
 
 /* ========================= STABLE LAYOUT ========================= */
@@ -471,9 +545,12 @@ function buildSst(gridInfo, dataObj) {
       hoverinfo: "none",
       zauto: false,
       zmin: vmin, zmax: vmax,
-      colorscale: "RdBu",
-      reversescale: false,
-      colorbar: { title: { text: DEFAULT_RANGES.sst.unit, side: "top" }, x: 1.02, xanchor: "left", len: 0.92 },
+      colorscale: "RdBu", /* blue cold, red warm */
+      reversescale: true,
+      colorbar: {
+        title: { text: DEFAULT_RANGES.sst.unit, side: "top" },
+        x: 1.02, xanchor: "left", len: 0.92
+      },
       zsmooth: false
     }],
     layout: stableLayout()
@@ -482,46 +559,58 @@ function buildSst(gridInfo, dataObj) {
 
 function buildUv(gridInfo, dataObj) {
   const { xAxis, yAxis, nx, ny } = gridInfo;
+  const d = dataObj.data || dataObj;
 
-  // placeholder background = speed
-  const speed = dataObj.speed || dataObj.data?.speed;
-  const u = dataObj.u || dataObj.data?.u;
-  const v = dataObj.v || dataObj.data?.v;
+  if (!d || !is2D(d.u) || !is2D(d.v) || !is2D(d.speed)) {
+    throw new Error("UV JSON missing 2-D keys: data.u, data.v, data.speed");
+  }
 
-  if (!is2D(speed)) throw new Error("UV JSON missing 2-D key: speed");
-  if (!is2D(u) || !is2D(v)) throw new Error("UV JSON missing u/v arrays");
+  const speed = d.speed;
+  const u = d.u, v = d.v;
 
   const vmin = userRanges.uv.vmin;
   const vmax = userRanges.uv.vmax;
+
+  // background heatmap (speed placeholder)
+  const cd = Array.from({ length: ny }, () => Array(nx).fill(null));
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const sp = speed[j][i];
+      cd[j][i] = (sp === null || sp === undefined || !isFinite(sp)) ? null : Number(sp);
+    }
+  }
 
   const bg = {
     type: "heatmap",
     x: xAxis, y: yAxis,
     z: speed,
-    customdata: speed,
+    customdata: cd,
     hoverinfo: "none",
     zauto: false,
-    zmin: vmin, zmax: vmax,
+    zmin: vmin,
+    zmax: vmax,
     colorscale: "Viridis",
-    colorbar: { title: { text: DEFAULT_RANGES.uv.unit, side: "top" }, x: 1.02, xanchor: "left", len: 0.92 },
+    colorbar: {
+      title: { text: DEFAULT_RANGES.uv.unit, side: "top" },
+      x: 1.02, xanchor: "left", len: 0.92
+    },
     zsmooth: false
   };
 
-  // downsample arrows
-  const total = nx * ny;
-  const step = Math.max(1, Math.ceil(Math.sqrt(total / CURRENT_ARROW_STEP_MAXPTS)));
-
+  // open arrowheads that scale with zoom (lon/lat units)
   const lineX = [];
   const lineY = [];
 
-  // Use grid spacing to set a visible minimum head length in *axis units*
+  let step = 1;
+  if (nx * ny > CURRENT_ARROW_STEP_MAXPTS) step = 2;
+
+  // grid spacing => visible head length
   let dxg = 0.01, dyg = 0.01;
   if (nx > 1) dxg = Math.abs(xAxis[1] - xAxis[0]);
   if (ny > 1) dyg = Math.abs(yAxis[1] - yAxis[0]);
-  const minHead = 0.5 * Math.max(dxg, dyg);
-  const headFrac = 0.35;
-  const headAngleDeg = 10;
-  const headAngle = headAngleDeg * Math.PI / 180;
+  const minHead = 0.65 * Math.max(dxg, dyg);
+  const headFrac = 0.42;
+  const headAngle = (12 * Math.PI) / 180;
 
   for (let j = 0; j < ny; j += step) {
     const lat0 = yAxis[j];
@@ -540,17 +629,16 @@ function buildUv(gridInfo, dataObj) {
       const L = Math.hypot(dx, dy);
       if (!(L > 0)) continue;
 
-      // Shaft
+      // shaft
       lineX.push(lon0, lon1, null);
       lineY.push(lat0, lat1, null);
 
-      // Open "V" head
+      // open "V" head
       const theta = Math.atan2(dy, dx);
       const hl = Math.max(minHead, headFrac * L);
 
       const xL = lon1 + hl * Math.cos(theta + Math.PI - headAngle);
       const yL = lat1 + hl * Math.sin(theta + Math.PI - headAngle);
-
       const xR = lon1 + hl * Math.cos(theta + Math.PI + headAngle);
       const yR = lat1 + hl * Math.sin(theta + Math.PI + headAngle);
 
@@ -564,7 +652,7 @@ function buildUv(gridInfo, dataObj) {
     mode: "lines",
     x: lineX, y: lineY,
     hoverinfo: "none",
-    line: { color: "#000000", width: 1.4 },
+    line: { color: "#000000", width: 1.6 },
     showlegend: false
   };
 
@@ -578,29 +666,50 @@ function buildForVar(varKey, gridInfo, dataObj) {
   throw new Error(`Unsupported varKey=${varKey}`);
 }
 
-/* ========================= READOUT ========================= */
+/* ========================= READOUT (hover + tap) ========================= */
 function setupReadoutHandlersOnce() {
   if (_readoutHooked) return;
   _readoutHooked = true;
 
-  plotDiv.on("plotly_unhover", () => setReadout(""));
+  // Desktop hover
+  plotDiv.on("plotly_unhover", () => { if (!IS_TOUCH) setReadout(""); });
 
   plotDiv.on("plotly_hover", (ev) => {
+    if (IS_TOUCH) return; // avoid fighting touch
     const p = ev.points && ev.points[0];
     if (!p) return;
-    const lon = Number(p.x);
-    const lat = Number(p.y);
-    if (!isFinite(lon) || !isFinite(lat)) return;
-
-    const base = `${lon.toFixed(3)} ${lat.toFixed(3)}`;
-    const cd = p.customdata;
-
-    if (cd === null || cd === undefined || !isFinite(cd)) { setReadout(base); return; }
-
-    const val = Number(cd);
-    if (currentVar === "sst") setReadout(`${base} ${val.toFixed(2)}`);
-    else setReadout(`${base} ${val.toFixed(3)}`);
+    renderReadoutFromPoint(p);
   });
+
+  // Mobile tap
+  plotDiv.on("plotly_click", (ev) => {
+    const p = ev.points && ev.points[0];
+    if (!p) return;
+    renderReadoutFromPoint(p);
+  });
+}
+
+function renderReadoutFromPoint(p) {
+  const lon = Number(p.x);
+  const lat = Number(p.y);
+  if (!isFinite(lon) || !isFinite(lat)) return;
+
+  const base = `${lon.toFixed(3)} ${lat.toFixed(3)}`;
+  const cd = p.customdata;
+
+  if (cd === null || cd === undefined || !isFinite(cd)) { setReadout(base); return; }
+
+  const val = Number(cd);
+  if (currentVar === "sst") setReadout(`${base} ${val.toFixed(2)}`);
+  else setReadout(`${base} ${val.toFixed(3)}`);
+}
+
+/* Keep modebar floating even when page scrolls */
+function floatModebarOnceReady() {
+  const mb = plotDiv.querySelector(".modebar");
+  if (!mb) return;
+  if (mb.parentElement === modebarHost) return;
+  modebarHost.appendChild(mb);
 }
 
 /* ========================= UI ========================= */
@@ -626,95 +735,7 @@ function updateSliderUI() {
   frameLbl.textContent = n ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
 }
 
-/* ========================= VIEW SYNC ========================= */
-let _relayoutHooked = false;
-function attachRelayoutListenerOnce() {
-  if (_relayoutHooked) return;
-  _relayoutHooked = true;
-
-  plotDiv.on("plotly_relayout", (ev) => {
-    if (!ev) return;
-    const xr0 = ev["xaxis.range[0]"], xr1 = ev["xaxis.range[1]"];
-    const yr0 = ev["yaxis.range[0]"], yr1 = ev["yaxis.range[1]"];
-    if (xr0 !== undefined && xr1 !== undefined && yr0 !== undefined && yr1 !== undefined) {
-      viewState.hasRange = true;
-      viewState.autorange = false;
-      viewState.xRange = [xr0, xr1];
-      viewState.yRange = [yr0, yr1];
-      return;
-    }
-    if (ev["xaxis.autorange"] === true || ev["yaxis.autorange"] === true) {
-      viewState.hasRange = false;
-      viewState.autorange = true;
-      viewState.xRange = null;
-      viewState.yRange = null;
-    }
-  });
-}
-
-/* ========================= LOADING ========================= */
-async function loadIndex() {
-  let idx = null;
-  for (const url of INDEX_CANDIDATES) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) { idx = await res.json(); break; }
-    } catch (_) {}
-  }
-  if (!idx) throw new Error("Failed to load index.json");
-
-  const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
-  framesByVar = {
-    chl: filterFramesForVar("chl", fbv.chl || []),
-    sst: filterFramesForVar("sst", fbv.sst || []),
-    uv:  filterFramesForVar("uv",  fbv.uv  || [])
-  };
-
-  for (const v of Object.keys(framesByVar)) {
-    framesByVar[v].sort((a, b) => {
-      const ta = epochMsForFrame(v, a) ?? 0;
-      const tb = epochMsForFrame(v, b) ?? 0;
-      return ta - tb;
-    });
-    frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f));
-  }
-
-  await setCurrentVar(currentVar, /*keepTime*/ false);
-}
-
-async function loadGridForVar(v) {
-  if (gridCache[v]) return gridCache[v];
-  const gridName = VAR_TO_GRID[v];
-  const url = `data/${REGION_ID}/grids/${gridName}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Could not load grid for ${v}: ${url}`);
-  const grid = await res.json();
-
-  const lon = grid.lon, lat = grid.lat;
-  if (!Array.isArray(lon) || !Array.isArray(lat) || !Array.isArray(lon[0]) || !Array.isArray(lat[0])) {
-    throw new Error("Grid JSON must contain 2-D lon/lat arrays");
-  }
-
-  const ny = lon.length;
-  const nx = lon[0].length;
-  const xAxis = lon[0].slice();
-  const yAxis = lat.map(r => r[0]);
-
-  const info = { xAxis, yAxis, nx, ny };
-  gridCache[v] = info;
-  return info;
-}
-
-async function fetchFrameData(varKey, frameMeta) {
-  const p = framePathOf(frameMeta);
-  if (!p) throw new Error("Frame has no json path");
-  const url = p.startsWith("data/") ? p : `data/${REGION_ID}/${varKey}/${p}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Frame load failed: ${url}`);
-  return await res.json();
-}
-
-/* Fix #1: when switching vars, jump to closest time */
+/* switch vars => jump to closest time */
 async function setCurrentVar(v, keepTime = true) {
   const prevVar = currentVar;
   const prevFrames = framesByVar[prevVar] || [];
@@ -762,6 +783,68 @@ function setPlaying(on) {
   }
 }
 
+/* ========================= LOADING ========================= */
+async function loadIndex() {
+  let idx = null;
+  for (const url of INDEX_CANDIDATES) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) { idx = await res.json(); break; }
+    } catch (_) {}
+  }
+  if (!idx) throw new Error("Failed to load index.json");
+
+  const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
+  framesByVar = {
+    chl: filterFramesForVar("chl", fbv.chl || []),
+    sst: filterFramesForVar("sst", fbv.sst || []),
+    uv:  filterFramesForVar("uv",  fbv.uv  || [])
+  };
+
+  for (const v of Object.keys(framesByVar)) {
+    framesByVar[v].sort((a, b) => {
+      const ta = epochMsForFrame(v, a) ?? 0;
+      const tb = epochMsForFrame(v, b) ?? 0;
+      return ta - tb;
+    });
+    frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f));
+  }
+
+  await setCurrentVar(currentVar, false);
+}
+
+async function loadGridForVar(v) {
+  if (gridCache[v]) return gridCache[v];
+  const gridName = VAR_TO_GRID[v];
+  const url = `data/${REGION_ID}/grids/${gridName}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not load grid for ${v}: ${url}`);
+  const grid = await res.json();
+
+  const lon = grid.lon, lat = grid.lat;
+  if (!Array.isArray(lon) || !Array.isArray(lat) || !Array.isArray(lon[0]) || !Array.isArray(lat[0])) {
+    throw new Error("Grid JSON must contain 2-D lon/lat arrays");
+  }
+
+  const ny = lon.length;
+  const nx = lon[0].length;
+  const xAxis = lon[0].slice();
+  const yAxis = lat.map(r => r[0]);
+
+  const info = { xAxis, yAxis, nx, ny };
+  gridCache[v] = info;
+  return info;
+}
+
+async function fetchFrameData(varKey, frameMeta) {
+  const p = framePathOf(frameMeta);
+  if (!p) throw new Error("Frame has no json path");
+  const url = p.startsWith("data/") ? p : `data/${REGION_ID}/${varKey}/${p}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Frame load failed: ${url}`);
+  return await res.json();
+}
+
 /* ========================= RENDER ========================= */
 async function showFrame() {
   const frames = framesByVar[currentVar] || [];
@@ -769,29 +852,27 @@ async function showFrame() {
 
   const frameMeta = frames[currentFrameIdx];
 
-  try {
-    const [gridInfo, dataObj] = await Promise.all([
-      loadGridForVar(currentVar),
-      fetchFrameData(currentVar, frameMeta)
-    ]);
+  const [gridInfo, dataObj] = await Promise.all([
+    loadGridForVar(currentVar),
+    fetchFrameData(currentVar, frameMeta)
+  ]);
 
-    const fig = buildForVar(currentVar, gridInfo, dataObj);
+  const fig = buildForVar(currentVar, gridInfo, dataObj);
 
-    await Plotly.react(plotDiv, fig.data, fig.layout, {
-      responsive: true,
-      displayModeBar: true,
-      scrollZoom: true
-    });
+  await Plotly.react(plotDiv, fig.data, fig.layout, {
+    responsive: true,
+    displayModeBar: true,
+    scrollZoom: true,      // pinch zoom on mobile
+    doubleClick: "reset",  // double tap/click resets
+  });
 
-    setupReadoutHandlersOnce();
-    attachRelayoutListenerOnce();
-    updateSliderUI();
+  // float modebar and keep it floating across renders
+  floatModebarOnceReady();
+  setTimeout(floatModebarOnceReady, 0);
 
-    // ensure floating positions are correct after Plotly builds the modebar
-    refreshFloatingTop();
-  } catch (err) {
-    console.error("Error showing frame:", err);
-  }
+  setupReadoutHandlersOnce();
+  attachRelayoutListenerOnce();
+  updateSliderUI();
 }
 
 /* ========================= EVENTS ========================= */
@@ -823,6 +904,9 @@ resetBtn.addEventListener("click", () => {
   syncRangeInputsToVar();
   showFrame();
 });
+
+/* Keep plot sized on rotate */
+window.addEventListener("resize", () => { try { Plotly.Plots.resize(plotDiv); } catch(_){} });
 
 /* ========================= INIT ========================= */
 (async function init() {
