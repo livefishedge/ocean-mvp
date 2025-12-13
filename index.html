@@ -6,8 +6,13 @@
   <title>LiveFish Edge</title>
   <link rel="icon" href="data:,">
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
-  <!-- NetCDF v3 reader for in-browser GEBCO bathymetry -->
+
+  <!-- netcdfjs UMD (NetCDF v3/classic only) -->
   <script src="https://cdn.jsdelivr.net/npm/netcdfjs@0.7.0/dist/netcdfjs.min.js"></script>
+  <script>
+    // netcdfjs UMD may expose NetCDFReader as window.NetCDFReader or window.netcdfjs.NetCDFReader
+    window.NetCDFReader = window.NetCDFReader || (window.netcdfjs && window.netcdfjs.NetCDFReader) || null;
+  </script>
 
   <style>
     html, body {
@@ -22,280 +27,306 @@
     #controls {
       position: sticky;
       top: 0;
-      z-index: 20;
+      z-index: 50;
       display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
+      gap: 12px;
       align-items: center;
-      padding: 8px 10px;
+      padding: 8px 12px;
       background: rgba(5, 11, 16, 0.92);
       border-bottom: 1px solid #1b2836;
       backdrop-filter: blur(6px);
     }
 
-    #controls .row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      width: 100%;
+    #var-select {
+      background: #0c1723;
+      color: #e0e6ee;
+      border: 1px solid #273649;
+      border-radius: 6px;
+      padding: 6px 10px;
+      font-size: 18px;
+      font-weight: 650;
     }
 
-    .lbl { opacity: 0.9; font-size: 14px; }
-    select, button, input {
-      background: #0c141d;
+    #timeline {
+      flex: 1;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      min-width: 360px;
+    }
+
+    button {
+      background: #0c1723;
       color: #e0e6ee;
-      border: 1px solid #263649;
-      border-radius: 8px;
+      border: 1px solid #273649;
+      border-radius: 6px;
       padding: 6px 10px;
       font-size: 14px;
+      cursor: pointer;
     }
-    button { cursor: pointer; }
-    button:disabled { opacity: 0.5; cursor: default; }
+    button:disabled { opacity: 0.45; cursor: default; }
 
-    #slider { width: min(640px, 100%); }
-    #timeLabel { font-size: 18px; font-weight: 650; letter-spacing: 0.2px; }
+    #frame-slider { flex: 1; }
 
-    #plotWrap {
+    #frame-label {
+      min-width: 190px;
+      text-align: right;
+      font-size: 18px;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    #plot-wrap {
       position: relative;
       width: 100%;
-      max-width: 100vw;
-      height: calc(100vh - 60px);
-      min-height: 520px;
+      overflow: auto;
     }
 
     #plot {
       width: 100%;
-      height: 100%;
+      height: calc(100vh - 56px - 56px);
+      min-height: 860px;
     }
 
-    /* Floating cursor/tap readout */
-    #readout {
-      position: fixed;
-      right: 10px;
-      top: calc(var(--controlsH, 60px) + 10px);
-      z-index: 50;
-      background: rgba(255,255,255,0.10);
-      border: 1px solid rgba(255,255,255,0.18);
+    #ranges {
+      position: sticky;
+      bottom: 0;
+      z-index: 40;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 12px;
+      background: rgba(5, 11, 16, 0.92);
+      border-top: 1px solid #1b2836;
+      backdrop-filter: blur(6px);
+      font-size: 13px;
+      flex-wrap: wrap;
+    }
+
+    .range-block {
+      display: flex;
+      gap: 8px;
+      align-items: center;
       padding: 6px 8px;
+      border: 1px solid #1b2836;
       border-radius: 8px;
-      font-size: 12px;
+      background: rgba(12, 23, 35, 0.65);
+    }
+
+    .range-block .name {
+      font-weight: 700;
+      margin-right: 4px;
+    }
+
+    input[type="number"] {
+      width: 92px;
+      background: #0c1723;
+      color: #e0e6ee;
+      border: 1px solid #273649;
+      border-radius: 6px;
+      padding: 6px 8px;
+      font-size: 13px;
+    }
+
+    /* Cursor info inside plot, upper-right, avoid colorbar */
+    #readout {
+      position: absolute;
+      top: 10px;
+      right: 110px;
+      z-index: 60;
+      padding: 6px 8px;
+      background: rgba(255,255,255,0.55);
+      color: #000;
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 8px;
+      font-variant-numeric: tabular-nums;
       pointer-events: none;
-      max-width: 45vw;
+      white-space: nowrap;
+      min-width: 170px;
       text-align: right;
     }
 
-    /* Float Plotly modebar too */
+    /* Modebar upper-left */
     #plot .modebar {
-      position: fixed !important;
-      left: 10px !important;
+      left: 8px !important;
       right: auto !important;
-      top: calc(var(--controlsH, 60px) + 10px) !important;
-      z-index: 60 !important;
-    }
-
-    /* Bottom range controls */
-    #ranges {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      padding: 10px;
-      border-top: 1px solid #1b2836;
-      background: rgba(5, 11, 16, 0.92);
-    }
-
-    #ranges .mini {
-      font-size: 12px;
-      opacity: 0.95;
-    }
-
-    #ranges input[type="number"] {
-      width: 90px;
-      padding: 5px 8px;
-      font-size: 12px;
-    }
-
-    /* Mobile portrait: stack controls, colorbar handled in JS */
-    @media (max-width: 640px) {
-      #timeLabel { font-size: 16px; }
-      select, button, input { font-size: 13px; padding: 6px 8px; }
-      #readout { font-size: 11px; max-width: 60vw; }
-      #plotWrap { height: calc(100vh - 120px); min-height: 460px; }
-      #ranges input[type="number"] { width: 78px; }
+      top: 8px !important;
     }
   </style>
 </head>
 
 <body>
   <div id="controls">
-    <div class="row">
-      <select id="varSel">
-        <option value="chl">Chlorophyll</option>
-        <option value="sst">Temperature</option>
-        <option value="uv">Currents</option>
-        <option value="bathy">Bathymetry</option>
-      </select>
+    <select id="var-select">
+      <option value="chl">Chlorophyll</option>
+      <option value="sst">Temperature</option>
+      <option value="uv">Currents</option>
+      <option value="bath">Bathymetry</option>
+    </select>
 
-      <button id="prevBtn">⟨</button>
-      <button id="playBtn">▶</button>
-      <button id="nextBtn">⟩</button>
-
-      <input id="slider" type="range" min="0" max="0" step="1" value="0" />
-      <div id="timeLabel"></div>
+    <div id="timeline">
+      <button id="prev-btn">&#9664;</button>
+      <button id="play-btn">Play</button>
+      <button id="next-btn">&#9654;</button>
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
+      <span id="frame-label"></span>
     </div>
   </div>
 
-  <div id="plotWrap">
+  <div id="plot-wrap">
+    <div id="readout"></div>
     <div id="plot"></div>
   </div>
 
-  <div id="readout"></div>
-
   <div id="ranges">
-    <span class="mini" id="rangeLabel">Range</span>
-    <span class="mini" id="vminLabel">vmin</span>
-    <input id="vminInput" type="number" step="0.01" />
-    <span class="mini" id="vmaxLabel">vmax</span>
-    <input id="vmaxInput" type="number" step="0.01" />
-    <button id="applyRangeBtn">Apply</button>
-    <button id="resetRangeBtn">Reset</button>
+    <div class="range-block">
+      <span class="name" id="range-title">Range</span>
+      <span>vmin</span><input id="vmin-input" type="number" step="any" />
+      <span>vmax</span><input id="vmax-input" type="number" step="any" />
+      <button id="apply-range">Apply</button>
+      <button id="reset-range">Reset</button>
+    </div>
+    <div style="opacity:0.8">
+      Note: CHL inputs are linear (mg/m³). Viewer internally colors log10.
+    </div>
   </div>
 
 <script>
 /* ========================= CONFIG ========================= */
 const REGION_ID = "mbh";
 
-const GRID_FILES = {
+const VAR_LABELS = { chl: "Chlorophyll", sst: "Temperature", uv: "Currents", bath: "Bathymetry" };
+
+const VAR_TO_GRID = {
   chl: "viirs_chl_750_grid.json",
   sst: "goes_sst_1000_grid.json",
-  uv:  "uv_12500_grid.json"
+  uv:  "uv_12500_grid.json",
+  bath: null
 };
 
-const VAR_LABELS = {
-  chl: "Chlorophyll",
-  sst: "Temperature",
-  uv:  "Currents",
-  bathy: "Bathymetry"
-};
+// Bathymetry (NetCDF3 classic; GEBCO subset)
+const BATHY_NC_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_n28.5_s24.5_w-79.0_e-75.0.nc`;
+
+
+const INDEX_CANDIDATES = [
+  "index.json",
+  "data/index.json",
+  `data/${REGION_ID}/index.json`
+];
 
 const DEFAULT_RANGES = {
   chl: { vmin: 0.01, vmax: 10.0, unit: "mg/m³" },
   sst: { vmin: 23.0, vmax: 28.0, unit: "°C" },
-  uv:  { vmin: -0.5, vmax: 0.5, unit: "m" },   // SSH placeholder range
-  bathy: { vmin: 0, vmax: 5000, unit: "m" }
+  uv:  { vmin: 0.0,  vmax: 2.0,  unit: "m/s" }
+  ,bath: { vmin: 0, vmax: 2000, unit: "m" }
 };
 
-// CHL uses log10 coloring but we label ticks in linear units
-const CHL_TICKS_LINEAR = [0.01,0.02,0.03,0.05,0.07,0.1,0.2,0.3,0.5,0.7,1,2,3,5,7,10];
+let userRanges = {
+  chl: { ...DEFAULT_RANGES.chl },
+  sst: { ...DEFAULT_RANGES.sst },
+  uv:  { ...DEFAULT_RANGES.uv }
+};
+
+const CHL_ALGAE = [
+  [0.00, "#081d38"],
+  [0.10, "#1d4f91"],
+  [0.22, "#00a6ca"],
+  [0.36, "#00d17f"],
+  [0.52, "#a3f700"],
+  [0.70, "#ffe600"],
+  [0.86, "#ff7a00"],
+  [1.00, "#b30000"]
+];
+
+const CHL_TICKS_LINEAR = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
 const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
 const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10) ? String(v) : "");
 
 /* Currents arrow styling (VISIBLE heads) */
 const CURRENT_ARROW_STEP_MAXPTS = 50 * 50;
-const CURRENT_ARROW_SCALE = 0.08;
+const CURRENT_ARROW_SCALE = 1;
 const CURRENT_HEAD_SIZE = 0.2;
 const CURRENT_LINE_W = 1;
 
 /* ========================= STATE ========================= */
-let framesByVar = { chl: [], sst: [], uv: [], bathy: [{ id: "bathy" }] };
-let frameTimesByVar = { chl: [], sst: [], uv: [], bathy: [0] }; // epoch ms for closest-timestep mapping
+let framesByVar = { chl: [], sst: [], uv: [] };
+let frameTimesByVar = { chl: [], sst: [], uv: [] }; // epoch ms for closest-time match
 let currentVar = "chl";
 let currentFrameIdx = 0;
 let playing = false;
 let playTimer = null;
-let savedView = null;
 
-let gridCache = {};
+const gridCache = {};
 let _readoutHooked = false;
 
+let viewState = { hasRange:false, xRange:null, yRange:null, autorange:true };
+
 /* ========================= DOM ========================= */
-const plotDiv = document.getElementById("plot");
-const varSel = document.getElementById("varSel");
-const prevBtn = document.getElementById("prevBtn");
-const playBtn = document.getElementById("playBtn");
-const nextBtn = document.getElementById("nextBtn");
-const slider = document.getElementById("slider");
-const timeLabel = document.getElementById("timeLabel");
-const readout = document.getElementById("readout");
+const plotDiv   = document.getElementById("plot");
+const varSelect = document.getElementById("var-select");
+const slider    = document.getElementById("frame-slider");
+const frameLbl  = document.getElementById("frame-label");
+const playBtn   = document.getElementById("play-btn");
+const prevBtn   = document.getElementById("prev-btn");
+const nextBtn   = document.getElementById("next-btn");
+const readoutDiv = document.getElementById("readout");
 
-const rangeLabel = document.getElementById("rangeLabel");
-const vminInput = document.getElementById("vminInput");
-const vmaxInput = document.getElementById("vmaxInput");
-const applyRangeBtn = document.getElementById("applyRangeBtn");
-const resetRangeBtn = document.getElementById("resetRangeBtn");
+const rangeTitle = document.getElementById("range-title");
+const vminInput = document.getElementById("vmin-input");
+const vmaxInput = document.getElementById("vmax-input");
+const applyBtn = document.getElementById("apply-range");
+const resetBtn = document.getElementById("reset-range");
 
-/* ========================= HELPERS ========================= */
-function isPortrait() {
-  return window.innerWidth <= 640 || (window.innerWidth < window.innerHeight);
-}
-
-function setControlsHeightCSSVar() {
-  const h = document.getElementById("controls").offsetHeight;
-  document.documentElement.style.setProperty("--controlsH", `${h}px`);
-}
-
-function is2D(x) {
-  return Array.isArray(x) && Array.isArray(x[0]);
-}
-
-function clamp(x, a, b) {
-  return Math.max(a, Math.min(b, x));
-}
-
-function fmt2(x) {
-  if (x === null || x === undefined || !isFinite(x)) return "";
-  return Number(x).toFixed(2);
-}
-
-function fmt3(x) {
-  if (x === null || x === undefined || !isFinite(x)) return "";
-  return Number(x).toFixed(3);
-}
+function setReadout(txt) { readoutDiv.textContent = txt || ""; }
 
 /* ========================= TIME PARSERS ========================= */
 function parseChlUtcFromName(filename) {
-  // mbh_2025336.1742_20251202_chl_VJ2.json (HHMM after dot)
   const m = filename.match(/_(\d{4})(\d{3})\.(\d{4})_/);
   if (!m) return null;
   const year = Number(m[1]);
-  const doy = Number(m[2]);
+  const jjj  = Number(m[2]);
   const hhmm = m[3];
-  const hh = Number(hhmm.slice(0,2));
-  const mm = Number(hhmm.slice(2,4));
-
-  const d0 = new Date(Date.UTC(year,0,1,0,0,0));
-  const dt = new Date(d0.getTime() + (doy-1)*86400*1000);
-  dt.setUTCHours(hh, mm, 0, 0);
-  return dt;
+  const hh = Number(hhmm.slice(0, 2));
+  const mm = Number(hhmm.slice(2, 4));
+  const d0 = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+  return new Date(d0.getTime() + (jjj - 1) * 86400e3 + hh * 3600e3 + mm * 60e3);
 }
-
 function parseSstUtcFromName(filename) {
-  // sst_mbh_2025338_20251204_03_g19.json (HH)
-  const m = filename.match(/^sst_.*?_(\d{4})(\d{3})_(\d{4})_(\d{2})_/);
+  const m = filename.match(/sst_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
   if (!m) return null;
   const year = Number(m[1]);
-  const doy = Number(m[2]);
-  const hh = Number(m[4]);
-
-  const d0 = new Date(Date.UTC(year,0,1,0,0,0));
-  const dt = new Date(d0.getTime() + (doy-1)*86400*1000);
-  dt.setUTCHours(hh, 0, 0, 0);
-  return dt;
+  const jjj  = Number(m[2]);
+  const hh   = Number(m[4]);
+  const d0 = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
+  return new Date(d0.getTime() + (jjj - 1) * 86400e3 + hh * 3600e3);
 }
-
 function parseUvDateFromName(filename) {
-  // uv_mbh_2025345_20251211_cmems-duacs-v202506.json (date-only)
   const m = filename.match(/_(\d{8})_/);
   if (!m) return null;
-  const y = Number(m[1].slice(0,4));
-  const mo = Number(m[1].slice(4,6));
-  const da = Number(m[1].slice(6,8));
-  return new Date(Date.UTC(y, mo-1, da, 0,0,0));
+  const y = Number(m[1].slice(0, 4));
+  const mo = Number(m[1].slice(4, 6)) - 1;
+  const d = Number(m[1].slice(6, 8));
+  return new Date(Date.UTC(y, mo, d));
 }
-
+function fmtLocalDateTime(dt) {
+  return dt.toLocaleString(undefined, {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false
+  });
+}
+function fmtLocalDate(dt) {
+  return dt.toLocaleDateString(undefined, { year:"numeric", month:"2-digit", day:"2-digit" });
+}
+function timeOnlyLabel(varKey, frameMeta) {
+  const path = frameMeta.json_path || frameMeta.path || frameMeta.file || "";
+  const filename = String(path).split("/").pop() || "";
+  if (varKey === "chl") { const dt = parseChlUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
+  if (varKey === "sst") { const dt = parseSstUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
+  if (varKey === "uv")  { const dt = parseUvDateFromName(filename);  return dt ? fmtLocalDate(dt) : ""; }
+  return "";
+}
 function epochMsForFrame(varKey, frameMeta) {
-  if (varKey === "bathy") return 0;
   const path = frameMeta.json_path || frameMeta.path || frameMeta.file || "";
   const filename = String(path).split("/").pop() || "";
   let dt = null;
@@ -305,41 +336,77 @@ function epochMsForFrame(varKey, frameMeta) {
   return dt ? dt.getTime() : null;
 }
 
-function formatTimeLabel(varKey, dtMs) {
-  if (varKey === "uv") {
-    // date-only (daily mean)
-    const dt = new Date(dtMs);
-    const mm = String(dt.getUTCMonth()+1).padStart(2,"0");
-    const dd = String(dt.getUTCDate()).padStart(2,"0");
-    const yy = dt.getUTCFullYear();
-    return `${mm}/${dd}/${yy}`;
+/* ========================= HELPERS ========================= */
+function is2D(a) { return Array.isArray(a) && a.length > 0 && Array.isArray(a[0]) && a[0].length > 0; }
+function framePathOf(f) { return String(f?.json_path || f?.path || f?.file || f?.url || f?.json || ""); }
+function frameFilenameOf(f) { const p = framePathOf(f); return p.split("/").pop() || p; }
+function filterFramesForVar(varKey, frames) {
+  const out = [];
+  for (const f of (frames || [])) {
+    const fn = frameFilenameOf(f).toLowerCase();
+    if (!fn.endsWith(".json")) continue;
+    if (fn.includes("grid")) continue;
+    if (varKey === "chl" && !fn.includes("_chl_")) continue;
+    if (varKey === "sst" && !fn.startsWith("sst_")) continue;
+    if (varKey === "uv"  && !fn.startsWith("uv_")) continue;
+    out.push(f);
   }
-  // show local time
-  const dt = new Date(dtMs);
-  const mm = String(dt.getMonth()+1).padStart(2,"0");
-  const dd = String(dt.getDate()).padStart(2,"0");
-  const yy = dt.getFullYear();
-  const hh = String(dt.getHours()).padStart(2,"0");
-  const mi = String(dt.getMinutes()).padStart(2,"0");
-  return `${mm}/${dd}/${yy}, ${hh}:${mi}`;
+  return out;
+}
+function closestIndex(times, targetMs) {
+  if (!times.length || targetMs === null) return 0;
+  let best = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    if (t === null) continue;
+    const d = Math.abs(t - targetMs);
+    if (d < bestDist) { bestDist = d; best = i; }
+  }
+  return best;
 }
 
-/* ========================= IO ========================= */
-async function fetchJson(url) {
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
-  return await r.json();
+/* ========================= VIEW SYNC ========================= */
+function attachRelayoutListenerOnce() {
+  if (attachRelayoutListenerOnce._done) return;
+  attachRelayoutListenerOnce._done = true;
+
+  plotDiv.on("plotly_relayout", (ev) => {
+    if (!ev) return;
+    const xr0 = ev["xaxis.range[0]"], xr1 = ev["xaxis.range[1]"];
+    const yr0 = ev["yaxis.range[0]"], yr1 = ev["yaxis.range[1]"];
+    if (xr0 !== undefined && xr1 !== undefined && yr0 !== undefined && yr1 !== undefined) {
+      viewState.hasRange = true;
+      viewState.autorange = false;
+      viewState.xRange = [xr0, xr1];
+      viewState.yRange = [yr0, yr1];
+      return;
+    }
+    if (ev["xaxis.autorange"] === true || ev["yaxis.autorange"] === true) {
+      viewState.hasRange = false;
+      viewState.autorange = true;
+      viewState.xRange = null;
+      viewState.yRange = null;
+    }
+  });
 }
 
+/* ========================= LOADING ========================= */
 async function loadIndex() {
-  const idx = await fetchJson("index.json");
-  const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
+  let idx = null;
+  for (const url of INDEX_CANDIDATES) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) { idx = await res.json(); break; }
+    } catch (_) {}
+  }
+  if (!idx) throw new Error("Failed to load index.json");
 
+  const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
   framesByVar = {
     chl: filterFramesForVar("chl", fbv.chl || []),
     sst: filterFramesForVar("sst", fbv.sst || []),
-    uv:  filterFramesForVar("uv",  fbv.uv  || []),
-    bathy: [{ id: "bathy" }]
+    uv:  filterFramesForVar("uv",  fbv.uv  || [])
   };
 
   for (const v of Object.keys(framesByVar)) {
@@ -348,128 +415,118 @@ async function loadIndex() {
       const tb = epochMsForFrame(v, b) ?? 0;
       return ta - tb;
     });
-    frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f) ?? 0);
+    frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f));
   }
 
-  console.log("Loaded index.json from index.json");
-}
-
-function filterFramesForVar(v, frames) {
-  return frames.map(f => ({
-    ...f,
-    // normalize path field
-    _path: f.json_path || f.path || f.file || f.filename || f.name || ""
-  }));
+  await setCurrentVar(currentVar, /*keepTime*/ false);
 }
 
 async function loadGridForVar(v) {
-  if (v === "bathy") return null;
   if (gridCache[v]) return gridCache[v];
 
-  const url = `data/${REGION_ID}/grids/${GRID_FILES[v]}`;
-  const g = await fetchJson(url);
-
-  // Expect 2-D lon/lat
-  const lon2d = g.lon2d || g.lon || g.longitude || g.LON || g.nav_lon || g.x2d;
-  const lat2d = g.lat2d || g.lat || g.latitude || g.LAT || g.nav_lat || g.y2d;
-  if (!is2D(lon2d) || !is2D(lat2d)) throw new Error(`Grid missing 2-D lon/lat in ${url}`);
-
-  const ny = lat2d.length;
-  const nx = lat2d[0].length;
-
-  // Plotly heatmap wants 1D x/y or 2D x/y. We'll use 1D axes from first row/col.
-  const xAxis = lon2d[0].slice();
-  const yAxis = lat2d.map(r => r[0]);
-
-  gridCache[v] = { lon2d, lat2d, xAxis, yAxis, nx, ny };
-  console.log(`Loaded grid for ${v} from ${url}`);
-  return gridCache[v];
-}
-
-async function fetchFrameData(v, frameMeta) {
-  const path = frameMeta._path || "";
-  const url = path.startsWith("data/") ? path : `data/${REGION_ID}/${v}/${path}`;
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`Frame load failed: ${url}`);
-  return await r.json();
-}
-
-/* ========================= LAYOUT ========================= */
-function stableLayout() {
-  const portrait = isPortrait();
-  const marginRight = portrait ? 10 : 90;
-  const marginBottom = portrait ? 80 : 40;
-
-  return {
-    paper_bgcolor: "#050b10",
-    plot_bgcolor: "#050b10",
-    margin: { l: 60, r: marginRight, t: 10, b: marginBottom },
-    xaxis: {
-      title: "",
-      showgrid: false,
-      zeroline: false,
-      tickcolor: "#9fb4cc",
-      tickfont: { size: 12, color: "#cfe0f0" },
-      fixedrange: false
-    },
-    yaxis: {
-      title: "",
-      showgrid: false,
-      zeroline: false,
-      tickcolor: "#9fb4cc",
-      tickfont: { size: 12, color: "#cfe0f0" },
-      scaleanchor: "x",
-      scaleratio: 1,
-      fixedrange: false
-    },
-    showlegend: false
-  };
-}
-
-/* ========================= FIG BUILDERS ========================= */
-let rangesByVar = JSON.parse(JSON.stringify(DEFAULT_RANGES));
-
-function buildChl(gridInfo, dataObj) {
-  const { xAxis, yAxis, nx, ny } = gridInfo;
-  const vmin = rangesByVar.chl.vmin;
-  const vmax = rangesByVar.chl.vmax;
-
-  const z = dataObj.chl || (dataObj.data && dataObj.data.chl);
-  if (!is2D(z)) return { data: [], layout: stableLayout() };
-
-  const zlog = Array.from({ length: ny }, () => new Array(nx));
-  const cd = Array.from({ length: ny }, () => new Array(nx));
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const v = z[j][i];
-      if (v === null || v === undefined || !isFinite(v) || v <= 0) {
-        zlog[j][i] = null;
-        cd[j][i] = null;
-      } else {
-        zlog[j][i] = Math.log10(v);
-        cd[j][i] = Number(v);
-      }
-    }
+  // Special case: bathymetry is stored as NetCDF, not a grid JSON
+  if (v === "bath") {
+    const info = await loadBathymetryNcOnce(BATHY_NC_URL);
+    gridCache[v] = info;
+    return info;
   }
 
-  const portrait = isPortrait();
-  const cb = portrait
-    ? { title: { text: DEFAULT_RANGES.chl.unit, side: "top" }, orientation: "h", x: 0.5, xanchor: "center", y: -0.12, len: 0.92 }
-    : { title: { text: DEFAULT_RANGES.chl.unit, side: "top" }, x: 1.02, xanchor: "left", len: 0.92 };
+  const gridName = VAR_TO_GRID[v];
+  const url = `data/${REGION_ID}/grids/${gridName}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not load grid for ${v}: ${url}`);
+  const grid = await res.json();
+
+  const lon = grid.lon, lat = grid.lat;
+  if (!Array.isArray(lon) || !Array.isArray(lat) || !Array.isArray(lon[0]) || !Array.isArray(lat[0])) {
+    throw new Error("Grid JSON must contain 2-D lon/lat arrays");
+  }
+
+  const ny = lon.length;
+  const nx = lon[0].length;
+  const xAxis = lon[0].slice();
+  const yAxis = lat.map(r => r[0]);
+
+  const info = { xAxis, yAxis, nx, ny };
+  gridCache[v] = info;
+  return info;
+}
+
+
+async function fetchFrameData(varKey, frameMeta) {
+  let path = frameMeta.json_path || frameMeta.path || frameMeta.file || frameMeta.url || frameMeta.json;
+  if (!path) throw new Error("Frame path missing");
+  if (!String(path).startsWith("data/")) path = `data/${REGION_ID}/${varKey}/${path}`;
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`Frame load failed: ${path}`);
+  return await res.json();
+}
+
+/* ========================= STABLE LAYOUT ========================= */
+function stableLayout() {
+  const layout = {
+    uirevision: "sync_fov_v3",
+    margin: { l: 52, r: 92, t: 10, b: 40 },
+    paper_bgcolor: "#050b10",
+    plot_bgcolor: "#050b10",
+    font: { color: "#e0e6ee" },
+    xaxis: { title: "Longitude", automargin: true },
+    yaxis: { title: "Latitude", automargin: true, scaleanchor: "x", scaleratio: 1 },
+    hovermode: "closest",
+  };
+
+  if (viewState.hasRange && viewState.xRange && viewState.yRange) {
+    layout.xaxis.range = viewState.xRange;
+    layout.yaxis.range = viewState.yRange;
+    layout.xaxis.autorange = false;
+    layout.yaxis.autorange = false;
+  } else {
+    layout.xaxis.autorange = true;
+    layout.yaxis.autorange = true;
+  }
+  return layout;
+}
+
+/* ========================= FIGURES ========================= */
+function buildChl(gridInfo, dataObj) {
+  const { xAxis, yAxis, nx, ny } = gridInfo;
+  if (!is2D(dataObj.chl)) throw new Error("CHL JSON missing 2-D key: chl");
+
+  const vmin = userRanges.chl.vmin;
+  const vmax = userRanges.chl.vmax;
+  const zmin = Math.log10(vmin);
+  const zmax = Math.log10(vmax);
+
+  const z = Array.from({ length: ny }, () => Array(nx).fill(null));
+  const cd = Array.from({ length: ny }, () => Array(nx).fill(null));
+
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const vv = dataObj.chl[j][i];
+      const num = (vv === null || vv === undefined || !isFinite(vv)) ? null : Number(vv);
+      cd[j][i] = num;
+      z[j][i] = (num !== null && num > 0) ? Math.log10(num) : null;
+    }
+  }
 
   return {
     data: [{
       type: "heatmap",
       x: xAxis, y: yAxis,
-      z: zlog,
+      z,
       customdata: cd,
       hoverinfo: "none",
       zauto: false,
-      zmin: Math.log10(vmin),
-      zmax: Math.log10(vmax),
-      colorscale: "Turbo",
-      reversescale: false,
-      colorbar: { ...cb, tickmode: "array", tickvals: CHL_TICKVALS, ticktext: CHL_TICKTEXT },
+      zmin, zmax,
+      colorscale: CHL_ALGAE,
+      colorbar: {
+        title: { text: DEFAULT_RANGES.chl.unit, side: "top" },
+        x: 1.02, xanchor: "left", len: 0.92,
+        tickmode: "array",
+        tickvals: CHL_TICKVALS,
+        ticktext: CHL_TICKTEXT,
+        ticks: "outside"
+      },
       zsmooth: false
     }],
     layout: stableLayout()
@@ -478,123 +535,27 @@ function buildChl(gridInfo, dataObj) {
 
 function buildSst(gridInfo, dataObj) {
   const { xAxis, yAxis } = gridInfo;
-  const vmin = rangesByVar.sst.vmin;
-  const vmax = rangesByVar.sst.vmax;
+  if (!is2D(dataObj.sst)) throw new Error("SST JSON missing 2-D key: sst");
 
-  const z = dataObj.sst || (dataObj.data && dataObj.data.sst);
-  if (!is2D(z)) return { data: [], layout: stableLayout() };
-
-  const cd = z.map(row => row.map(v => (v === null || v === undefined || !isFinite(v)) ? null : Number(v)));
-
-  const portrait = isPortrait();
-  const cb = portrait
-    ? { title: { text: DEFAULT_RANGES.sst.unit, side: "top" }, orientation: "h", x: 0.5, xanchor: "center", y: -0.12, len: 0.92 }
-    : { title: { text: DEFAULT_RANGES.sst.unit, side: "top" }, x: 1.02, xanchor: "left", len: 0.92 };
+  const vmin = userRanges.sst.vmin;
+  const vmax = userRanges.sst.vmax;
 
   return {
     data: [{
       type: "heatmap",
       x: xAxis, y: yAxis,
-      z: z,
-      customdata: cd,
+      z: dataObj.sst,
+      customdata: dataObj.sst,
       hoverinfo: "none",
       zauto: false,
       zmin: vmin,
       zmax: vmax,
-      colorscale: [[0.0,"#08306b"],[0.5,"#f7f7f7"],[1.0,"#b2182b"]],
-      reversescale: false,
-      colorbar: cb,
-      zsmooth: false
-    }],
-    layout: stableLayout()
-  };
-}
-
-// -------------------- Bathymetry (GEBCO NetCDF) --------------------
-const BATHY_CFG = {
-  // repo-relative path; keep under data/<region>/...
-  // e.g. data/mbh/gebco_bath_20251208/gebco_2025_n28.5_s24.5_w-79.0_e-75.0.nc
-  subdir: "gebco_bath_20251208",
-  filename: "gebco_2025_n28.5_s24.5_w-79.0_e-75.0.nc",
-  varName: "elevation", // meters, positive up
-};
-
-let bathyCache = null;
-
-function getBathyPath() {
-  return `data/${REGION_ID}/${BATHY_CFG.subdir}/${BATHY_CFG.filename}`;
-}
-
-async function loadBathymetryNcOnce() {
-  if (bathyCache) return bathyCache;
-
-  // netcdfjs@0.7.0 UMD exposes window.netcdfjs.NetCDFReader (and sometimes window.NetCDFReader)
-  const Reader = window.NetCDFReader || (window.netcdfjs && window.netcdfjs.NetCDFReader);
-  if (!Reader) {
-    throw new Error("NetCDFReader not loaded. Ensure netcdfjs UMD script is included in <head>.");
-  }
-
-  const resp = await fetch(getBathyPath(), { cache: "no-store" });
-  if (!resp.ok) throw new Error(`Failed to fetch bathymetry NC: ${getBathyPath()} (${resp.status})`);
-  const ab = await resp.arrayBuffer();
-
-  const reader = new Reader(ab);
-
-  // 1D lon/lat
-  const lon = reader.getDataVariable("lon") || reader.getDataVariable("x") || reader.getDataVariable("longitude");
-  const lat = reader.getDataVariable("lat") || reader.getDataVariable("y") || reader.getDataVariable("latitude");
-  const elev = reader.getDataVariable(BATHY_CFG.varName) || reader.getDataVariable("z") || reader.getDataVariable("elevation");
-
-  if (!lon || !lat || !elev) {
-    const vars = (reader.variables || []).map(v => v.name).join(", ");
-    throw new Error(`Bathymetry NC missing lon/lat/elevation. Vars: ${vars}`);
-  }
-
-  const nx = lon.length;
-  const ny = lat.length;
-
-  // Convert elevation (positive up) -> depth (positive down), mask land (elev >= 0) as null
-  const depth = Array.from({ length: ny }, () => new Array(nx));
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const idx = j * nx + i;
-      const z = elev[idx];
-      if (z === null || z === undefined || !isFinite(z)) { depth[j][i] = null; continue; }
-      const zz = Number(z);
-      depth[j][i] = (zz >= 0) ? null : -zz;
-    }
-  }
-
-  bathyCache = { lon: Array.from(lon), lat: Array.from(lat), depth, nx, ny };
-  console.log(`Loaded bathymetry NC ${nx}x${ny} from ${getBathyPath()}`);
-  return bathyCache;
-}
-
-function buildBathy(bathy) {
-  const vmin = rangesByVar.bathy?.vmin ?? 0;
-  const vmax = rangesByVar.bathy?.vmax ?? 5000;
-
-  // Build customdata so the hover/tap overlay can show a value when present.
-  const cd = bathy.depth.map(row => row.map(v => (v === null || v === undefined || !isFinite(v)) ? null : Number(v)));
-
-  const colorbar = isPortrait()
-    ? { title: { text: "Depth<br>(m)", side: "top" }, orientation: "h", x: 0.5, xanchor: "center", y: -0.12, len: 0.92 }
-    : { title: { text: "Depth<br>(m)", side: "top" }, x: 1.02, xanchor: "left", len: 0.92 };
-
-  return {
-    data: [{
-      type: "heatmap",
-      x: bathy.lon,
-      y: bathy.lat,
-      z: bathy.depth,
-      customdata: cd,
-      hoverinfo: "none",
-      zauto: false,
-      zmin: vmin,
-      zmax: vmax,
-      colorscale: "Earth",
-      reversescale: false,
-      colorbar,
+      colorscale: "RdBu",
+      reversescale: true,  // FIX: blue=cold, red=warm (RdBu default is red->blue)
+      colorbar: {
+        title: { text: DEFAULT_RANGES.sst.unit, side: "top" },
+        x: 1.02, xanchor: "left", len: 0.92
+      },
       zsmooth: false
     }],
     layout: stableLayout()
@@ -603,116 +564,140 @@ function buildBathy(bathy) {
 
 function buildUv(gridInfo, dataObj) {
   const { xAxis, yAxis, nx, ny } = gridInfo;
-  const d = dataObj.data || dataObj;
 
-  if (!d || !is2D(d.u) || !is2D(d.v) || !(is2D(d.adt) || is2D(d.speed))) {
-    throw new Error("UV JSON missing 2-D keys: data.u, data.v, and (data.adt or data.speed)");
+  // Accept both shapes:
+  //   { data: { u, v, adt|speed } }  OR  { u, v, adt|speed }
+  // Some producers may write u/v at top-level while other fields are under data.
+  const root = (dataObj && typeof dataObj === "object") ? dataObj : {};
+  const d = (root.data && typeof root.data === "object") ? root.data : root;
+
+  const u2d = is2D(d.u) ? d.u : (is2D(root.u) ? root.u : null);
+  const v2d = is2D(d.v) ? d.v : (is2D(root.v) ? root.v : null);
+
+  const adt2d = is2D(d.adt) ? d.adt : (is2D(root.adt) ? root.adt : null);
+  let speed2d = is2D(d.speed) ? d.speed : (is2D(root.speed) ? root.speed : null);
+
+  if (!u2d || !v2d) {
+    throw new Error("UV JSON missing 2-D keys: (data.u or u) and (data.v or v)");
   }
 
-  const u = d.u, v = d.v;
-  const bgField = is2D(d.adt) ? d.adt : d.speed; // prefer SSH (adt); fallback to speed
-
-  // background heatmap (Sea Surface Height; falls back to speed placeholder if adt missing)
-  const cd = Array.from({ length: ny }, () => Array(nx).fill(null));
-  for (let j = 0; j < ny; j++) {
-    for (let i = 0; i < nx; i++) {
-      const sp = bgField[j][i];
-      cd[j][i] = (sp === null || sp === undefined || !isFinite(sp)) ? null : Number(sp);
-    }
+  // Prefer ADT for background; fallback to speed; else compute speed from u/v
+  if (!adt2d && !speed2d) {
+    speed2d = Array.from({ length: ny }, (_, j) => {
+      const row = new Array(nx);
+      for (let i = 0; i < nx; i++) {
+        const uu = u2d[j]?.[i];
+        const vv = v2d[j]?.[i];
+        if (uu == null || vv == null || Number.isNaN(uu) || Number.isNaN(vv)) row[i] = null;
+        else row[i] = Math.sqrt(uu * uu + vv * vv);
+      }
+      return row;
+    });
   }
 
-  const vmin = rangesByVar.uv.vmin;
-  const vmax = rangesByVar.uv.vmax;
+  const bgZ = adt2d ? adt2d : speed2d;
+  const bgTitle = adt2d ? "Sea Surface Height" : "Speed";
 
-  const portrait = isPortrait();
-  const cb = portrait
-    ? { title: { text: "Sea Surface Height<br>(m)", side: "top" }, orientation: "h", x: 0.5, xanchor: "center", y: -0.12, len: 0.92 }
-    : { title: { text: "Sea Surface Height<br>(m)", side: "top" }, x: 1.02, xanchor: "left", len: 0.92 };
+  const vmin = userRanges.uv.vmin;
+  const vmax = userRanges.uv.vmax;
 
   const bg = {
-    type: "heatmap",
-    x: xAxis, y: yAxis,
-    z: bgField,
-    customdata: cd,
-    hoverinfo: "none",
-    zauto: false,
-    zmin: vmin,
-    zmax: vmax,
-    colorscale: "Cividis",
-    reversescale: false,
-    colorbar: cb,
-    zsmooth: false
+    type:"heatmap",
+    z: bgZ,
+    x: xAxis,
+    y: yAxis,
+    zmin: (vmin != null ? vmin : undefined),
+    zmax: (vmax != null ? vmax : undefined),
+    colorscale: COLOR_CONFIG.uv.colorscale,
+    reversescale: !!COLOR_CONFIG.uv.reversescale,
+    colorbar: {
+      title: { text: bgTitle, side: "top", font: { size: 12 } },
+      tickfont: { size: 11 },
+      thickness: isPortraitMobile() ? 18 : 16,
+      len: isPortraitMobile() ? 0.22 : 0.75,
+      orientation: isPortraitMobile() ? "h" : "v"
+    },
+    hoverinfo:"skip",
+    showscale:true
   };
 
-  // Build arrow segments as a single scattergl trace with NaN breaks
-  const step = Math.max(1, Math.ceil(Math.sqrt((nx * ny) / CURRENT_ARROW_STEP_MAXPTS)));
+  // Build open arrow heads as line segments in data coordinates (so they scale with zoom)
+  const stride = Math.max(1, Math.round(Math.max(nx, ny) / 40)); // ~40 arrows across
+  const headAngle = 28 * Math.PI / 180;
+  const headFrac = 0.45;
+
   const lineX = [];
   const lineY = [];
 
-  // Grid spacing used for minimum head length
-  const dxg = (nx > 1) ? Math.abs(xAxis[1] - xAxis[0]) : 0.02;
-  const dyg = (ny > 1) ? Math.abs(yAxis[1] - yAxis[0]) : 0.02;
+  const dx = (xAxis.length > 1) ? Math.abs(xAxis[1] - xAxis[0]) : 0.01;
+  const dy = (yAxis.length > 1) ? Math.abs(yAxis[1] - yAxis[0]) : 0.01;
+  const baseStep = Math.max(dx, dy);
 
-  const minHead = 0.9 * Math.max(dxg, dyg);    // ensures heads visible
-  const headFrac = 0.55;                       // head length as fraction of arrow length
-  const headAngleDeg = 28;                     // "V" opening
-  const headAngle = headAngleDeg * Math.PI / 180;
+  for (let j=0; j<ny; j+=stride){
+    for (let i=0; i<nx; i+=stride){
+      const uu = u2d[j]?.[i];
+      const vv = v2d[j]?.[i];
+      if (uu == null || vv == null || Number.isNaN(uu) || Number.isNaN(vv)) continue;
 
-  for (let j = 0; j < ny; j += step) {
-    const lat0 = yAxis[j];
-    for (let i = 0; i < nx; i += step) {
-      const lon0 = xAxis[i];
-      const uu = u[j][i];
-      const vv = v[j][i];
-      if (!isFinite(uu) || !isFinite(vv)) continue;
+      const sp = Math.sqrt(uu*uu + vv*vv);
+      if (!isFinite(sp) || sp <= 0) continue;
 
-      // tip in lon/lat units
-      const lon1 = lon0 + uu * CURRENT_ARROW_SCALE;
-      const lat1 = lat0 + vv * CURRENT_ARROW_SCALE;
+      const ux = uu / sp;
+      const vy = vv / sp;
 
-      const dx = lon1 - lon0;
-      const dy = lat1 - lat0;
-      const L = Math.hypot(dx, dy);
-      if (!(L > 0)) continue;
+      const L = clamp(sp * baseStep * 2.4, baseStep * 0.25, baseStep * 2.4);
 
-      // Shaft
-      lineX.push(lon0, lon1, null);
-      lineY.push(lat0, lat1, null);
+      const x0 = xAxis[i], y0 = yAxis[j];
+      const x1 = x0 + ux * L;
+      const y1 = y0 + vy * L;
 
-      // Open "V" head
-      const theta = Math.atan2(dy, dx);
-      const hl = Math.max(minHead, headFrac * L);
+      // shaft
+      lineX.push(x0, x1, null);
+      lineY.push(y0, y1, null);
 
-      const xL = lon1 + hl * Math.cos(theta + Math.PI - headAngle);
-      const yL = lat1 + hl * Math.sin(theta + Math.PI - headAngle);
-      const xR = lon1 + hl * Math.cos(theta + Math.PI + headAngle);
-      const yR = lat1 + hl * Math.sin(theta + Math.PI + headAngle);
+      // head legs (open)
+      const hx = ux * L * headFrac;
+      const hy = vy * L * headFrac;
 
-      lineX.push(lon1, xL, null, lon1, xR, null);
-      lineY.push(lat1, yL, null, lat1, yR, null);
+      const cosA = Math.cos(headAngle), sinA = Math.sin(headAngle);
+
+      const lx = (hx * cosA - hy * sinA);
+      const ly = (hx * sinA + hy * cosA);
+
+      const rx = (hx * cosA + hy * sinA);
+      const ry = (-hx * sinA + hy * cosA);
+
+      lineX.push(x1, x1 - lx, null);
+      lineY.push(y1, y1 - ly, null);
+
+      lineX.push(x1, x1 - rx, null);
+      lineY.push(y1, y1 - ry, null);
     }
   }
 
   const arrows = {
-    type: "scattergl",
-    mode: "lines",
+    type:"scatter",
+    mode:"lines",
     x: lineX,
     y: lineY,
-    hoverinfo: "none",
-    line: { color: "#000000", width: CURRENT_LINE_W },
-    showlegend: false
+    hoverinfo:"none",
+    line:{ color:"#000000", width: isPortraitMobile() ? 1.2 : 1.6 },
+    showlegend:false
   };
 
-  return { data: [bg, arrows], layout: stableLayout() };
+  return { data:[bg, arrows], layout: stableLayout() };
 }
 
+
+
 function buildForVar(varKey, gridInfo, dataObj) {
-  if (varKey === "chl") return buildChl(gridInfo, dataObj);
-  if (varKey === "sst") return buildSst(gridInfo, dataObj);
-  if (varKey === "uv")  return buildUv(gridInfo, dataObj);
-  if (varKey === "bathy") return { __bathy__: true };
+  if (varKey === "chl")  return buildChl(gridInfo, dataObj);
+  if (varKey === "sst")  return buildSst(gridInfo, dataObj);
+  if (varKey === "uv")   return buildUv(gridInfo, dataObj);
+  if (varKey === "bath") return buildBathy(gridInfo);
   throw new Error(`Unsupported varKey=${varKey}`);
 }
+
 
 /* ========================= READOUT ========================= */
 function setupReadoutHandlersOnce() {
@@ -724,68 +709,27 @@ function setupReadoutHandlersOnce() {
   plotDiv.on("plotly_hover", (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
+    const lon = Number(p.x);
+    const lat = Number(p.y);
+    if (!isFinite(lon) || !isFinite(lat)) return;
 
-    const lon = (p.x !== undefined) ? Number(p.x) : null;
-    const lat = (p.y !== undefined) ? Number(p.y) : null;
+    const base = `${lon.toFixed(3)} ${lat.toFixed(3)}`;
+    const cd = p.customdata;
 
-    // Find value from customdata when present
-    let val = null;
-    if (p.customdata !== undefined && p.customdata !== null && isFinite(p.customdata)) {
-      val = Number(p.customdata);
-    }
+    if (cd === null || cd === undefined || !isFinite(cd)) { setReadout(base); return; }
 
-    // numbers only, no "lon=" or "lat="
-    if (val === null) {
-      setReadout(`${fmt3(lon)}  ${fmt3(lat)}`);
-    } else {
-      if (currentVar === "sst") setReadout(`${fmt3(lon)}  ${fmt3(lat)}  ${fmt2(val)}`);
-      else setReadout(`${fmt3(lon)}  ${fmt3(lat)}  ${val}`);
-    }
+    const val = Number(cd);
+    if (currentVar === "sst") setReadout(`${base} ${val.toFixed(2)}`);
+    else setReadout(`${base} ${val.toFixed(3)}`);
   });
-
-  // persist view state (zoom/pan sync across vars/times)
-  plotDiv.on("plotly_relayout", (ev) => {
-    const hasX = ("xaxis.range[0]" in ev) || ("xaxis.range" in ev);
-    const hasY = ("yaxis.range[0]" in ev) || ("yaxis.range" in ev);
-    if (hasX || hasY) {
-      savedView = ev;
-    }
-  });
-}
-
-function setReadout(s) {
-  readout.textContent = s || "";
-}
-
-function applySavedViewIfAny() {
-  if (!savedView) return;
-  // Apply as best-effort
-  Plotly.relayout(plotDiv, savedView).catch(()=>{});
 }
 
 /* ========================= UI ========================= */
-function setRangeUIForVar(v) {
-  const r = rangesByVar[v] || DEFAULT_RANGES[v];
-  if (!r) return;
-
-  rangeLabel.textContent = (v === "chl") ? "Chlorophyll" :
-                           (v === "sst") ? "Temperature" :
-                           (v === "uv")  ? "Sea Surface Height" :
-                           "Bathymetry";
+function syncRangeInputsToVar() {
+  const r = userRanges[currentVar];
+  rangeTitle.textContent = `${VAR_LABELS[currentVar]} range`;
   vminInput.value = r.vmin;
   vmaxInput.value = r.vmax;
-
-  // Make SST row tighter on mobile
-  if (v === "sst") {
-    vminInput.step = "0.1";
-    vmaxInput.step = "0.1";
-  } else if (v === "chl") {
-    vminInput.step = "0.01";
-    vmaxInput.step = "0.01";
-  } else {
-    vminInput.step = "0.1";
-    vmaxInput.step = "0.1";
-  }
 }
 
 function updateSliderUI() {
@@ -796,85 +740,69 @@ function updateSliderUI() {
   slider.max = Math.max(0, n - 1);
   slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
 
-  if (currentVar === "bathy") {
-    slider.min = 0; slider.max = 0; slider.value = 0;
-    prevBtn.disabled = true; nextBtn.disabled = true; playBtn.disabled = true;
-  } else {
-    prevBtn.disabled = n <= 1;
-    nextBtn.disabled = n <= 1;
-    playBtn.disabled = n <= 1;
-  }
+  prevBtn.disabled = n <= 1;
+  nextBtn.disabled = n <= 1;
+  playBtn.disabled = n <= 1;
+
+  frameLbl.textContent = n ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
 }
 
-function stopPlaying() {
-  playing = false;
-  playBtn.textContent = "▶";
-  if (playTimer) clearInterval(playTimer);
-  playTimer = null;
+/* Fix #1: when switching vars, jump to closest time */
+async function setCurrentVar(v, keepTime = true) {
+  const prevVar = currentVar;
+  const prevFrames = framesByVar[prevVar] || [];
+  const prevFrame = prevFrames[currentFrameIdx] || null;
+  const prevT = (keepTime && prevFrame) ? epochMsForFrame(prevVar, prevFrame) : null;
+
+  currentVar = v;
+  varSelect.value = v;
+
+  const frames = framesByVar[currentVar] || [];
+  const times = frameTimesByVar[currentVar] || [];
+
+  if (frames.length) {
+    currentFrameIdx = (keepTime && prevT !== null) ? closestIndex(times, prevT) : 0;
+  } else {
+    currentFrameIdx = 0;
+  }
+
+  syncRangeInputsToVar();
+  updateSliderUI();
+
+  if (frames.length) await showFrame();
+  else Plotly.purge(plotDiv);
+}
+
+function stepFrame(delta) {
+  const frames = framesByVar[currentVar] || [];
+  const n = frames.length;
+  if (!n) return;
+  currentFrameIdx = (currentFrameIdx + delta + n) % n;
+  slider.value = currentFrameIdx;
+  showFrame();
 }
 
 function setPlaying(on) {
-  if (on) {
-    if (playing) return;
-    playing = true;
-    playBtn.textContent = "⏸";
-    playTimer = setInterval(() => stepFrame(1), 700);
+  if (on === playing) return;
+  playing = on;
+  playBtn.textContent = playing ? "Pause" : "Play";
+  if (playing) {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = setInterval(() => stepFrame(+1), 800);
   } else {
-    stopPlaying();
+    if (playTimer) clearInterval(playTimer);
+    playTimer = null;
   }
-}
-
-function stepFrame(dir) {
-  const frames = framesByVar[currentVar] || [];
-  if (frames.length <= 1) return;
-
-  currentFrameIdx = (currentFrameIdx + dir + frames.length) % frames.length;
-  slider.value = currentFrameIdx;
-  showFrame().catch(console.error);
-}
-
-/* Closest-timestep switching across variables */
-function findClosestFrameIndex(varKey, targetMs) {
-  const t = frameTimesByVar[varKey] || [];
-  if (!t.length) return 0;
-  // binary search
-  let lo = 0, hi = t.length - 1;
-  while (lo < hi) {
-    const mid = Math.floor((lo + hi) / 2);
-    if (t[mid] < targetMs) lo = mid + 1;
-    else hi = mid;
-  }
-  const i = lo;
-  const i0 = clamp(i-1, 0, t.length-1);
-  const i1 = clamp(i,   0, t.length-1);
-  return (Math.abs(t[i0]-targetMs) <= Math.abs(t[i1]-targetMs)) ? i0 : i1;
 }
 
 /* ========================= RENDER ========================= */
 async function showFrame() {
   const frames = framesByVar[currentVar] || [];
-  if (!frames.length && currentVar !== "bathy") return;
+  if (!frames.length) return;
 
   const frameMeta = frames[currentFrameIdx];
 
   try {
-    // Bathymetry is a static NetCDF (no per-frame JSON, no per-var grid)
-    if (currentVar === "bathy") {
-      const bathy = await loadBathymetryNcOnce();
-      const figB = buildBathy(bathy);
-
-      await Plotly.react(plotDiv, figB.data, figB.layout, {
-        responsive: true,
-        displayModeBar: true,
-        scrollZoom: true
-      });
-
-      setupReadoutHandlersOnce();
-      applySavedViewIfAny();
-      timeLabel.textContent = "";
-      return;
-    }
-
     const [gridInfo, dataObj] = await Promise.all([
       loadGridForVar(currentVar),
       fetchFrameData(currentVar, frameMeta)
@@ -889,89 +817,52 @@ async function showFrame() {
     });
 
     setupReadoutHandlersOnce();
-    applySavedViewIfAny();
-
-    // Update time label from filename parse
-    const ms = epochMsForFrame(currentVar, frameMeta);
-    timeLabel.textContent = ms ? formatTimeLabel(currentVar, ms) : "";
-
-  } catch (e) {
-    console.error("Error showing frame:", e);
+    attachRelayoutListenerOnce();
+    updateSliderUI();
+  } catch (err) {
+    console.error("Error showing frame:", err);
   }
-}
-
-async function setCurrentVar(v) {
-  stopPlaying();
-
-  const oldVar = currentVar;
-  const oldFrames = framesByVar[oldVar] || [];
-  const oldMeta = oldFrames[currentFrameIdx];
-  const oldMs = (oldVar === "bathy") ? null : epochMsForFrame(oldVar, oldMeta);
-
-  currentVar = v;
-
-  // Keep closest timestep when switching vars
-  if (oldMs !== null && v !== "bathy") {
-    currentFrameIdx = findClosestFrameIndex(v, oldMs);
-  } else {
-    currentFrameIdx = 0;
-  }
-
-  setRangeUIForVar(v);
-  updateSliderUI();
-  await showFrame();
 }
 
 /* ========================= EVENTS ========================= */
-varSel.addEventListener("change", async () => {
-  await setCurrentVar(varSel.value);
-});
-
-prevBtn.addEventListener("click", () => stepFrame(-1));
-nextBtn.addEventListener("click", () => stepFrame(1));
-
-playBtn.addEventListener("click", () => {
-  if (currentVar === "bathy") return;
-  setPlaying(!playing);
+varSelect.addEventListener("change", () => {
+  setPlaying(false);
+  setCurrentVar(varSelect.value, true);
 });
 
 slider.addEventListener("input", () => {
-  stopPlaying();
-  currentFrameIdx = Number(slider.value);
-  showFrame().catch(console.error);
+  currentFrameIdx = Number(slider.value) || 0;
+  showFrame();
 });
 
-applyRangeBtn.addEventListener("click", () => {
-  const v = currentVar;
+playBtn.addEventListener("click", () => setPlaying(!playing));
+prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
+nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
+
+applyBtn.addEventListener("click", () => {
   const vmin = Number(vminInput.value);
   const vmax = Number(vmaxInput.value);
-  if (!isFinite(vmin) || !isFinite(vmax) || !(vmax > vmin)) return;
-  rangesByVar[v] = { ...rangesByVar[v], vmin, vmax };
-  showFrame().catch(console.error);
+  if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+  userRanges[currentVar].vmin = vmin;
+  userRanges[currentVar].vmax = vmax;
+  showFrame();
 });
 
-resetRangeBtn.addEventListener("click", () => {
-  const v = currentVar;
-  rangesByVar[v] = JSON.parse(JSON.stringify(DEFAULT_RANGES[v]));
-  setRangeUIForVar(v);
-  showFrame().catch(console.error);
-});
-
-window.addEventListener("resize", () => {
-  setControlsHeightCSSVar();
-  showFrame().catch(()=>{});
+resetBtn.addEventListener("click", () => {
+  userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
+  syncRangeInputsToVar();
+  showFrame();
 });
 
 /* ========================= INIT ========================= */
-async function init() {
-  setControlsHeightCSSVar();
-  await loadIndex();
-  setRangeUIForVar(currentVar);
-  updateSliderUI();
-  await showFrame();
-}
-
-init().catch(console.error);
+(async function init() {
+  try {
+    await loadIndex();
+    syncRangeInputsToVar();
+  } catch (e) {
+    console.error("Init failed:", e);
+  }
+})();
 </script>
 
 </body>
