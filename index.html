@@ -131,7 +131,7 @@
 
     /* Cursor info inside plot, upper-right, avoid colorbar */
     #readout {
-      position: absolute;
+      position: fixed;
       top: 10px;
       right: 110px;
       z-index: 60;
@@ -153,7 +153,15 @@
       right: auto !important;
       top: 8px !important;
     }
-  </style>
+  
+    /* mobile readout */
+    @media (max-width: 760px) {
+      #readout { right: 12px; font-size: 11px; padding: 3px 6px; }
+      .modebar { top: 116px !important; left: 8px !important; }
+    }
+    /* keep Plotly modebar visible while scrolling */
+    .modebar { position: fixed !important; top: 58px !important; left: 10px !important; z-index: 9999 !important; }
+</style>
 </head>
 
 <body>
@@ -187,10 +195,7 @@
       <button id="apply-range">Apply</button>
       <button id="reset-range">Reset</button>
     </div>
-    <div style="opacity:0.8">
-      Note: CHL inputs are linear (mg/m³). Viewer internally colors log10.
-    </div>
-  </div>
+</div>
 
 <script>
 /* ========================= CONFIG ========================= */
@@ -216,16 +221,17 @@ const INDEX_CANDIDATES = [
 ];
 
 const DEFAULT_RANGES = {
-  chl: { vmin: 0.01, vmax: 10.0, unit: "mg/m³" },
-  sst: { vmin: 23.0, vmax: 28.0, unit: "°C" },
-  uv:  { vmin: 0.0,  vmax: 2.0,  unit: "m/s" }
-  ,bath: { vmin: 0, vmax: 2000, unit: "m" }
+  chl:  { vmin: 0.01, vmax: 10.0, unit: "mg/m³" }, // linear inputs; displayed as log10
+  sst:  { vmin: 23.0, vmax: 28.0, unit: "°C" },
+  uv:   { vmin: 0.0,  vmax: 1.0,  unit: "m" },    // Sea surface height (adt). If missing, we use speed as placeholder.
+  bath: { vmin: -6000, vmax: 500, unit: "m" }
 };
 
 let userRanges = {
-  chl: { ...DEFAULT_RANGES.chl },
-  sst: { ...DEFAULT_RANGES.sst },
-  uv:  { ...DEFAULT_RANGES.uv }
+  chl:  { ...DEFAULT_RANGES.chl },
+  sst:  { ...DEFAULT_RANGES.sst },
+  uv:   { ...DEFAULT_RANGES.uv },
+  bath: { ...DEFAULT_RANGES.bath }
 };
 
 const CHL_ALGAE = [
@@ -239,6 +245,16 @@ const CHL_ALGAE = [
   [1.00, "#b30000"]
 ];
 
+// Per-variable color config (Plotly colorscales)
+// NOTE: SST must be blue=cold and red=warm -> use RdBu_r with reversescale=false.
+const COLOR_CONFIG = {
+  chl:  { colorscale: CHL_ALGAE, reversescale: false },
+  sst:  { colorscale: "RdBu_r",  reversescale: false },
+  uv:   { colorscale: "RdBu_r",  reversescale: false }, // background under currents arrows (adt or speed placeholder)
+  bath: { colorscale: "Earth",   reversescale: false }
+};
+
+
 const CHL_TICKS_LINEAR = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
 const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
 const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10) ? String(v) : "");
@@ -251,7 +267,9 @@ const CURRENT_LINE_W = 1;
 
 /* ========================= STATE ========================= */
 let framesByVar = { chl: [], sst: [], uv: [] };
-let frameTimesByVar = { chl: [], sst: [], uv: [] }; // epoch ms for closest-time match
+let frameTimesByVar = { chl: [], sst: [], uv: [] ,
+    bath: [null]
+  }; // epoch ms for closest-time match
 let currentVar = "chl";
 let currentFrameIdx = 0;
 let playing = false;
@@ -407,6 +425,8 @@ async function loadIndex() {
     chl: filterFramesForVar("chl", fbv.chl || []),
     sst: filterFramesForVar("sst", fbv.sst || []),
     uv:  filterFramesForVar("uv",  fbv.uv  || [])
+  ,
+    bath: [{ path: BATHY_NC_URL, filename: "bathymetry.nc" }]
   };
 
   for (const v of Object.keys(framesByVar)) {
@@ -454,6 +474,8 @@ async function loadGridForVar(v) {
 
 
 async function fetchFrameData(varKey, frameMeta) {
+  if (varKey === "bath") return null;
+
   let path = frameMeta.json_path || frameMeta.path || frameMeta.file || frameMeta.url || frameMeta.json;
   if (!path) throw new Error("Frame path missing");
   if (!String(path).startsWith("data/")) path = `data/${REGION_ID}/${varKey}/${path}`;
@@ -488,6 +510,108 @@ function stableLayout() {
 }
 
 /* ========================= FIGURES ========================= */
+
+/* ========================= BATHYMETRY (NetCDF) ========================= */
+let bathyCache = null;
+
+async function loadBathymetryNcOnce(url) {
+  if (bathyCache) return bathyCache;
+
+  const Reader = window.NetCDFReader || (window.netcdfjs && window.netcdfjs.NetCDFReader) || null;
+  if (!Reader) {
+    throw new Error("NetCDFReader not loaded. Ensure netcdfjs UMD script is included in <head>.");
+  }
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to fetch bathymetry nc: ${url}`);
+  const buf = await res.arrayBuffer();
+
+  let reader = null;
+  try {
+    reader = new Reader(buf);
+  } catch (e) {
+    // Some UMD builds export {NetCDFReader: ...}
+    const Alt = (Reader && Reader.NetCDFReader) ? Reader.NetCDFReader : null;
+    if (!Alt) throw e;
+    reader = new Alt(buf);
+  }
+
+  const vars = reader.variables || [];
+  const vnames = new Set(vars.map(v => v.name));
+
+  const lonName = vnames.has("lon") ? "lon" : (vnames.has("longitude") ? "longitude" : null);
+  const latName = vnames.has("lat") ? "lat" : (vnames.has("latitude") ? "latitude" : null);
+  if (!lonName || !latName) throw new Error("Bathymetry nc missing lon/lat variables.");
+
+  const zName =
+    vnames.has("elevation") ? "elevation" :
+    (vnames.has("z") ? "z" :
+     (vnames.has("depth") ? "depth" : null));
+
+  if (!zName) {
+    // fallback: first 2-D variable
+    const cand = vars.find(v => (v.dimensions || []).length >= 2);
+    if (!cand) throw new Error("Bathymetry nc: no 2-D variable found.");
+    // eslint-disable-next-line no-unused-vars
+  }
+
+  const lon1d = reader.getDataVariable(lonName);
+  const lat1d = reader.getDataVariable(latName);
+  const zz = reader.getDataVariable(zName || vars.find(v => (v.dimensions || []).length >= 2).name);
+
+  // NetCDFJS returns typed arrays. Convert to nested JS arrays for Plotly (small region only).
+  const nx = lon1d.length;
+  const ny = lat1d.length;
+
+  // z is typically packed int16 -> convert to JS numbers
+  const z = Array.from({ length: ny }, () => Array(nx).fill(null));
+  let k = 0;
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const v = zz[k++];
+      z[j][i] = (v === undefined || v === null) ? null : Number(v);
+    }
+  }
+
+  // Use 1-D axes for Plotly heatmap
+  const xAxis = Array.from(lon1d, Number);
+  const yAxis = Array.from(lat1d, Number);
+
+  bathyCache = { xAxis, yAxis, nx, ny, z };
+  return bathyCache;
+}
+
+function buildBathy(gridInfo) {
+  const info = bathyCache;
+  if (!info) throw new Error("Bathymetry not loaded.");
+  const { xAxis, yAxis, z, nx, ny } = info;
+
+  const vmin = userRanges.bath.vmin;
+  const vmax = userRanges.bath.vmax;
+
+  return {
+    data: [{
+      type: "heatmap",
+      x: xAxis, y: yAxis,
+      z,
+      customdata: z,
+      hoverinfo: "none",
+      zauto: false,
+      zmin: vmin,
+      zmax: vmax,
+      colorscale: COLOR_CONFIG.bath.colorscale,
+      reversescale: !!COLOR_CONFIG.bath.reversescale,
+      colorbar: {
+        title: { text: `Bathymetry (${DEFAULT_RANGES.bath.unit})`, side: "top", font: { size: 12 } },
+        tickfont: { size: 11 },
+        thickness: isPortraitMobile() ? 18 : 16,
+        len: isPortraitMobile() ? 0.22 : 0.75,
+        orientation: isPortraitMobile() ? "h" : "v"
+      }
+    }],
+    layout: stableLayout()
+  };
+}
 function buildChl(gridInfo, dataObj) {
   const { xAxis, yAxis, nx, ny } = gridInfo;
   if (!is2D(dataObj.chl)) throw new Error("CHL JSON missing 2-D key: chl");
@@ -550,8 +674,8 @@ function buildSst(gridInfo, dataObj) {
       zauto: false,
       zmin: vmin,
       zmax: vmax,
-      colorscale: "RdBu",
-      reversescale: true,  // FIX: blue=cold, red=warm (RdBu default is red->blue)
+      colorscale: "RdBu_r",
+      reversescale: false,  // FIX: blue=cold, red=warm (RdBu default is red->blue)
       colorbar: {
         title: { text: DEFAULT_RANGES.sst.unit, side: "top" },
         x: 1.02, xanchor: "left", len: 0.92
@@ -726,6 +850,7 @@ function setupReadoutHandlersOnce() {
 
 /* ========================= UI ========================= */
 function syncRangeInputsToVar() {
+  if (!userRanges[currentVar]) return;
   const r = userRanges[currentVar];
   rangeTitle.textContent = `${VAR_LABELS[currentVar]} range`;
   vminInput.value = r.vmin;
