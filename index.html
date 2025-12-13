@@ -7,8 +7,12 @@
   <link rel="icon" href="data:,">
 
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
-  <!-- NetCDF v3 reader for GEBCO .nc -->
-  <script src="https://cdn.jsdelivr.net/npm/netcdfjs@3.0.0/dist/netcdfjs.min.js"></script>
+
+  <!-- NetCDF v3 reader for GEBCO .nc (ESM bundle) -->
+  <script type="module">
+    import { NetCDFReader } from "https://cdn.jsdelivr.net/npm/netcdfjs@3.0.0/lib-esm/index.js";
+    window.NetCDFReader = NetCDFReader;
+  </script>
 
   <style>
     :root{
@@ -96,16 +100,18 @@
     #plot-wrap{ position:relative; width:100%; }
     #plot{
       width:100%;
-      height: calc(100dvh - 74px - 88px); /* desktop-ish default; adjusted by JS on mobile */
+      height: calc(100dvh - 74px - 88px);
       min-height:520px;
-      touch-action: pan-y pinch-zoom;
+
+      /* Key: allow 1-finger vertical page scrolling */
+      touch-action: pan-y;
     }
 
     /* Floating readout (small, inside) */
     #readout{
       position:fixed;
       top:86px;
-      right:120px; /* default for right-side colorbar */
+      right:120px;
       z-index:120;
       padding:6px 8px;
       background: rgba(255,255,255,0.55);
@@ -192,9 +198,14 @@
       #frame-slider{ width:100%; min-width:0; }
 
       /* modebar full row */
-      #modebar-host .modebar{ width:100% !important; display:flex !important; flex-wrap:wrap !important; justify-content:center !important; }
+      #modebar-host .modebar{
+        width:100% !important;
+        display:flex !important;
+        flex-wrap:wrap !important;
+        justify-content:center !important;
+      }
 
-      /* smaller readout, and don’t reserve space for right colorbar */
+      /* smaller readout */
       #readout{
         right:10px;
         top: 160px;
@@ -203,15 +214,27 @@
         padding:5px 7px;
       }
 
-      /* plot height a bit taller; no need to scroll while interacting */
+      /* plot height */
       #plot{ height: calc(100dvh - 220px - 96px); min-height:420px; }
 
-      /* ranges compact */
-      .range-block{ width:100%; justify-content:flex-start; }
-      .range-name{ font-size:13px; }
-      input[type="number"]{ width:86px; font-size:13px; min-height:38px; }
+      /* ===== Fix: keep "Temperature min max" on ONE row ===== */
+      .range-block{
+        width:100%;
+        gap:6px;
+        padding:6px 8px;
+      }
+      .range-name{ font-size:12px; margin-right:2px; }
+      .mini-label{ font-size:12px; }
+      input[type="number"]{
+        width:72px;             /* narrower so min/max stay same row */
+        font-size:12px;
+        padding:6px 8px;
+        min-height:34px;
+      }
+
+      /* actions go to next row */
       .range-actions{ flex: 0 0 100%; }
-      .range-actions button{ font-size:12px; min-height:36px; }
+      .range-actions button{ font-size:12px; min-height:34px; padding:6px 10px; }
     }
   </style>
 </head>
@@ -285,7 +308,7 @@ const DEFAULT_RANGES = {
   chl:   { vmin: 0.01, vmax: 10.0, unit: "mg/m³" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   uv:    { vmin: 0.0,  vmax: 2.0,  unit: "m/s" },
-  bathy: { vmin: 0.0,  vmax: 2000.0, unit: "m" } // depth positive down
+  bathy: { vmin: 0.0,  vmax: 2000.0, unit: "m" }
 };
 
 let userRanges = {
@@ -314,7 +337,7 @@ const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10
 
 /* ========================= STATE ========================= */
 let framesByVar = { chl: [], sst: [], uv: [], bathy: [] };
-let frameTimesByVar = { chl: [], sst: [], uv: [], bathy: [] }; // epoch ms
+let frameTimesByVar = { chl: [], sst: [], uv: [], bathy: [] };
 let currentVar = "chl";
 let currentFrameIdx = 0;
 let playing = false;
@@ -349,13 +372,26 @@ const resetBtn = document.getElementById("reset-range");
 
 function setReadout(txt) { readoutDiv.textContent = txt || ""; }
 
-/* Improve touch zoom/pan: let Plotly fully capture gestures on phones in portrait */
-function updateTouchAction() {
-  if (IS_TOUCH && isPortrait()) {
-    plotDiv.style.touchAction = "none";
-  } else {
-    plotDiv.style.touchAction = "pan-y pinch-zoom";
-  }
+/* ========================= TOUCH POLICY =========================
+   Desired:
+   - 1 finger: page scroll up/down
+   - 2 fingers pinch: plot zoom
+   - 2 fingers drag: plot pan
+*/
+function installTouchPolicyOnce() {
+  if (!IS_TOUCH) return;
+  if (plotDiv.__touchPolicyInstalled) return;
+  plotDiv.__touchPolicyInstalled = true;
+
+  // allow page scroll with 1 finger
+  plotDiv.style.touchAction = "pan-y";
+
+  // but stop page scrolling / browser zoom when 2+ touches so Plotly handles pan/zoom
+  const handler = (e) => {
+    if (e.touches && e.touches.length >= 2) e.preventDefault();
+  };
+  plotDiv.addEventListener("touchstart", handler, { passive:false });
+  plotDiv.addEventListener("touchmove", handler, { passive:false });
 }
 
 /* ========================= TIME PARSERS ========================= */
@@ -480,8 +516,6 @@ function colorbarFor(varKey) {
   const portrait = isPortrait();
 
   if (portrait) {
-    // horizontal colorbar at bottom
-    // increase bottom margin in layout when portrait
     return {
       title: { text: unit, side:"top" },
       orientation: "h",
@@ -492,7 +526,6 @@ function colorbarFor(varKey) {
     };
   }
 
-  // vertical on right
   return {
     title: { text: unit, side:"top" },
     x: 1.02, xanchor: "left",
@@ -585,8 +618,11 @@ function buildSst(gridInfo, dataObj) {
       customdata: dataObj.sst,
       hoverinfo:"none",
       zauto:false, zmin:vmin, zmax:vmax,
-      colorscale: "RdBu_r",    // blue low, red high
-      reversescale: false,     // DO NOT flip again
+
+      /* BLUE=cold, RED=warm */
+      colorscale: "RdBu_r",
+      reversescale: false,
+
       colorbar: colorbarFor("sst"),
       zsmooth:false
     }],
@@ -620,7 +656,7 @@ function buildUv(gridInfo, dataObj) {
     zsmooth:false
   };
 
-  // Open arrowheads, zoom-responsive (lon/lat units)
+  // Open arrowheads
   const lineX = [];
   const lineY = [];
 
@@ -685,7 +721,10 @@ async function loadBathymetryNcOnce(ncUrl) {
   if (!res.ok) throw new Error(`Failed to fetch bathy nc: ${ncUrl}`);
   const ab = await res.arrayBuffer();
 
-  const reader = new netcdfjs.NetCDFReader(ab);
+  if (!window.NetCDFReader) {
+    throw new Error("NetCDFReader not loaded. Check the <script type='module'> import in <head>.");
+  }
+  const reader = new window.NetCDFReader(ab);
 
   const lat = reader.getDataVariable("lat");
   const lon = reader.getDataVariable("lon");
@@ -797,7 +836,7 @@ function updateReadoutPosition() {
 
 /* ========================= UI ========================= */
 function syncRangeInputsToVar() {
-  rangeTitle.textContent = VAR_LABELS[currentVar]; // no “range”
+  rangeTitle.textContent = VAR_LABELS[currentVar];
   vminInput.value = userRanges[currentVar].vmin;
   vmaxInput.value = userRanges[currentVar].vmax;
 }
@@ -878,7 +917,6 @@ async function loadIndex() {
   framesByVar.sst = filterFramesForVar("sst", fbv.sst || []);
   framesByVar.uv  = filterFramesForVar("uv",  fbv.uv  || []);
 
-  // single-frame bathy (nc)
   framesByVar.bathy = [{ json_path: BATHY_NC_URL }];
 
   for (const v of ["chl","sst","uv","bathy"]) {
@@ -924,14 +962,13 @@ function plotConfig() {
     responsive: true,
     displayModeBar: true,
     displaylogo: false,
-    scrollZoom: true,
+    scrollZoom: true,                 // pinch zoom works
     doubleClick: "reset",
     modeBarButtonsToRemove: ["lasso2d","select2d"]
   };
 }
 
 async function showFrame() {
-  updateTouchAction();
   updateReadoutPosition();
 
   const frames = framesByVar[currentVar] || [];
@@ -953,6 +990,8 @@ async function showFrame() {
   }
 
   await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
+
+  installTouchPolicyOnce();           // <--- key touch behavior change
 
   floatModebarOnceReady();
   setTimeout(floatModebarOnceReady, 0);
@@ -993,10 +1032,8 @@ resetBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
-  updateTouchAction();
   updateReadoutPosition();
   try { Plotly.Plots.resize(plotDiv); } catch(_){}
-  // re-render to reposition colorbar for portrait/landscape
   showFrame();
 });
 
