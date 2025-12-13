@@ -1,0 +1,1078 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LiveMaps</title>
+  <link rel="icon" href="data:,">
+
+  <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.92); --border:#1b2836;
+      --pad:10px;
+    }
+    html, body {
+      height:100%;
+      margin:0;
+      background:var(--bg);
+      color:var(--fg);
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      overflow:auto;
+    }
+
+    /* ======= Controls (sticky) ======= */
+    #controls{
+      position:sticky;
+      top:0;
+      z-index:80;
+      background:var(--panel);
+      border-bottom:1px solid var(--border);
+      backdrop-filter: blur(6px);
+      padding:8px 10px;
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:10px;
+    }
+
+    .row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    #row-var{ flex: 0 0 auto; }
+    #row-play{ flex: 0 0 auto; }
+    #row-slider{ flex: 1 1 520px; min-width:320px; }
+    /* #row-modebar removed, modebar is now fixed inside plot area */
+
+    #var-select{
+      background:#0c1723;
+      color:var(--fg);
+      border:1px solid #273649;
+      border-radius:10px;
+      padding:10px 12px;
+      font-size:20px;
+      font-weight:800;
+      min-height:44px;
+    }
+
+    button{
+      background:#0c1723;
+      color:var(--fg);
+      border:1px solid #273649;
+      border-radius:10px;
+      padding:10px 12px;
+      font-size:16px;
+      min-height:44px;
+      cursor:pointer;
+    }
+    button:disabled{ opacity:.45; cursor:default; }
+
+    #frame-slider{ flex:1; min-width:220px; height:24px; }
+    #frame-label{
+      min-width:240px;
+      text-align:right;
+      font-size:20px;
+      font-weight:800;
+      font-variant-numeric: tabular-nums;
+      white-space:nowrap;
+    }
+
+    /* Modebar host: NEW CSS for floating inside the plot at upper-left */
+    #modebar-host{
+      position: fixed; /* Fixed relative to viewport (stays visible) */
+      top: 92px; /* Position below sticky controls */
+      left: 10px;
+      z-index: 1000;
+      pointer-events: auto;
+    }
+    .modebar{
+      background: rgba(5,11,16,0.55) !important;
+      border-radius:12px !important;
+      padding:6px 6px !important;
+      position: static !important; /* Override Plotly's internal positioning */
+    }
+
+    /* ======= Plot ======= */
+    #plot-wrap{ position:relative; width:100%; }
+    #plot{
+      width:100%;
+      height: calc(100dvh - 74px - 88px);
+      min-height:520px;
+
+      /* Key: allow 1-finger vertical page scrolling */
+      touch-action: pan-y;
+    }
+
+    /* Floating readout: Updated Top position */
+    #readout{
+      position:fixed;
+      top:92px; /* Adjusted to be consistent with modebar host */
+      right:120px;
+      z-index:120;
+      padding:6px 8px;
+      background: rgba(255,255,255,0.55);
+      color:#000;
+      border:1px solid rgba(0,0,0,0.12);
+      border-radius:10px;
+      font-variant-numeric: tabular-nums;
+      pointer-events:none;
+      white-space:nowrap;
+      font-size:14px;
+      min-width:120px;
+      text-align:right;
+    }
+
+    /* ======= Bottom ranges (sticky): Reduced Padding ======= */
+    #ranges{
+      position:sticky;
+      bottom:0;
+      z-index:70;
+      background:var(--panel);
+      border-top:1px solid var(--border);
+      backdrop-filter: blur(6px);
+      padding:4px 10px 0;
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      font-size:14px;
+    }
+    .range-block{	
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      padding:4px 8px; /* REDUCED PADDING */
+      border:1px solid var(--border);
+      border-radius:12px;
+      background: rgba(12,23,35,0.65);
+    }
+    .range-name{
+      font-weight:900;
+      font-size:14px;
+      margin-right:4px;
+      white-space:nowrap;
+    }
+    .mini-label{ opacity:0.85; font-size:13px; white-space:nowrap; }
+    input[type="number"]{
+      width:96px;
+      background:#0c1723;
+      color:var(--fg);
+      border:1px solid #273649;
+      border-radius:10px;
+      padding:2px 8px; /* REDUCED PADDING */
+      font-size:14px;
+      min-height:20px; /* REDUCED MIN HEIGHT */
+    }
+    .range-actions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .range-actions button{
+      padding:4px 8px; /* REDUCED PADDING */
+      font-size:13px;
+      min-height:36px; /* REDUCED MIN HEIGHT */
+    }
+
+    /* ======= Portrait mobile layout (width < height) ======= */
+    @media (orientation: portrait) {
+      #controls{ align-items:stretch; }
+      #row-var{ flex: 0 0 100%; }
+      /* row-play/row-slider display handled in JS for bathy */
+      #row-play{ flex: 0 0 100%; justify-content:flex-start; }
+      #row-slider{ flex: 0 0 100%; }
+      /* #row-modebar removed */
+
+      #var-select{ width:100%; font-size:18px; }
+      #frame-label{
+        width:100%;
+        min-width:0;
+        text-align:left;
+        font-size:18px;
+      }
+      #frame-slider{ width:100%; min-width:0; }
+
+      /* modebar full row (only needed if inside controls) - keeping this for mobile safety */
+      #modebar-host .modebar{
+        width:auto !important; /* Auto width for modebar */
+        display:flex !important;
+        flex-wrap:wrap !important;
+        justify-content:flex-start !important;
+      }
+      #modebar-host{
+        top: 168px; /* Adjusted for larger portrait controls */
+        left: 10px;
+      }
+
+      /* smaller readout */
+      #readout{
+        right:10px;
+        top: 168px; /* Adjusted to be next to modebar in portrait */
+        font-size:12px;
+        min-width:96px;
+        padding:5px 7px;
+      }
+
+      /* plot height */
+      #plot{ height: calc(100dvh - 220px - 96px); min-height:420px; }
+
+      /* ===== Fix: keep "Temperature min max" on ONE row ===== */
+      .range-block{
+        width:100%;
+        gap:6px;
+        padding:4px 6px; /* FURTHER REDUCED PADDING */
+      }
+      .range-name{ font-size:12px; margin-right:2px; }
+      .mini-label{ font-size:12px; }
+      input[type="number"]{
+        width:72px;
+        font-size:12px;
+        padding:4px 6px; /* FURTHER REDUCED PADDING */
+        min-height:32px; /* FURTHER REDUCED MIN HEIGHT */
+      }
+
+      /* actions go to next row */
+      .range-actions{ flex: 0 0 100%; }
+      .range-actions button{ font-size:12px; min-height:20 px; padding:2px 8px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="controls">
+    <div class="row" id="row-var">
+      <select id="var-select">
+        <option value="chl">Chlorophyll</option>
+        <option value="sst">Temperature</option>
+        <option value="uv">Currents</option>
+        <option value="bathy">Bathymetry</option>
+      </select>
+    </div>
+
+    <div class="row" id="row-play">
+      <button id="prev-btn">&#9664;</button>
+      <button id="play-btn">Play</button>
+      <button id="next-btn">&#9654;</button>
+    </div>
+
+    <div class="row" id="row-slider">
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
+      <span id="frame-label"></span>
+    </div>
+
+    </div>
+
+  <div id="readout"></div>
+
+  <div id="plot-wrap">
+    <div id="modebar-host"></div> <div id="plot"></div>
+  </div>
+
+  <div id="ranges">
+    <div class="range-block">
+      <span class="range-name" id="range-title">Chlorophyll</span>
+      <span class="mini-label">min</span><input id="vmin-input" type="number" step="any" inputmode="decimal" />
+      <span class="mini-label">max</span><input id="vmax-input" type="number" step="any" inputmode="decimal" />
+      <div class="range-actions">
+        <button id="apply-range">Apply</button>
+        <button id="reset-range">Reset</button>
+      </div>
+    </div>
+    <div id="arrow-legend" class="range-block" style="display:none;">
+      <span class="range-name">Arrows</span>
+      <svg id="arrow-svg" width="100" height="36" viewBox="0 0 100 36">
+        <line x1="10" y1="18" x2="80" y2="18" stroke="#e0e6ee" stroke-width="2"/>
+        <polyline points="75,14 85,18 75,22" fill="none" stroke="#e0e6ee" stroke-width="2"/>
+      </svg>
+      <span class="mini-label">1 m/s</span>
+    </div>
+  </div>
+
+<script>
+/* ========================= CONFIG ========================= */
+const REGION_ID = "mbh";
+
+// Bounding Box (LonMin, LatMin, LonMax, LatMax)
+const BBOX = [-79.0, 24.5, -75.0, 28.5];
+
+// UPDATED: UV label is now Sea Surface Height, and Currents arrow unit is separate
+const VAR_LABELS = { 
+  chl:"Chlorophyll", sst:"Temperature", 
+  uv:"Sea Surface Height", /* CHANGED for Range Input Title */
+  bathy:"Bathymetry" 
+};
+
+const VAR_TO_GRID = {
+  chl: "viirs_chl_750_grid.json",
+  sst: "goes_sst_1000_grid.json",
+  uv:  "uv_12500_grid.json"
+};
+
+const BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_mbh_bathy.json`;
+
+const INDEX_CANDIDATES = [
+  "index.json",
+];
+
+const DEFAULT_RANGES = {
+  chl:   { vmin: 0.01, vmax: 10.0, unit: "mg/m³" },
+  sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
+  uv:    { vmin: 0.6, vmax: 0.9,  unit: "m" }, /* CHANGED: Now represents ADT/SSH range */
+  bathy: { vmin: 0.0,  vmax: 4000.0, unit: "m" }
+};
+
+let userRanges = {
+  chl:   { ...DEFAULT_RANGES.chl },
+  sst:   { ...DEFAULT_RANGES.sst },
+  uv:    { ...DEFAULT_RANGES.uv },
+  bathy: { ...DEFAULT_RANGES.bathy }
+};
+
+/* CHL colorscale (algae-ish) */
+const CHL_ALGAE = [
+  [0.00, "#081d38"],
+  [0.10, "#1d4f91"],
+  [0.22, "#00a6ca"],
+  [0.36, "#00d17f"],
+  [0.52, "#a3f700"],
+  [0.70, "#ffe600"],
+  [0.86, "#ff7a00"],
+  [1.00, "#b30000"]
+];
+
+/* show 0.01, 0.1, 1, 10 on CHL colorbar */
+const CHL_TICKS_LINEAR = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
+const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
+const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10) ? String(v) : "");
+
+/* ========================= STATE ========================= */
+let framesByVar = { chl: [], sst: [], uv: [], bathy: [] };
+let frameTimesByVar = { chl: [], sst: [], uv: [], bathy: [] };
+let currentVar = "chl";
+let currentFrameIdx = 0;
+let playing = false;
+let playTimer = null;
+
+const gridCache = {};
+let _readoutHooked = false;
+let _relayoutHooked = false;
+
+let viewState = { hasRange:false, xRange:null, yRange:null };
+
+/* Touch / portrait detection */
+const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
+function isPortrait() { return window.innerHeight > window.innerWidth; }
+
+/* Marker state */
+let markers = [];
+let markerMode = false;
+let markerTrace = {
+  type:"scatter",
+  mode:"markers+text",
+  x:[], y:[], text:[],
+  marker:{ size:12, color:"#ff0000", symbol:"cross" },
+  textfont:{ size:14, color:"#ff0000" },
+  textposition:"top center",
+  hoverinfo:"text",
+  visible: true,
+  showlegend: false,
+  name: "Markers"
+};
+
+/* ========================= DOM ========================= */
+const plotDiv   = document.getElementById("plot");
+const varSelect = document.getElementById("var-select");
+const slider    = document.getElementById("frame-slider");
+const frameLbl  = document.getElementById("frame-label");
+const playBtn   = document.getElementById("play-btn");
+const prevBtn   = document.getElementById("prev-btn");
+const nextBtn   = document.getElementById("next-btn");
+const readoutDiv = document.getElementById("readout");
+const modebarHost = document.getElementById("modebar-host");
+
+const rangeTitle = document.getElementById("range-title");
+const vminInput = document.getElementById("vmin-input");
+const vmaxInput = document.getElementById("vmax-input");
+const applyBtn = document.getElementById("apply-range");
+const resetBtn = document.getElementById("reset-range");
+
+const rowPlay = document.getElementById("row-play"); /* NEW */
+const rowSlider = document.getElementById("row-slider"); /* NEW */
+const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
+
+function setReadout(txt) { readoutDiv.textContent = txt || ""; }
+
+/* ========================= TOUCH POLICY ========================= */
+function installTouchPolicyOnce() {
+  if (!IS_TOUCH) return;
+  if (plotDiv.__touchPolicyInstalled) return;
+  plotDiv.__touchPolicyInstalled = true;
+
+  plotDiv.style.touchAction = "pan-y";
+
+  const handler = (e) => {
+    if (e.touches && e.touches.length >= 2) e.preventDefault();
+  };
+  plotDiv.addEventListener("touchstart", handler, { passive:false });
+  plotDiv.addEventListener("touchmove", handler, { passive:false });
+}
+
+/* ========================= TIME PARSERS ========================= */
+function parseChlUtcFromName(filename) {
+  const m = filename.match(/_(\d{4})(\d{3})\.(\d{4})_/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const jjj  = Number(m[2]);
+  const hhmm = m[3];
+  const hh = Number(hhmm.slice(0,2));
+  const mm = Number(hhmm.slice(2,4));
+  const d0 = new Date(Date.UTC(year,0,1,0,0,0));
+  return new Date(d0.getTime() + (jjj-1)*86400e3 + hh*3600e3 + mm*60e3);
+}
+function parseSstUtcFromName(filename) {
+  const m = filename.match(/sst_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const jjj  = Number(m[2]);
+  const hh   = Number(m[4]);
+  const d0 = new Date(Date.UTC(year,0,1,0,0,0));
+  return new Date(d0.getTime() + (jjj-1)*86400e3 + hh*3600e3);
+}
+function parseUvDateFromName(filename) {
+  const m = filename.match(/_(\d{8})_/);
+  if (!m) return null;
+  const y = Number(m[1].slice(0,4));
+  const mo = Number(m[1].slice(4,6)) - 1;
+  const d = Number(m[1].slice(6,8));
+  return new Date(Date.UTC(y,mo,d));
+}
+
+function fmtLocalDateTime(dt) {
+  return dt.toLocaleString(undefined, {
+    year:"numeric", month:"2-digit", day:"2-digit",
+    hour:"2-digit", minute:"2-digit",
+    hour12:false
+  });
+}
+function fmtLocalDate(dt) {
+  return dt.toLocaleDateString(undefined, { year:"numeric", month:"2-digit", day:"2-digit" });
+}
+
+function framePathOf(f){ return String(f?.json_path || f?.path || f?.file || f?.url || f?.json || ""); }
+function frameFilenameOf(f){ const p = framePathOf(f); return p.split("/").pop() || p; }
+
+function timeOnlyLabel(varKey, frameMeta) {
+  if (varKey === "bathy") return ""; /* EMPTY for bathy */
+  const path = framePathOf(frameMeta);
+  const filename = String(path).split("/").pop() || "";
+  if (varKey === "chl") { const dt = parseChlUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
+  if (varKey === "sst") { const dt = parseSstUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
+  if (varKey === "uv")  { const dt = parseUvDateFromName(filename);  return dt ? fmtLocalDate(dt) : ""; }
+  return "";
+}
+
+function epochMsForFrame(varKey, frameMeta) {
+  if (varKey === "bathy") return Date.UTC(2025,11,8);
+  const filename = frameFilenameOf(frameMeta);
+  let dt = null;
+  if (varKey === "chl") dt = parseChlUtcFromName(filename);
+  if (varKey === "sst") dt = parseSstUtcFromName(filename);
+  if (varKey === "uv")  dt = parseUvDateFromName(filename);
+  return dt ? dt.getTime() : null;
+}
+
+/* ========================= HELPERS ========================= */
+function is2D(a){ return Array.isArray(a) && a.length>0 && Array.isArray(a[0]) && a[0].length>0; }
+
+function filterFramesForVar(varKey, frames) {
+  const out = [];
+  for (const f of (frames || [])) {
+    const fn = frameFilenameOf(f).toLowerCase();
+    if (!fn.endsWith(".json")) continue;
+    if (fn.includes("grid")) continue;
+    if (varKey === "chl" && !fn.includes("_chl_")) continue;
+    if (varKey === "sst" && !fn.startsWith("sst_")) continue;
+    if (varKey === "uv"  && !fn.startsWith("uv_")) continue;
+    out.push(f);
+  }
+  return out;
+}
+
+function closestIndex(times, targetMs) {
+  if (!times.length || targetMs === null) return 0;
+  let best = 0, bestDist = Infinity;
+  for (let i=0;i<times.length;i++){
+    const t = times[i];
+    if (t === null) continue;
+    const d = Math.abs(t - targetMs);
+    if (d < bestDist){ bestDist = d; best = i; }
+  }
+  return best;
+}
+
+/* ========================= VIEW SYNC ========================= */
+function attachRelayoutListenerOnce() {
+  if (_relayoutHooked) return;
+  _relayoutHooked = true;
+
+  plotDiv.on("plotly_relayout", (ev) => {
+    if (!ev) return;
+    const xr0 = ev["xaxis.range[0]"], xr1 = ev["xaxis.range[1]"];
+    const yr0 = ev["yaxis.range[0]"], yr1 = ev["yaxis.range[1]"];
+    if (xr0 !== undefined && xr1 !== undefined && yr0 !== undefined && yr1 !== undefined) {
+      viewState.hasRange = true;
+      viewState.xRange = [xr0, xr1];
+      viewState.yRange = [yr0, yr1];
+      return;
+    }
+    if (ev["xaxis.autorange"] === true || ev["yaxis.autorange"] === true) {
+      viewState.hasRange = false;
+      viewState.xRange = null;
+      viewState.yRange = null;
+    }
+  });
+}
+
+/* ========================= COLORBAR PLACEMENT ========================= */
+function colorbarFor(varKey) {
+  const unit = DEFAULT_RANGES[varKey]?.unit || "";
+  const portrait = isPortrait();
+
+  if (portrait) {
+    return {
+      title: { text: unit, side:"top" },
+      orientation: "h",
+      x: 0.5, xanchor: "center",
+      y: -0.18, yanchor: "top",
+      len: 0.92,
+      thickness: 14
+    };
+  }
+
+  return {
+    title: { text: unit, side:"top" },
+    x: 1.02, xanchor: "left",
+    len: 0.92
+  };
+}
+
+function stableLayout() {
+  const portrait = isPortrait();
+  const layout = {
+    uirevision: "sync_fov_mobile_v4",
+    margin: portrait ? { l: 52, r: 16, t: 8, b: 84 } : { l: 52, r: 92, t: 8, b: 40 },
+    paper_bgcolor: "#050b10",
+    plot_bgcolor: "#050b10",
+    font: { color:"#e0e6ee" },
+    xaxis: { title:"Longitude", automargin:true },
+    yaxis: { title:"Latitude", automargin:true, scaleanchor:"x", scaleratio: 1 },
+    hovermode: "closest",
+    dragmode: "pan"
+  };
+
+  if (viewState.hasRange && viewState.xRange && viewState.yRange) {
+    layout.xaxis.range = [BBOX[0], BBOX[2]];
+    layout.yaxis.range = [BBOX[1], BBOX[3]];
+    layout.xaxis.autorange = false;
+    layout.yaxis.autorange = false;
+  } else {
+    layout.xaxis.autorange = true;
+    layout.yaxis.autorange = true;
+  }
+  return layout;
+}
+
+/* ========================= FIGURES ========================= */
+function buildChl(gridInfo, dataObj) {
+  const { xAxis, yAxis, nx, ny } = gridInfo;
+  if (!is2D(dataObj.chl)) throw new Error("CHL JSON missing 2-D key: chl");
+
+  const vmin = userRanges.chl.vmin;
+  const vmax = userRanges.chl.vmax;
+  const zmin = Math.log10(vmin);
+  const zmax = Math.log10(vmax);
+
+  const z = Array.from({ length: ny }, () => Array(nx).fill(null));
+  const cd = Array.from({ length: ny }, () => Array(nx).fill(null));
+
+  for (let j=0;j<ny;j++){
+    for (let i=0;i<nx;i++){
+      const vv = dataObj.chl[j][i];
+      const num = (vv===null||vv===undefined||!isFinite(vv)) ? null : Number(vv);
+      cd[j][i] = num;
+      z[j][i] = (num!==null && num>0) ? Math.log10(num) : null;
+    }
+  }
+
+  const cb = colorbarFor("chl");
+  cb.tickmode = "array";
+  cb.tickvals = CHL_TICKVALS;
+  cb.ticktext = CHL_TICKTEXT;
+  cb.ticks = "outside";
+
+  return {
+    data: [{
+      type:"heatmap",
+      x:xAxis, y:yAxis,
+      z,
+      customdata: cd,
+      hoverinfo:"none",
+      zauto:false, zmin, zmax,
+      colorscale: CHL_ALGAE,
+      colorbar: cb,
+      zsmooth:false
+    }],
+    layout: stableLayout()
+  };
+}
+
+function buildSst(gridInfo, dataObj) {
+  const { xAxis, yAxis } = gridInfo;
+  if (!is2D(dataObj.sst)) throw new Error("SST JSON missing 2-D key: sst");
+
+  const vmin = userRanges.sst.vmin;
+  const vmax = userRanges.sst.vmax;
+
+  return {
+    data: [{
+      type:"heatmap",
+      x:xAxis, y:yAxis,
+      z: dataObj.sst,
+      customdata: dataObj.sst,
+      hoverinfo:"none",
+      zauto:false, zmin:vmin, zmax:vmax,
+
+      /* CHANGED: Use RdBu with reverseScale:true for standard cold(blue) -> warm(red) */
+      colorscale: "RdBu",
+      reversescale: false,
+
+      colorbar: colorbarFor("sst"),
+      zsmooth:false
+    }],
+    layout: stableLayout()
+  };
+}
+
+function buildUv(gridInfo, dataObj) {
+  const { xAxis, yAxis, nx, ny } = gridInfo;
+  const d = dataObj.data || dataObj;
+
+  if (!d || !is2D(d.u) || !is2D(d.v) || !is2D(d.adt)) {
+    throw new Error("UV JSON missing 2-D keys: data.u, data.v, data.adt");
+  }
+
+  const adt = d.adt;
+  const u = d.u, v = d.v;
+
+  // Use the UV range, which is now configured for ADT (Sea Surface Height)
+  const vmin = userRanges.uv.vmin; 
+  const vmax = userRanges.uv.vmax; 
+
+  const bg = {
+    type:"heatmap",
+    x:xAxis, y:yAxis,
+    z:adt,
+    customdata:adt,
+    hoverinfo:"none",
+    zauto:false, zmin:vmin, zmax:vmax,
+    colorscale:"Viridis",
+    // Colorbar uses the 'uv' key which now has the unit 'm'
+    colorbar: colorbarFor("uv"), 
+    zsmooth:false
+  };
+
+  // Open arrowheads
+  const lineX = [];
+  const lineY = [];
+
+  let dxg = 0.01, dyg = 0.01;
+  if (nx > 1) dxg = Math.abs(xAxis[1] - xAxis[0]);
+  if (ny > 1) dyg = Math.abs(yAxis[1] - yAxis[0]);
+  const minHead = 0.2 * Math.max(dxg, dyg);
+  const headAngle = (10 * Math.PI) / 180;
+
+  const step = (nx * ny > 2500) ? 2 : 1;
+  const scale = 1.0;
+
+  for (let j=0;j<ny;j+=step){
+    const lat0 = yAxis[j];
+    for (let i=0;i<nx;i+=step){
+      const lon0 = xAxis[i];
+      const uu = u[j][i], vv = v[j][i];
+      const sp = Math.hypot(uu, vv); 
+      
+      if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp)) continue;
+
+      const lon1 = lon0 + uu * scale;
+      const lat1 = lat0 + vv * scale;
+
+      const dx = lon1 - lon0, dy = lat1 - lat0;
+      const L = Math.hypot(dx,dy);
+      if (!(L > 0)) continue;
+
+      // shaft
+      lineX.push(lon0, lon1, null);
+      lineY.push(lat0, lat1, null);
+
+      // open V head
+      const theta = Math.atan2(dy, dx);
+      const hl = Math.max(minHead, 0.45 * L);
+
+      const xL = lon1 + hl * Math.cos(theta + Math.PI - headAngle);
+      const yL = lat1 + hl * Math.sin(theta + Math.PI - headAngle);
+      const xR = lon1 + hl * Math.cos(theta + Math.PI + headAngle);
+      const yR = lat1 + hl * Math.sin(theta + Math.PI + headAngle);
+
+      lineX.push(lon1, xL, null, lon1, xR, null);
+      lineY.push(lat1, yL, null, lat1, yR, null);
+    }
+  }
+
+  const arrows = {
+    type:"scatter",
+    mode:"lines",
+    x:lineX, y:lineY,
+    hoverinfo:"none",
+    line:{ color:"#ffffff", width:1.6 }, /* CHANGED color to white for better contrast */
+    showlegend:false
+  };
+
+  return { data:[bg, arrows], layout: stableLayout() };
+}
+
+/* ===== Bathymetry (.nc) ===== */
+/* ===== Improved Bathymetry Loader ===== */
+async function loadBathymetryJson(url) {
+  if (gridCache.__bathy_json) return gridCache.__bathy_json;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load bathy JSON: ${url}`);
+  const data = await res.json();
+
+  // Validate structure
+  if (!data.xAxis || !data.yAxis || !data.depth) {
+    throw new Error("Bathy JSON missing keys: xAxis, yAxis, or depth");
+  }
+
+  // Create customdata for readout (clone depth)
+  // We can just reference the same array since we aren't modifying it
+  const out = {
+    xAxis: data.xAxis,
+    yAxis: data.yAxis,
+    depth: data.depth,
+    customdata: data.depth 
+  };
+  
+  gridCache.__bathy_json = out;
+  return out;
+}
+
+function buildBathy(bathy) {
+  const vmin = userRanges.bathy.vmin;
+  const vmax = userRanges.bathy.vmax;
+
+  return {
+    data: [{
+      type:"heatmap",
+      x:bathy.xAxis, y:bathy.yAxis,
+      z:bathy.depth,
+      customdata:bathy.customdata,
+      hoverinfo:"none",
+      zauto:false, zmin:vmin, zmax:vmax,
+      colorscale:"Blues",
+      reversescale:true, /* CHANGED to false: Low Z (shallow) is Light Blue */
+      colorbar: colorbarFor("bathy"),
+      zsmooth:false
+    }],
+    layout: stableLayout()
+  };
+}
+
+function buildForVar(varKey, gridInfo, dataObj) {
+  if (varKey === "chl") return buildChl(gridInfo, dataObj);
+  if (varKey === "sst") return buildSst(gridInfo, dataObj);
+  if (varKey === "uv")  return buildUv(gridInfo, dataObj);
+  throw new Error(`Unsupported varKey=${varKey}`);
+}
+
+/* ========================= READOUT (hover + tap) ========================= */
+function setupReadoutHandlersOnce() {
+  if (_readoutHooked) return;
+  _readoutHooked = true;
+
+  plotDiv.on("plotly_unhover", () => { if (!IS_TOUCH) setReadout(""); });
+
+  plotDiv.on("plotly_hover", (ev) => {
+    if (IS_TOUCH) return;
+    const p = ev.points && ev.points[0];
+    if (!p) return;
+    renderReadoutFromPoint(p);
+  });
+
+  plotDiv.on("plotly_click", (ev) => {
+    const p = ev.points && ev.points[0];
+    if (!p) return;
+    renderReadoutFromPoint(p);
+  });
+}
+
+function renderReadoutFromPoint(p) {
+  const lon = Number(p.x);
+  const lat = Number(p.y);
+  if (!isFinite(lon) || !isFinite(lat)) return;
+
+  const base = `${lon.toFixed(3)} ${lat.toFixed(3)}`;
+  const cd = p.customdata;
+
+  if (cd === null || cd === undefined || !isFinite(cd)) { setReadout(base); return; }
+
+  const val = Number(cd);
+  if (currentVar === "sst") setReadout(`${base} ${val.toFixed(2)}`);
+  else setReadout(`${base} ${val.toFixed(3)}`);
+}
+
+/* move plotly modebar into #modebar-host */
+/* DELETED: floatModebarOnceReady function is replaced by fixed CSS */
+
+/* adjust readout to avoid colorbar overlap when landscape */
+function updateReadoutPosition() {
+  if (isPortrait()) readoutDiv.style.right = "10px";
+  else readoutDiv.style.right = "120px";
+}
+
+/* ========================= UI ========================= */
+function syncRangeInputsToVar() {
+  rangeTitle.textContent = VAR_LABELS[currentVar];
+  vminInput.value = userRanges[currentVar].vmin;
+  vmaxInput.value = userRanges[currentVar].vmax;
+}
+
+function updateSliderUI() {
+  const frames = framesByVar[currentVar] || [];
+  const n = frames.length;
+
+  slider.min = 0;
+  slider.max = Math.max(0, n - 1);
+  slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
+
+  prevBtn.disabled = n <= 1;
+  nextBtn.disabled = n <= 1;
+  playBtn.disabled = n <= 1;
+
+  frameLbl.textContent = n ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
+}
+
+function syncTimeControls() {
+  const isBathy = (currentVar === "bathy");
+  // Hides the play buttons and the slider/date bar for bathymetry
+  rowPlay.style.display = isBathy ? "none" : "flex"; 
+  rowSlider.style.display = isBathy ? "none" : "flex"; 
+}
+
+function syncArrowLegend() {
+  const isUv = (currentVar === "uv");
+  arrowLegendDiv.style.display = isUv ? "flex" : "none";
+}
+
+async function setCurrentVar(v, keepTime = true) {
+  const prevVar = currentVar;
+  const prevFrames = framesByVar[prevVar] || [];
+  const prevFrame = prevFrames[currentFrameIdx] || null;
+  const prevT = (keepTime && prevFrame) ? epochMsForFrame(prevVar, prevFrame) : null;
+
+  currentVar = v;
+  varSelect.value = v;
+
+  const frames = framesByVar[currentVar] || [];
+  const times = frameTimesByVar[currentVar] || [];
+
+  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestIndex(times, prevT) : 0;
+  else currentFrameIdx = 0;
+
+  syncRangeInputsToVar();
+  updateSliderUI();
+  syncTimeControls(); /* NEW */
+  syncArrowLegend(); /* NEW */
+
+  if (frames.length) await showFrame();
+  else Plotly.purge(plotDiv);
+}
+
+function stepFrame(delta) {
+  const frames = framesByVar[currentVar] || [];
+  const n = frames.length;
+  if (!n) return;
+  currentFrameIdx = (currentFrameIdx + delta + n) % n;
+  slider.value = currentFrameIdx;
+  showFrame();
+}
+
+function setPlaying(on) {
+  if (on === playing) return;
+  playing = on;
+  playBtn.textContent = playing ? "Pause" : "Play";
+  if (playing) {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = setInterval(() => stepFrame(+1), 800);
+  } else {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = null;
+  }
+}
+
+/* ========================= LOADING ========================= */
+async function loadIndex() {
+  let idx = null;
+  for (const url of INDEX_CANDIDATES) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) { idx = await res.json(); break; }
+    } catch (_) {}
+  }
+  if (!idx) throw new Error("Failed to load index.json");
+
+  const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
+
+  framesByVar.chl = filterFramesForVar("chl", fbv.chl || []);
+  framesByVar.sst = filterFramesForVar("sst", fbv.sst || []);
+  framesByVar.uv  = filterFramesForVar("uv",  fbv.uv  || []);
+
+  framesByVar.bathy = [{ json_path: BATHY_JSON_URL }];
+
+  for (const v of ["chl","sst","uv","bathy"]) {
+    framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));
+    frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
+  }
+}
+
+async function loadGridForVar(v) {
+  if (gridCache[v]) return gridCache[v];
+  const gridName = VAR_TO_GRID[v];
+  const url = `data/${REGION_ID}/grids/${gridName}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Could not load grid for ${v}: ${url}`);
+  const grid = await res.json();
+
+  const lon = grid.lon, lat = grid.lat;
+  if (!Array.isArray(lon) || !Array.isArray(lat) || !Array.isArray(lon[0]) || !Array.isArray(lat[0])) {
+    throw new Error("Grid JSON must contain 2-D lon/lat arrays");
+  }
+
+  const ny = lon.length;
+  const nx = lon[0].length;
+  const xAxis = lon[0].slice();
+  const yAxis = lat.map(r => r[0]);
+
+  const info = { xAxis, yAxis, nx, ny };
+  gridCache[v] = info;
+  return info;
+}
+
+async function fetchFrameData(varKey, frameMeta) {
+  const p = framePathOf(frameMeta);
+  if (!p) throw new Error("Frame has no json path");
+  const res = await fetch(p);
+  if (!res.ok) throw new Error(`Frame load failed: ${p}`);
+  return await res.json();
+}
+
+/* ========================= RENDER ========================= */
+function plotConfig() {
+  return {
+    responsive: true,
+    displayModeBar: true,
+    displaylogo: false,
+    scrollZoom: true,
+    doubleClick: "reset",
+    modeBarButtonsToRemove: ["lasso2d","select2d"]
+  };
+}
+
+async function showFrame() {
+  updateReadoutPosition();
+
+  const frames = framesByVar[currentVar] || [];
+  if (!frames.length) return;
+
+  const frameMeta = frames[currentFrameIdx];
+
+  let fig = null;
+
+  if (currentVar === "bathy") {
+    const bathy = await loadBathymetryJson(BATHY_JSON_URL);
+    fig = buildBathy(bathy);
+  } else {
+    const [gridInfo, dataObj] = await Promise.all([
+      loadGridForVar(currentVar),
+      fetchFrameData(currentVar, frameMeta)
+    ]);
+    fig = buildForVar(currentVar, gridInfo, dataObj);
+  }
+
+  await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
+
+  installTouchPolicyOnce();
+  
+  // Custom modebar placement (no change needed here, handled by CSS)
+
+  setupReadoutHandlersOnce();
+  attachRelayoutListenerOnce();
+  updateSliderUI();
+}
+
+/* ========================= EVENTS ========================= */
+varSelect.addEventListener("change", () => {
+  setPlaying(false);
+  setCurrentVar(varSelect.value, true);
+});
+
+slider.addEventListener("input", () => {
+  currentFrameIdx = Number(slider.value) || 0;
+  showFrame();
+});
+
+playBtn.addEventListener("click", () => setPlaying(!playing));
+prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
+nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
+
+applyBtn.addEventListener("click", () => {
+  const vmin = Number(vminInput.value);
+  const vmax = Number(vmaxInput.value);
+  if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+  userRanges[currentVar].vmin = vmin;
+  userRanges[currentVar].vmax = vmax;
+  showFrame();
+});
+
+resetBtn.addEventListener("click", () => {
+  userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
+  syncRangeInputsToVar();
+  showFrame();
+});
+
+window.addEventListener("resize", () => {
+  updateReadoutPosition();
+  try { Plotly.Plots.resize(plotDiv); } catch(_){}
+  showFrame();
+});
+
+/* ========================= INIT ========================= */
+(async function init() {
+  try {
+    await loadIndex();
+    await setCurrentVar("chl", false);
+    syncRangeInputsToVar();
+  } catch (e) {
+    console.error("Init failed:", e);
+  }
+})();
+</script>
+</body>
+</html>
