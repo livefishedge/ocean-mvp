@@ -47,7 +47,6 @@
     #row-var{ flex: 0 0 auto; }
     #row-play{ flex: 0 0 auto; }
     #row-slider{ flex: 1 1 520px; min-width:320px; }
-    /* #row-modebar removed, modebar is now fixed inside plot area */
 
     #var-select{
       background:#0c1723;
@@ -82,11 +81,34 @@
       white-space:nowrap;
     }
 
+
+    #speed-wrap{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-left:10px;
+      white-space:nowrap;
+    }
+    #speed-label{
+      opacity:0.85;
+      font-size:13px;
+      white-space:nowrap;
+    }
+    #speed-select{
+      background:#0c1723;
+      color:var(--fg);
+      border:1px solid #273649;
+      border-radius:10px;
+      padding:8px 10px;
+      font-size:14px;
+      min-height:36px;
+    }
+
     /* Modebar host: NEW CSS for floating inside the plot at upper-left */
     #modebar-host{
-      position: fixed; /* Fixed relative to viewport (stays visible) */
-      top: 92px; /* Position below sticky controls */
-      left: 10px;
+      position: fixed; /* Must be 'fixed' to float on scroll */
+      top: 75px; /* Using 92px is generally better to clear the sticky controls */
+      left: 50px; /* Using 10px moves it to the very left edge */
       z-index: 1000;
       pointer-events: auto;
     }
@@ -95,13 +117,36 @@
       border-radius:12px !important;
       padding:6px 6px !important;
       position: static !important; /* Override Plotly's internal positioning */
+      gap: 14px !important;              /* space between groups */
+      /* VITAL FIXES for single row display */
+      display: flex !important;
+      flex-wrap: nowrap !important; /* Forces all buttons into a single row */
+      justify-content: flex-start !important;
+    }
+
+    /* Modebar tip */
+    #modebar-tip{
+      position:absolute;
+      z-index:1100;
+      pointer-events:none;
+      transform: translateX(-50%);
+      background-color: rgba(0,0,0,0.5) !important;
+      color: #e0e6ee;
+      border: 1px solid rgba(224,230,238,0.15);
+      border-radius: 10px;
+      padding: 6px 10px;
+      font-size: 12px;
+      max-width: 320px;
+      white-space: nowrap;
+      -webkit-backdrop-filter: blur(2px);
+      backdrop-filter: blur(2px);
     }
 
     /* ======= Plot ======= */
-    #plot-wrap{ position:relative; width:100%; }
+    /*#plot-wrap{ position:relative; width:100%; }*/
     #plot{
       width:100%;
-      height: calc(100dvh - 74px - 88px);
+      height: calc(200dvh);
       min-height:520px;
 
       /* Key: allow 1-finger vertical page scrolling */
@@ -110,12 +155,12 @@
 
     /* Floating readout: Updated Top position */
     #readout{
-      position:fixed;
-      top:92px; /* Adjusted to be consistent with modebar host */
-      right:120px;
+      position:absolute;
+      top:75px; /* Adjusted to be consistent with modebar host */
+      right:150px;
       z-index:120;
-      padding:6px 8px;
-      background: rgba(255,255,255,0.55);
+      padding:5px 5px;
+      background: rgba(255,255,255,0.50);
       color:#000;
       border:1px solid rgba(0,0,0,0.12);
       border-radius:10px;
@@ -124,13 +169,13 @@
       white-space:nowrap;
       font-size:14px;
       min-width:120px;
-      text-align:right;
+      text-align:middle;
     }
 
     /* ======= Bottom ranges (sticky): Reduced Padding ======= */
     #ranges{
       position:sticky;
-      bottom:0;
+      bottom:-50;
       z-index:70;
       background:var(--panel);
       border-top:1px solid var(--border);
@@ -141,6 +186,24 @@
       gap:10px;
       align-items:center;
       font-size:14px;
+    }
+
+    /* Ranges row layout with footer colorbar on the right */
+    #ranges{ justify-content: space-between; }
+    #ranges-left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    #ranges-right{
+      display:flex;
+      align-items:center;
+      margin-left:auto;
+    }
+    #cbar{
+      width:320px;
+      height:72px;
     }
     .range-block{	
       display:flex;
@@ -188,7 +251,6 @@
       /* row-play/row-slider display handled in JS for bathy */
       #row-play{ flex: 0 0 100%; justify-content:flex-start; }
       #row-slider{ flex: 0 0 100%; }
-      /* #row-modebar removed */
 
       #var-select{ width:100%; font-size:18px; }
       #frame-label{
@@ -203,13 +265,25 @@
       #modebar-host .modebar{
         width:auto !important; /* Auto width for modebar */
         display:flex !important;
-        flex-wrap:wrap !important;
+        flex-wrap:nowrap !important;
         justify-content:flex-start !important;
+      }
+      /* Bigger spacing between modebar symbols */
+      #modebar-host .modebar-btn{
+        margin-left:10px !important;
+        margin-right:10px !important;
       }
       #modebar-host{
         top: 168px; /* Adjusted for larger portrait controls */
-        left: 10px;
+        left: 20px;
       }
+      #modebar-host .modebar-group{
+        display:flex !important;
+        flex-wrap:nowrap !important;
+        gap: 14px !important;            /* space between buttons */
+      }
+
+
 
       /* smaller readout */
       #readout{
@@ -241,6 +315,10 @@
       /* actions go to next row */
       .range-actions{ flex: 0 0 100%; }
       .range-actions button{ font-size:12px; min-height:20 px; padding:2px 8px; }
+      /* footer colorbar wraps nicely on portrait */
+      #ranges-right{ flex: 0 0 100%; }
+      #cbar{ width:100%; }
+
     }
   </style>
 </head>
@@ -256,26 +334,43 @@
       </select>
     </div>
 
-    <div class="row" id="row-play">
-      <button id="prev-btn">&#9664;</button>
-      <button id="play-btn">Play</button>
-      <button id="next-btn">&#9654;</button>
-    </div>
+
 
     <div class="row" id="row-slider">
-      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
+    
       <span id="frame-label"></span>
+      
+        <div class="row" id="row-play">
+          <button id="prev-btn">&#9664;</button>
+          <button id="play-btn">Play</button>
+          <button id="next-btn">&#9654;</button>
+        </div>
+        
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
+      
+      <label id="speed-wrap">
+        <span id="speed-label">Speed</span>
+        <select id="speed-select" title="Animation speed">
+          <option value="0.25">0.25×</option>
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+      <button id="fs-btn" title="Fullscreen">⛶</button>
     </div>
 
     </div>
 
   <div id="readout"></div>
-
-  <div id="plot-wrap">
-    <div id="modebar-host"></div> <div id="plot"></div>
+  <div id="modebar-host">
+    <div id="modebar-tip" style="display:none;"></div>
   </div>
+  <div id="plot"></div>
 
   <div id="ranges">
+    <div id="ranges-left">
     <div class="range-block">
       <span class="range-name" id="range-title">Chlorophyll</span>
       <span class="mini-label">min</span><input id="vmin-input" type="number" step="any" inputmode="decimal" />
@@ -292,6 +387,10 @@
         <polyline points="75,14 85,18 75,22" fill="none" stroke="#e0e6ee" stroke-width="2"/>
       </svg>
       <span class="mini-label">1 m/s</span>
+    </div>
+    </div>
+    <div id="ranges-right">
+      <div id="cbar"></div>
     </div>
   </div>
 
@@ -359,6 +458,9 @@ let currentVar = "chl";
 let currentFrameIdx = 0;
 let playing = false;
 let playTimer = null;
+const BASE_PLAY_MS = 800;
+let playSpeed = 1.0; // multiplier: 1.0 = default speed
+let playIntervalMs = BASE_PLAY_MS;
 
 const gridCache = {};
 let _readoutHooked = false;
@@ -366,19 +468,20 @@ let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null };
 
+
 /* Touch / portrait detection */
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 function isPortrait() { return window.innerHeight > window.innerWidth; }
 
 /* Marker state */
 let markers = [];
-let markerMode = false;
+let markerMode = "off"; // "off" | "add" | "remove"
 let markerTrace = {
-  type:"scatter",
+  type:"circle",
   mode:"markers+text",
   x:[], y:[], text:[],
-  marker:{ size:12, color:"#ff0000", symbol:"cross" },
-  textfont:{ size:14, color:"#ff0000" },
+  marker:{ size:10, color:"#ff0000", symbol:"circle" },
+  textfont:{ size:12, color:"#ff0000" },
   textposition:"top center",
   hoverinfo:"text",
   visible: true,
@@ -386,16 +489,45 @@ let markerTrace = {
   name: "Markers"
 };
 
+/* Marker helpers (persist across var switches via injection in showFrame) */
+function syncMarkerTraceFromState() {
+  markerTrace.x = markers.map(m => m.lon);
+  markerTrace.y = markers.map(m => m.lat);
+  markerTrace.text = markers.map(m => m.label ?? "");
+}
+
+function injectMarkers(fig) {
+  if (!fig) return;
+  syncMarkerTraceFromState();
+  fig.data = (fig.data || []).filter(t => t?.name !== "Markers");
+  fig.data.push(markerTrace);
+}
+
+function removeNearestMarker(lon, lat, tolDeg = 0.05) {
+  let bestI = -1, bestD = Infinity;
+  for (let i = 0; i < markers.length; i++) {
+    const dx = (markers[i].lon - lon);
+    const dy = (markers[i].lat - lat);
+    const d = Math.hypot(dx, dy);
+    if (d < bestD) { bestD = d; bestI = i; }
+  }
+  if (bestI >= 0 && bestD <= tolDeg) markers.splice(bestI, 1);
+}
+
+
 /* ========================= DOM ========================= */
 const plotDiv   = document.getElementById("plot");
 const varSelect = document.getElementById("var-select");
 const slider    = document.getElementById("frame-slider");
 const frameLbl  = document.getElementById("frame-label");
+const speedSel = document.getElementById("speed-select");
+const fsBtn    = document.getElementById("fs-btn");
 const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
 const readoutDiv = document.getElementById("readout");
 const modebarHost = document.getElementById("modebar-host");
+const cbarDiv = document.getElementById("cbar");
 
 const rangeTitle = document.getElementById("range-title");
 const vminInput = document.getElementById("vmin-input");
@@ -563,23 +695,98 @@ function colorbarFor(varKey) {
   };
 }
 
+
+/* ========================= FOOTER COLORBAR ========================= */
+async function renderFooterColorbar(varKey) {
+  if (!cbarDiv) return;
+
+  const unit = DEFAULT_RANGES[varKey]?.unit || "";
+  let cmin = userRanges[varKey]?.vmin;
+  let cmax = userRanges[varKey]?.vmax;
+
+  let colorscale = "Viridis";
+  let reversescale = false;
+  let tickmode = undefined, tickvals = undefined, ticktext = undefined;
+
+  if (varKey === "chl") {
+    cmin = Math.log10(cmin);
+    cmax = Math.log10(cmax);
+    colorscale = CHL_ALGAE;
+    tickmode = "array";
+    tickvals = CHL_TICKVALS;
+    ticktext = CHL_TICKTEXT;
+  } else if (varKey === "sst") {
+    colorscale = "RdBu";
+    reversescale = false;
+  } else if (varKey === "uv") {
+    colorscale = "Viridis";
+  } else if (varKey === "bathy") {
+    colorscale = "Earth";
+    reversescale = true;
+  }
+
+  const trace = {
+    type: "scatter",
+    mode: "markers",
+    x: [0, 1],
+    y: [0, 0],
+    hoverinfo: "none",
+    marker: {
+      size: 1,
+      opacity: 0.001,
+      color: [cmin, cmax],
+      cmin, cmax,
+      colorscale,
+      reversescale,
+      showscale: true,
+      colorbar: {
+        title: { text: unit, side: "top" },
+        orientation: "h",
+        x: 0.5, xanchor: "center",
+        y: 0.5, yanchor: "middle",
+        len: 1.0,
+        thickness: 14,
+        tickmode,
+        tickvals,
+        ticktext,
+        ticks: "outside",
+        ticklen: 4,
+        tickwidth: 1,
+        tickfont: { color: "#e0e6ee", size: 11 },
+        titlefont: { color: "#e0e6ee", size: 11 }
+      }
+    }
+  };
+
+  const layout = {
+    margin: { l: 0, r: 0, t: 0, b: 0 },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    xaxis: { visible: false, fixedrange: true },
+    yaxis: { visible: false, fixedrange: true }
+  };
+
+  await Plotly.react(cbarDiv, [trace], layout, { displayModeBar: false, responsive: true });
+}
+
 function stableLayout() {
   const portrait = isPortrait();
   const layout = {
     uirevision: "sync_fov_mobile_v4",
-    margin: portrait ? { l: 52, r: 16, t: 8, b: 84 } : { l: 52, r: 92, t: 8, b: 40 },
+    margin: portrait ? { l: 52, r: 16, t: 8, b: 84 } : { l: 0, r: 0, t: 0, b: 0 },
     paper_bgcolor: "#050b10",
     plot_bgcolor: "#050b10",
     font: { color:"#e0e6ee" },
-    xaxis: { title:"Longitude", automargin:true },
-    yaxis: { title:"Latitude", automargin:true, scaleanchor:"x", scaleratio: 1 },
+    xaxis: { automargin:true, tickpadding: 0 },
+    yaxis: { automargin:true, tickpadding: 0, scaleanchor:"x", scaleratio: 1 },
     hovermode: "closest",
     dragmode: "pan"
   };
 
   if (viewState.hasRange && viewState.xRange && viewState.yRange) {
-    layout.xaxis.range = [BBOX[0], BBOX[2]];
-    layout.yaxis.range = [BBOX[1], BBOX[3]];
+    // Keep the user's current field-of-view (pan/zoom) during animation
+    layout.xaxis.range = [viewState.xRange[0], viewState.xRange[1]];
+    layout.yaxis.range = [viewState.yRange[0], viewState.yRange[1]];
     layout.xaxis.autorange = false;
     layout.yaxis.autorange = false;
   } else {
@@ -624,6 +831,7 @@ function buildChl(gridInfo, dataObj) {
       z,
       customdata: cd,
       hoverinfo:"none",
+      showscale:false,
       zauto:false, zmin, zmax,
       colorscale: CHL_ALGAE,
       colorbar: cb,
@@ -647,6 +855,7 @@ function buildSst(gridInfo, dataObj) {
       z: dataObj.sst,
       customdata: dataObj.sst,
       hoverinfo:"none",
+      showscale:false,
       zauto:false, zmin:vmin, zmax:vmax,
 
       /* CHANGED: Use RdBu with reverseScale:true for standard cold(blue) -> warm(red) */
@@ -681,6 +890,7 @@ function buildUv(gridInfo, dataObj) {
     z:adt,
     customdata:adt,
     hoverinfo:"none",
+    showscale:false,
     zauto:false, zmin:vmin, zmax:vmax,
     colorscale:"Viridis",
     // Colorbar uses the 'uv' key which now has the unit 'm'
@@ -785,8 +995,9 @@ function buildBathy(bathy) {
       z:bathy.depth,
       customdata:bathy.customdata,
       hoverinfo:"none",
+      showscale:false,
       zauto:false, zmin:vmin, zmax:vmax,
-      colorscale:"Blues",
+      colorscale:"Earth",
       reversescale:true, /* CHANGED to false: Low Z (shallow) is Light Blue */
       colorbar: colorbarFor("bathy"),
       zsmooth:false
@@ -816,9 +1027,26 @@ function setupReadoutHandlersOnce() {
     renderReadoutFromPoint(p);
   });
 
-  plotDiv.on("plotly_click", (ev) => {
+  plotDiv.on("plotly_click", async (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
+
+    const lon = Number(p.x);
+    const lat = Number(p.y);
+    if (!isFinite(lon) || !isFinite(lat)) return;
+
+    if (markerMode === "add") {
+      markers.push({ lon, lat, label: String(markers.length + 1) });
+      await showFrame();
+      return;
+    }
+
+    if (markerMode === "remove") {
+      removeNearestMarker(lon, lat);
+      await showFrame();
+      return;
+    }
+
     renderReadoutFromPoint(p);
   });
 }
@@ -828,25 +1056,25 @@ function renderReadoutFromPoint(p) {
   const lat = Number(p.y);
   if (!isFinite(lon) || !isFinite(lat)) return;
 
-  const base = `${lon.toFixed(3)} ${lat.toFixed(3)}`;
+  const base = `${lon.toFixed(4)}°, ${lat.toFixed(4)}°`;
   const cd = p.customdata;
 
   if (cd === null || cd === undefined || !isFinite(cd)) { setReadout(base); return; }
 
   const val = Number(cd);
-  if (currentVar === "sst") setReadout(`${base} ${val.toFixed(2)}`);
-  else { if (currentVar === "bathy") setReadout(`${base} ${val.toFixed(0)}`);
-  else setReadout(`${base} ${val.toFixed(3)}`);
+  const unit = DEFAULT_RANGES[currentVar]?.unit || "";
+  if (currentVar === "sst") setReadout(`${base}, ${val.toFixed(2)}${unit}`);
+  else { if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
+  else setReadout(`${base}, ${val.toFixed(3)}${unit}`);
   }
 }
 
 /* move plotly modebar into #modebar-host */
-/* DELETED: floatModebarOnceReady function is replaced by fixed CSS */
 
 /* adjust readout to avoid colorbar overlap when landscape */
 function updateReadoutPosition() {
-  if (isPortrait()) readoutDiv.style.right = "10px";
-  else readoutDiv.style.right = "120px";
+  if (isPortrait()) readoutDiv.style.right = "20px";
+  else readoutDiv.style.right = "150px";
 }
 
 /* ========================= UI ========================= */
@@ -922,12 +1150,79 @@ function setPlaying(on) {
   playBtn.textContent = playing ? "Pause" : "Play";
   if (playing) {
     if (playTimer) clearInterval(playTimer);
-    playTimer = setInterval(() => stepFrame(+1), 800);
+    playTimer = setInterval(() => stepFrame(+1), playIntervalMs);
   } else {
     if (playTimer) clearInterval(playTimer);
     playTimer = null;
   }
 }
+
+
+function setPlaySpeed(mult) {
+  const m = Number(mult);
+  if (!isFinite(m) || m <= 0) return;
+  playSpeed = m;
+  playIntervalMs = Math.max(60, Math.round(BASE_PLAY_MS / playSpeed));
+  if (playing) {
+    if (playTimer) clearInterval(playTimer);
+    playTimer = setInterval(() => stepFrame(+1), playIntervalMs);
+  }
+}
+
+
+const modebarTip = document.getElementById("modebar-tip");
+
+const MODEBAR_HELP = {
+  "Zoom": "Zoom",
+  "Pan": "Pan",
+  "Zoom in": "Zoom in",
+  "Zoom out": "Zoom out",
+  "Autoscale": "Fit to full view",
+  "Reset axes": "Reset view to default",
+  "Add marker": "Click to add markers",
+  "Remove marker": "Click to remove a marker"
+};
+
+function showModebarTip(btn, text){
+  // Ensure tooltip is inside the host (safe even if already there)
+  if (modebarTip.parentElement !== modebarHost) modebarHost.appendChild(modebarTip);
+
+  modebarTip.textContent = text;
+
+  const hr = modebarHost.getBoundingClientRect();
+  const br = btn.getBoundingClientRect();
+
+  // Center under the icon; position just below it
+  const cx = (br.left - hr.left) + (br.width / 2);
+  const y  = (br.bottom - hr.top) + 8;
+
+  modebarTip.style.left = `${Math.round(cx)}px`;
+  modebarTip.style.top  = `${Math.round(y)}px`;
+  modebarTip.style.display = "block";
+}
+
+
+function hideModebarTip(){
+  modebarTip.style.display = "none";
+}
+
+function installModebarHoverHelpOnce(){
+  if (modebarHost.__hoverHelpInstalled) return;
+  modebarHost.__hoverHelpInstalled = true;
+
+  modebarHost.addEventListener("mouseover", (e) => {
+    const btn = e.target.closest(".modebar-btn");
+    if (!btn) return;
+    const t = btn.getAttribute("data-title") || btn.getAttribute("title") || "";
+    if (!t) return;
+    showModebarTip(btn, MODEBAR_HELP[t] || t);
+  });
+
+  modebarHost.addEventListener("mouseout", (e) => {
+    if (e.target.closest(".modebar-btn")) hideModebarTip();
+  });
+}
+
 
 /* ========================= LOADING ========================= */
 async function loadIndex() {
@@ -991,11 +1286,45 @@ function plotConfig() {
     responsive: true,
     displayModeBar: true,
     displaylogo: false,
-    scrollZoom: true,
+    scrollZoom: false,
     doubleClick: "reset",
-    modeBarButtonsToRemove: ["lasso2d","select2d"]
+    modeBarButtonsToRemove: ["lasso2d","select2d","resetScale2d"],
+    modeBarButtonsToAdd: [
+      {
+        name: "Add marker",
+        title: "Click to add markers)",
+        icon: Plotly.Icons.pencil,
+        click: () => {
+          markerMode = (markerMode === "add") ? "off" : "add";
+          plotDiv.style.cursor = (markerMode === "add") ? "crosshair" : "";
+          setReadout(markerMode === "add" ? "Marker mode ON: click map to drop marker" : "");
+        }
+      },
+      {
+        name: "Remove marker",
+        title: "Click to remove a marker)",
+        icon: Plotly.Icons.eraseshape,
+        click: () => {
+          markerMode = (markerMode === "remove") ? "off" : "remove";
+          plotDiv.style.cursor = (markerMode === "remove") ? "not-allowed" : "";
+          setReadout(markerMode === "remove" ? "Remove mode ON: click near a marker to remove" : "");
+        }
+      },
+      /*{
+        name: "Clear markers",
+        title: "Remove all markers",
+        icon: Plotly.Icons.trash,
+        click: () => {
+          markers = [];
+          setReadout("");
+          showFrame();
+        }
+      }*/
+    ]
   };
 }
+
+
 
 async function showFrame() {
   updateReadoutPosition();
@@ -1018,12 +1347,20 @@ async function showFrame() {
     fig = buildForVar(currentVar, gridInfo, dataObj);
   }
 
+  injectMarkers(fig);
+
   await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
+  await renderFooterColorbar(currentVar);
+  
+  const modebar = plotDiv.querySelector('.modebar');
+  if (modebar && !modebarHost.querySelector('.modebar')) {
+      modebarHost.appendChild(modebar);
+  }
+  
+  installModebarHoverHelpOnce();
 
   installTouchPolicyOnce();
   
-  // Custom modebar placement (no change needed here, handled by CSS)
-
   setupReadoutHandlersOnce();
   attachRelayoutListenerOnce();
   updateSliderUI();
@@ -1041,6 +1378,25 @@ slider.addEventListener("input", () => {
 });
 
 playBtn.addEventListener("click", () => setPlaying(!playing));
+speedSel.addEventListener("change", () => setPlaySpeed(speedSel.value));
+setPlaySpeed(speedSel.value);
+
+// Fullscreen toggle (plot stays responsive)
+function toggleFullscreen() {
+  const el = document.documentElement;
+  if (!document.fullscreenElement) {
+    if (el.requestFullscreen) el.requestFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+  }
+}
+if (fsBtn) {
+  fsBtn.addEventListener("click", () => toggleFullscreen());
+}
+document.addEventListener("fullscreenchange", () => {
+  try { Plotly.Plots.resize(plotDiv); } catch(e) {}
+});
+
 prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
 nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
 
