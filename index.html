@@ -569,7 +569,7 @@ function parseChlUtcFromName(filename) {
   return new Date(d0.getTime() + (jjj-1)*86400e3 + hh*3600e3 + mm*60e3);
 }
 function parseSstUtcFromName(filename) {
-  const m = filename.match(/sst_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
+  const m = filename.match(/sstcomp_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
   if (!m) return null;
   const year = Number(m[1]);
   const jjj  = Number(m[2]);
