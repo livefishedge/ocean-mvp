@@ -630,7 +630,7 @@ function filterFramesForVar(varKey, frames) {
     if (!fn.endsWith(".json")) continue;
     if (fn.includes("grid")) continue;
     if (varKey === "chl" && !fn.includes("_chl_")) continue;
-    if (varKey === "sst" && !fn.startsWith("sst_")) continue;
+    if (varKey === "sst" && !fn.startsWith("sst")) continue;
     if (varKey === "uv"  && !fn.startsWith("uv_")) continue;
     out.push(f);
   }
