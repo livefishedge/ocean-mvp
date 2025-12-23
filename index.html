@@ -462,7 +462,7 @@
     
     <div style="display:inline-flex; align-items:center; margin:10px 10px;">
         <input type="text" id="feedbackInput" placeholder="Questions/comments" 
-               style="background:#ffffff; color:#000000; border:none; padding:6px; border-radius:4px 0 0 4px; width:240px; outline:none;">
+               style="background:#ffffff; color:#000000; border:none; padding:6px; border-radius:4px 0 0 4px; width:200px; outline:none;">
         <button id="feedbackSubmit" 
                 style="background:#2d7d46; color:white; border:none; padding:4px 4px; border-radius:0 4px 4px 0; cursor:pointer;">Submit</button>
     </div>
@@ -1645,6 +1645,50 @@ window.addEventListener("resize", () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: content })
     }).catch(e => console.error("Log failed", e));
+  }
+})();
+
+
+/* ================= INLINE FEEDBACK LOGIC ================= */
+(function() {
+  const submitBtn = document.getElementById('feedbackSubmit');
+  const inputField = document.getElementById('feedbackInput');
+
+  if (submitBtn && inputField) {
+    submitBtn.addEventListener('click', sendFeedback);
+    
+    // Also allow pressing "Enter" inside the box
+    inputField.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendFeedback();
+    });
+
+    function sendFeedback() {
+      const text = inputField.value.trim();
+      if (!text) return; // Don't send empty messages
+
+      // 1. Get User Name
+      const user = localStorage.getItem('ocean_viewer_last_user') || "Anonymous";
+
+      // 2. Prepare Webhook
+      const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
+
+      const payload = {
+        content: `💬 **Comment from ${user}:** ${text}`
+      };
+
+      // 3. Send
+      fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      .then(() => {
+        // Success feedback
+        alert("Feedback sent!");
+        inputField.value = ""; // Clear the box
+      })
+      .catch(err => console.error("Failed to send", err));
+    }
   }
 })();
 </script>
