@@ -467,7 +467,7 @@ let _readoutHooked = false;
 let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null };
-
+let landTrace = null;
 
 /* Touch / portrait detection */
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
@@ -1280,6 +1280,35 @@ async function fetchFrameData(varKey, frameMeta) {
   return await res.json();
 }
 
+async function prepareLandMask() {
+  try {
+    // Reuse your existing loader
+    const data = await loadBathymetryJson(BATHY_JSON_URL);
+    
+    // Create a Z-grid for the mask: 1 for Land, null for Water
+    // Assuming convention: Positive = Water Depth, Negative/Zero = Land Elevation
+    const zMask = data.depth.map(row => 
+      row.map(val => (val !== null && val <= 0) ? 1 : null) 
+    );
+
+    landTrace = {
+      type: "heatmap",
+      x: data.xAxis,
+      y: data.yAxis,
+      z: zMask,
+      showscale: false, // No colorbar for land
+      colorscale: [ [0, "#2a2a2a"], [1, "#2a2a2a"] ], // Solid Dark Grey
+      hoverinfo: "skip", // Don't show hover tooltips for land
+      zmin: 0, 
+      zmax: 1,
+      name: "LandMask"
+    };
+    console.log("Land mask generated.");
+  } catch (e) {
+    console.warn("Could not generate land mask:", e);
+  }
+}
+
 /* ========================= RENDER ========================= */
 function plotConfig() {
   return {
@@ -1348,6 +1377,10 @@ async function showFrame() {
   }
 
   injectMarkers(fig);
+  
+  if (landTrace && currentVar !== "bathy") {
+    fig.data.push(landTrace);
+  }
 
   await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
   await renderFooterColorbar(currentVar);
@@ -1424,7 +1457,8 @@ window.addEventListener("resize", () => {
 /* ========================= INIT ========================= */
 (async function init() {
   try {
-    await loadIndex();
+    //await loadIndex();
+    await Promise.all([ loadIndex(), prepareLandMask() ]);
     await setCurrentVar("chl", false);
     syncRangeInputsToVar();
   } catch (e) {
