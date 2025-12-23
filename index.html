@@ -21,15 +21,6 @@
       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
       overflow:auto;
     }
-    
-    <div id="login-gate" style="display:none;">
-      <div class="gate-box">
-        <h2>Ocean Viewer Access</h2>
-        <p>Please enter your name or organization to continue.</p>
-        <input type="text" id="visitor-name" placeholder="E.g. John Doe, NOAA" />
-        <button id="gate-btn">Enter</button>
-      </div>
-    </div>
 
     /* ======= Controls (sticky) ======= */
     #controls{
@@ -369,6 +360,11 @@
 </head>
 
 <body>
+
+
+
+    
+
   <div id="controls">
     <div class="row" id="row-var">
       <select id="var-select">
@@ -378,7 +374,6 @@
         <option value="bathy">Bathymetry</option>
       </select>
     </div>
-
 
 
     <div class="row" id="row-slider">
@@ -1519,55 +1514,88 @@ window.addEventListener("resize", () => {
     console.error("Init failed:", e);
   }
 })();
-</script>
-<script>
+
 /* ================= LOGIN GATE LOGIC ================= */
 (function() {
   const gate = document.getElementById('login-gate');
-  const btn  = document.getElementById('gate-btn');
-  const inp  = document.getElementById('visitor-name');
+  const title = document.getElementById('gate-title');
+  const msg = document.getElementById('gate-msg');
+  const extraFields = document.getElementById('extra-fields');
+  const btn = document.getElementById('gate-btn');
   
-  // 1. Check if user is already "logged in" (saved in browser)
-  const storedUser = localStorage.getItem('ocean_viewer_user');
-  
-  if (!storedUser) {
-    // Show the gate if no user is found
-    gate.style.display = 'flex';
+  // Inputs
+  const inpName = document.getElementById('visitor-name');
+  const inpEmail = document.getElementById('visitor-email');
+  const inpPhone = document.getElementById('visitor-phone');
+
+  // Check if this device has visited before
+  const hasVisitedBefore = localStorage.getItem('ocean_viewer_registered');
+
+  // 1. INITIALIZE UI
+  // Always show the gate
+  gate.style.display = 'flex';
+
+  if (hasVisitedBefore) {
+    // RETURNING USER: Simplify UI
+    title.textContent = "Welcome Back";
+    msg.textContent = "Please confirm your name to access the viewer.";
+    extraFields.style.display = 'none';
+    
+    // Optional: Pre-fill name if we have it
+    const lastUser = localStorage.getItem('ocean_viewer_last_user');
+    if (lastUser) inpName.value = lastUser;
+
+  } else {
+    // NEW USER: Require full details
+    title.textContent = "First Time Access";
+    msg.textContent = "Please provide your details for first-time registration.";
+    extraFields.style.display = 'block';
   }
 
-  // 2. Handle Enter Click
+  // 2. HANDLE ENTER CLICK
   btn.addEventListener('click', () => {
-    const name = inp.value.trim();
+    const name = inpName.value.trim();
+    const email = inpEmail.value.trim();
+    const phone = inpPhone.value.trim();
+
+    // Validation
     if (!name) {
-      alert("Please enter a name.");
+      alert("Name is required.");
       return;
     }
 
-    // Save to browser so they don't see this again
-    localStorage.setItem('ocean_viewer_user', name);
+    // Strict validation for first-timers
+    if (!hasVisitedBefore) {
+      if (!email || !phone) {
+        alert("Email and Phone are required for first-time access.");
+        return;
+      }
+    }
+
+    // Save state to browser (so we know they are "registered" next time)
+    localStorage.setItem('ocean_viewer_registered', 'true');
+    localStorage.setItem('ocean_viewer_last_user', name);
     
     // Hide the gate
     gate.style.display = 'none';
 
-    // 3. NOTIFY YOU (Send data to Discord/Slack/Google Sheet)
-    sendNotification(name);
+    // 3. SEND NOTIFICATION
+    sendNotification(name, email, phone, !hasVisitedBefore);
   });
 
-  // Helper: Send data to a Webhook (Easiest way to track static sites)
-  function sendNotification(visitorName) {
-    // REPLACE THIS URL with your own Discord Webhook or Slack Webhook URL.
-    // If you don't have one, this part will do nothing but print to console.
+  function sendNotification(name, email, phone, isNewUser) {
+    // REPLACE with your actual Discord Webhook URL
     const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
 
-    if (WEBHOOK_URL === "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o") {
-      console.log("Visitor logged (console only):", visitorName);
-      return;
+    let messageText = "";
+    
+    if (isNewUser) {
+      messageText = `🆕 **New User Registration**\n**Name:** ${name}\n**Email:** ${email}\n**Phone:** ${phone}`;
+    } else {
+      messageText = `👋 **Returning User:** ${name} has logged in again.`;
     }
 
-    // Example payload for Discord
-    const payload = {
-      content: `🌊 **New Viewer Login:** ${visitorName} accessed the Ocean MVP.`
-    };
+    const payload = { content: messageText };
 
     fetch(WEBHOOK_URL, {
       method: 'POST',
