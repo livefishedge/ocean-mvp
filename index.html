@@ -157,7 +157,7 @@
     #readout{
       position:absolute;
       top:75px; /* Adjusted to be consistent with modebar host */
-      right:150px;
+      right:10px;
       z-index:120;
       padding:5px 5px;
       background: rgba(255,255,255,0.50);
@@ -1073,8 +1073,8 @@ function renderReadoutFromPoint(p) {
 
 /* adjust readout to avoid colorbar overlap when landscape */
 function updateReadoutPosition() {
-  if (isPortrait()) readoutDiv.style.right = "20px";
-  else readoutDiv.style.right = "150px";
+  if (isPortrait()) readoutDiv.style.right = "5px";
+  else readoutDiv.style.right = "50px";
 }
 
 /* ========================= UI ========================= */
