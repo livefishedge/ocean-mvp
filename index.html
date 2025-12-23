@@ -775,7 +775,7 @@ function stableLayout() {
     uirevision: "sync_fov_mobile_v4",
     margin: portrait ? { l: 52, r: 16, t: 8, b: 84 } : { l: 0, r: 0, t: 0, b: 0 },
     paper_bgcolor: "#050b10",
-    plot_bgcolor: "#050b10",
+    plot_bgcolor: "#ffffff",
     font: { color:"#e0e6ee" },
     xaxis: { automargin:true, tickpadding: 0 },
     yaxis: { automargin:true, tickpadding: 0, scaleanchor:"x", scaleratio: 1 },
@@ -1264,8 +1264,17 @@ async function loadGridForVar(v) {
 
   const ny = lon.length;
   const nx = lon[0].length;
-  const xAxis = lon[0].slice();
-  const yAxis = lat.map(r => r[0]);
+
+  // --- FIX START: Use the middle row/col to minimize projection skew ---
+  const midY = Math.floor(ny / 2);
+  const midX = Math.floor(nx / 2);
+
+  // Use the middle row of longitudes for the X-axis
+  const xAxis = lon[midY].slice();
+  
+  // Use the middle column of latitudes for the Y-axis
+  const yAxis = lat.map(r => r[midX]);
+  // --- FIX END ---
 
   const info = { xAxis, yAxis, nx, ny };
   gridCache[v] = info;
