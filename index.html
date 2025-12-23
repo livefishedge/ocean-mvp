@@ -449,6 +449,7 @@
         <button id="reset-range">Reset</button>
       </div>
     </div>
+    
     <div id="arrow-legend" class="range-block" style="display:none;">
       <span class="range-name">Currents</span>
       <svg id="arrow-svg" width="100" height="36" viewBox="0 0 100 36">
@@ -458,6 +459,14 @@
       <span class="mini-label">1 m/s</span>
     </div>
     </div>
+    
+    <div style="display:inline-flex; align-items:center; margin:10px 10px;">
+        <input type="text" id="feedbackInput" placeholder="Questions/comments" 
+               style="background:#ffffff; color:#000000; border:none; padding:6px; border-radius:4px 0 0 4px; width:240px; outline:none;">
+        <button id="feedbackSubmit" 
+                style="background:#2d7d46; color:white; border:none; padding:4px 4px; border-radius:0 4px 4px 0; cursor:pointer;">Submit</button>
+    </div>
+    
     <div id="ranges-right">
       <div id="cbar"></div>
     </div>
