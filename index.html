@@ -1326,30 +1326,24 @@ function installModebarHoverHelpOnce(){
 
 /* ========================= LOADING ========================= */
 async function loadIndex() {
-
-  // Use a cache-busting query string (?t=...) to bypass browser cache
+  // 1. Fetch the data ONCE with a cache-buster
   const res = await fetch("index.json?t=" + Date.now());
+  if (!res.ok) throw new Error("Failed to load index.json");
   const data = await res.json();
   
+  // 2. Set the global timestamp if it's the first load
   if (!lastUpdateTimestamp) {
     lastUpdateTimestamp = data.last_updated;
   }
   
-  let idx = null;
-  for (const url of INDEX_CANDIDATES) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) { idx = await res.json(); break; }
-    } catch (_) {}
-  }
-  if (!idx) throw new Error("Failed to load index.json");
+  // 3. Use the data we already fetched instead of looping through CANDIDATES
+  const idx = data; 
 
   const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
 
   framesByVar.chl = filterFramesForVar("chl", fbv.chl || []);
   framesByVar.sst = filterFramesForVar("sst", fbv.sst || []);
   framesByVar.uv  = filterFramesForVar("uv",  fbv.uv  || []);
-
   framesByVar.bathy = [{ json_path: BATHY_JSON_URL }];
 
   for (const v of ["chl","sst","uv","bathy"]) {
@@ -1357,7 +1351,6 @@ async function loadIndex() {
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
   
-  // ... existing logic to populate allFrames ...
   return data;
 }
 
