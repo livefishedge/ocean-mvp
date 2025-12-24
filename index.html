@@ -551,6 +551,7 @@ const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
 const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10) ? String(v) : "");
 
 /* ========================= STATE ========================= */
+let lastUpdateTimestamp = null;
 let framesByVar = { chl: [], sst: [], uv: [], bathy: [] };
 let frameTimesByVar = { chl: [], sst: [], uv: [], bathy: [] };
 let currentVar = "chl";
@@ -1325,6 +1326,15 @@ function installModebarHoverHelpOnce(){
 
 /* ========================= LOADING ========================= */
 async function loadIndex() {
+
+  // Use a cache-busting query string (?t=...) to bypass browser cache
+  const res = await fetch("index.json?t=" + Date.now());
+  const data = await res.json();
+  
+  if (!lastUpdateTimestamp) {
+    lastUpdateTimestamp = data.last_updated;
+  }
+  
   let idx = null;
   for (const url of INDEX_CANDIDATES) {
     try {
@@ -1346,6 +1356,9 @@ async function loadIndex() {
     framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
+  
+  // ... existing logic to populate allFrames ...
+  return data;
 }
 
 async function loadGridForVar(v) {
@@ -1712,6 +1725,33 @@ window.addEventListener("resize", () => {
     }
   }
 })();
+
+async function pollForUpdates() {
+  try {
+    // Ping index.json with a random string to force GitHub to give us the newest version
+    const res = await fetch("index.json?nocache=" + Date.now());
+    const data = await res.json();
+
+    if (lastUpdateTimestamp && data.last_updated !== lastUpdateTimestamp) {
+      console.log("New data detected! Reloading...");
+      
+      // Option A: Hard refresh (easiest, clears all memory)
+      window.location.reload(); 
+
+      /* // Option B: Silent refresh (smoother, but more complex)
+      lastUpdateTimestamp = data.last_updated;
+      await loadIndex(); 
+      showFrame(); 
+      */
+    }
+  } catch (e) {
+    console.error("Update check failed", e);
+  }
+}
+
+// Check for updates every 5 minutes (300,000 milliseconds)
+setInterval(pollForUpdates, 300000);
+
 </script>
 </body>
 </html>
