@@ -499,7 +499,7 @@ const INDEX_CANDIDATES = [
 ];
 
 const DEFAULT_RANGES = {
-  chl:   { vmin: 0.01, vmax: 10.0, unit: "mg/m³" },
+  chl:   { vmin: 0.01, vmax: 1.0, unit: "mg/m³" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   uv:    { vmin: 0.6, vmax: 0.9,  unit: "m" }, /* CHANGED: Now represents ADT/SSH range */
   bathy: { vmin: 0.0,  vmax: 4000.0, unit: "m" }
@@ -524,7 +524,7 @@ const CHL_ALGAE = [
   [1.00, "#b30000"]
 ];*/
 // Custom "Algae" Colormap (Blue -> Green -> Dark Green)
-const CHL_ALGAE = [
+/*const CHL_ALGAE = [
   [0.0, "#08306b"], // Deep Blue (Low Chl)
   [0.2, "#2171b5"], // Medium Blue
   [0.4, "#4292c6"], // Lighter Blue
@@ -532,6 +532,15 @@ const CHL_ALGAE = [
   [0.7, "#41ab5d"], // Green
   [0.9, "#238b45"], // Dark Green
   [1.0, "#005a32"]  // Very Dark Green (High Chl)
+];*/
+const CHL_ALGAE = [
+  [0.0, "#021029"], // Pitch Dark Blue (Lowest)
+  [0.2, "#002a70"], // Deep Royal Blue
+  [0.4, "#0055ff"], // Bright Electric Blue
+  [0.5, "#00d4aa"], // Vivid Teal (Transition)
+  [0.6, "#00c42e"], // Bright Lime/Emerald
+  [0.8, "#007a1c"], // Rich Green
+  [1.0, "#003300"]  // Deepest Forest Green (Highest)
 ];
 
 /* show 0.01, 0.1, 1, 10 on CHL colorbar */
