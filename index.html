@@ -502,7 +502,7 @@ const DEFAULT_RANGES = {
   chl:   { vmin: 0.01, vmax: 1.0, unit: "mg/m³" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   uv:    { vmin: 0.6, vmax: 0.9,  unit: "m" }, /* CHANGED: Now represents ADT/SSH range */
-  bathy: { vmin: 0.0,  vmax: 4000.0, unit: "m" }
+  bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" }
 };
 
 let userRanges = {
@@ -523,16 +523,7 @@ const CHL_ALGAE = [
   [0.86, "#ff7a00"],
   [1.00, "#b30000"]
 ];*/
-// Custom "Algae" Colormap (Blue -> Green -> Dark Green)
-/*const CHL_ALGAE = [
-  [0.0, "#08306b"], // Deep Blue (Low Chl)
-  [0.2, "#2171b5"], // Medium Blue
-  [0.4, "#4292c6"], // Lighter Blue
-  [0.5, "#78c679"], // Transition to Green
-  [0.7, "#41ab5d"], // Green
-  [0.9, "#238b45"], // Dark Green
-  [1.0, "#005a32"]  // Very Dark Green (High Chl)
-];*/
+
 const CHL_ALGAE = [
   [0.0, "#021029"], // Pitch Dark Blue (Lowest)
   [0.2, "#002a70"], // Deep Royal Blue
@@ -541,6 +532,17 @@ const CHL_ALGAE = [
   [0.6, "#00c42e"], // Bright Lime/Emerald
   [0.8, "#007a1c"], // Rich Green
   [1.0, "#003300"]  // Deepest Forest Green (Highest)
+];
+
+// Professional Bathymetry Scale: Shallow (Light Teal) to Deep (Navy)
+const BATHY_SCALE = [
+  [0.0, "#e0ffff"], // 0 depth: Very light cyan (Coastline)
+  [0.1, "#afeeee"], // Pale Turquoise (Inner Shelf)
+  [0.3, "#40e0d0"], // Turquoise (Outer Shelf)
+  [0.5, "#0080ff"], // Azure Blue (Slope)
+  [0.7, "#0000cc"], // Medium Blue (Deep Ocean)
+  [0.9, "#000066"], // Dark Blue (Abyssal)
+  [1.0, "#000033"]  // Midnight Blue (Deepest Trenches)
 ];
 
 /* show 0.01, 0.1, 1, 10 on CHL colorbar */
@@ -818,8 +820,8 @@ async function renderFooterColorbar(varKey) {
   } else if (varKey === "uv") {
     colorscale = "Viridis";
   } else if (varKey === "bathy") {
-    colorscale = "Earth";
-    reversescale = true;
+    colorscale = BATHY_SCALE;
+    reversescale = false;
   }
 
   const trace = {
@@ -1094,8 +1096,8 @@ function buildBathy(bathy) {
       hoverinfo:"none",
       showscale:false,
       zauto:false, zmin:vmin, zmax:vmax,
-      colorscale:"Earth",
-      reversescale:true, /* CHANGED to false: Low Z (shallow) is Light Blue */
+      colorscale:BATHY_SCALE,
+      reversescale:false,
       colorbar: colorbarFor("bathy"),
       zsmooth:false
     }],
