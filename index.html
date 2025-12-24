@@ -512,7 +512,7 @@ let userRanges = {
   bathy: { ...DEFAULT_RANGES.bathy }
 };
 
-/* CHL colorscale (algae-ish) */
+/* CHL colorscale (algae-ish) 
 const CHL_ALGAE = [
   [0.00, "#081d38"],
   [0.10, "#1d4f91"],
@@ -522,6 +522,16 @@ const CHL_ALGAE = [
   [0.70, "#ffe600"],
   [0.86, "#ff7a00"],
   [1.00, "#b30000"]
+];*/
+// Custom "Algae" Colormap (Blue -> Green -> Dark Green)
+const CHL_ALGAE = [
+  [0.0, "#08306b"], // Deep Blue (Low Chl)
+  [0.2, "#2171b5"], // Medium Blue
+  [0.4, "#4292c6"], // Lighter Blue
+  [0.5, "#78c679"], // Transition to Green
+  [0.7, "#41ab5d"], // Green
+  [0.9, "#238b45"], // Dark Green
+  [1.0, "#005a32"]  // Very Dark Green (High Chl)
 ];
 
 /* show 0.01, 0.1, 1, 10 on CHL colorbar */
