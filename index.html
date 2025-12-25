@@ -7,6 +7,8 @@
   <link rel="icon" href="data:,">
 
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+  
+  <script src="https://openfpcdn.io/fingerprintjs/v3"></script>
 
   <style>
     :root{
@@ -1580,9 +1582,9 @@ window.addEventListener("resize", () => {
   }
 })();
 
-/* ================= LOGIN GATE LOGIC (DEVICE ID DETECT) ================= */
+/* ================= LOGIN GATE (FINGERPRINT + IP) ================= */
 (function() {
-  // Elements
+  // UI Elements
   const gate = document.getElementById('login-gate');
   const btn = document.getElementById('gate-btn');
   const title = document.getElementById('gate-title');
@@ -1592,90 +1594,107 @@ window.addEventListener("resize", () => {
   const inpEmail = document.getElementById('visitor-email');
   const inpPhone = document.getElementById('visitor-phone');
 
-  // 1. DETECT / GENERATE DEVICE ID
-  let deviceId = localStorage.getItem('ocean_viewer_device_id');
-  if (!deviceId) {
-    // Generate a simple unique ID for this browser
-    deviceId = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-    localStorage.setItem('ocean_viewer_device_id', deviceId);
+  // State variables (will be filled async)
+  let userIp = "Unknown";
+  let deviceId = "Generating...";
+  let isRegistered = false;
+
+  // --- 1. INITIALIZE DATA (Runs immediately) ---
+  async function initGate() {
+    try {
+      // A. Get IP Address (from external API)
+      fetch('https://api.ipify.org?format=json')
+        .then(res => res.json())
+        .then(data => { userIp = data.ip; })
+        .catch(err => console.warn("IP fetch failed", err));
+
+      // B. Get Stable Device Fingerprint
+      const fp = await FingerprintJS.load();
+      const result = await fp.get();
+      deviceId = result.visitorId; // This is the unique stable ID
+
+      // C. Check Registration Status
+      // We check if THIS specific stable ID has been seen before
+      const storedReg = localStorage.getItem('ocean_viewer_reg_' + deviceId);
+      isRegistered = (storedReg === 'true');
+
+      // D. Update UI based on status
+      if (isRegistered) {
+        title.innerText = "Welcome Back";
+        msg.innerText = "Confirmed device identity.";
+        inpEmail.style.display = 'none';
+        inpPhone.style.display = 'none';
+        
+        // Auto-fill name
+        const lastName = localStorage.getItem('ocean_viewer_name_' + deviceId);
+        if (lastName) inpName.value = lastName;
+      } else {
+        title.innerText = "First Time Access";
+        msg.innerText = "New device detected. Please register.";
+        inpEmail.style.display = 'block';
+        inpPhone.style.display = 'block';
+      }
+      
+    } catch (e) {
+      console.error("Fingerprint error", e);
+      // Fallback: If fingerprint fails, show full form
+      inpEmail.style.display = 'block';
+      inpPhone.style.display = 'block';
+    }
   }
 
-  // 2. CHECK REGISTRATION STATUS
-  const hasRegistered = localStorage.getItem('ocean_viewer_registered') === 'true';
+  // Start initialization
+  initGate();
 
-  // --- SETUP UI ---
-  if (hasRegistered) {
-    // RETURNING DEVICE: Simplify Interface
-    title.innerText = "Welcome Back";
-    msg.innerText = "Please confirm your name to continue.";
-    
-    // Hide email/phone inputs
-    inpEmail.style.display = 'none';
-    inpPhone.style.display = 'none';
-    
-    // Auto-fill name if we remember it
-    const lastName = localStorage.getItem('ocean_viewer_last_user');
-    if (lastName) inpName.value = lastName;
-  } else {
-    // NEW DEVICE: Show Full Form
-    title.innerText = "First Time Access";
-    msg.innerText = "Please provide details for registration.";
-    inpEmail.style.display = 'block';
-    inpPhone.style.display = 'block';
-  }
+  // --- 2. VALIDATION HELPERS ---
+  function isValidEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
+  function isValidPhone(phone) { return phone.replace(/\D/g, '').length >= 10; }
 
-  // --- VALIDATION HELPERS ---
-  function isValidEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
-  function isValidPhone(phone) {
-    const digits = phone.replace(/\D/g, '');
-    return digits.length >= 10;
-  }
-
-  // --- HANDLE SUBMIT ---
+  // --- 3. SUBMIT HANDLER ---
   btn.addEventListener('click', () => {
     const name = inpName.value.trim();
     const email = inpEmail.value.trim();
     const phone = inpPhone.value.trim();
 
-    // 1. Name is ALWAYS required
     if (name.length < 2) {
-      alert("Please enter a valid name.");
+      alert("Please enter a name.");
       return;
     }
 
-    // 2. Email/Phone required ONLY for new devices
-    if (!hasRegistered) {
-      if (!isValidEmail(email)) {
-        alert("Please enter a valid email address.");
-        return;
-      }
-      if (!isValidPhone(phone)) {
-        alert("Please enter a valid phone number (at least 10 digits).");
+    if (!isRegistered) {
+      if (!isValidEmail(email) || !isValidPhone(phone)) {
+        alert("Valid Email and Phone (10+ digits) are required for new devices.");
         return;
       }
     }
 
-    // 3. Success -> Save State
-    localStorage.setItem('ocean_viewer_registered', 'true');
-    localStorage.setItem('ocean_viewer_last_user', name);
-    
+    // Save Registration for this specific Device ID
+    localStorage.setItem('ocean_viewer_reg_' + deviceId, 'true');
+    localStorage.setItem('ocean_viewer_name_' + deviceId, name);
+
     // Hide Gate
     gate.style.display = 'none';
 
-    // 4. Send Notification with Device ID
-    sendNotification(name, email, phone, !hasRegistered, deviceId);
+    // Send to Discord
+    sendNotification(name, email, phone, !isRegistered);
   });
 
-  function sendNotification(name, email, phone, isNewUser, devId) {
+  function sendNotification(name, email, phone, isNewUser) {
     const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
 
     let content = "";
     if (isNewUser) {
-      content = `🆕 **New Registration** (ID: \`${devId}\`)\n👤 **Name:** ${name}\n📧 **Email:** ${email}\n📱 **Phone:** ${phone}`;
+      content = `🆕 **New Device Registration**\n` +
+                `👤 **Name:** ${name}\n` +
+                `📧 **Email:** ${email}\n` +
+                `📱 **Phone:** ${phone}\n` +
+                `🆔 **Device ID:** \`${deviceId}\`\n` +
+                `🌐 **IP Address:** ${userIp}`;
     } else {
-      content = `👋 **Return Visit** (ID: \`${devId}\`)\n👤 **Name:** ${name}`;
+      content = `👋 **Return Visit**\n` +
+                `👤 **Name:** ${name}\n` +
+                `🆔 **Device ID:** \`${deviceId}\`\n` +
+                `🌐 **IP Address:** ${userIp}`;
     }
 
     fetch(WEBHOOK_URL, {
