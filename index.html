@@ -1580,7 +1580,7 @@ window.addEventListener("resize", () => {
   }
 })();
 
-/* ================= LOGIN GATE LOGIC ================= */
+/* ================= LOGIN GATE LOGIC (DEVICE ID DETECT) ================= */
 (function() {
   // Elements
   const gate = document.getElementById('login-gate');
@@ -1592,49 +1592,61 @@ window.addEventListener("resize", () => {
   const inpEmail = document.getElementById('visitor-email');
   const inpPhone = document.getElementById('visitor-phone');
 
-  // Check LocalStorage
-  const hasVisited = localStorage.getItem('ocean_viewer_registered');
+  // 1. DETECT / GENERATE DEVICE ID
+  let deviceId = localStorage.getItem('ocean_viewer_device_id');
+  if (!deviceId) {
+    // Generate a simple unique ID for this browser
+    deviceId = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+    localStorage.setItem('ocean_viewer_device_id', deviceId);
+  }
 
-  // --- 1. SETUP UI ---
-  if (hasVisited) {
-    // Returning User: Hide extra fields
+  // 2. CHECK REGISTRATION STATUS
+  const hasRegistered = localStorage.getItem('ocean_viewer_registered') === 'true';
+
+  // --- SETUP UI ---
+  if (hasRegistered) {
+    // RETURNING DEVICE: Simplify Interface
     title.innerText = "Welcome Back";
-    msg.innerText = "Please verify your name.";
+    msg.innerText = "Please confirm your name to continue.";
+    
+    // Hide email/phone inputs
     inpEmail.style.display = 'none';
     inpPhone.style.display = 'none';
     
-    // Auto-fill name if available
+    // Auto-fill name if we remember it
     const lastName = localStorage.getItem('ocean_viewer_last_user');
     if (lastName) inpName.value = lastName;
+  } else {
+    // NEW DEVICE: Show Full Form
+    title.innerText = "First Time Access";
+    msg.innerText = "Please provide details for registration.";
+    inpEmail.style.display = 'block';
+    inpPhone.style.display = 'block';
   }
 
-  // --- 2. VALIDATION HELPERS ---
+  // --- VALIDATION HELPERS ---
   function isValidEmail(email) {
-    // Basic regex: text @ text . text
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
-
   function isValidPhone(phone) {
-    // Remove non-digits
     const digits = phone.replace(/\D/g, '');
-    // Check if we have at least 10 digits
     return digits.length >= 10;
   }
 
-  // --- 3. HANDLE SUBMIT ---
+  // --- HANDLE SUBMIT ---
   btn.addEventListener('click', () => {
     const name = inpName.value.trim();
     const email = inpEmail.value.trim();
     const phone = inpPhone.value.trim();
 
-    // A. Validate Name (Always required)
+    // 1. Name is ALWAYS required
     if (name.length < 2) {
       alert("Please enter a valid name.");
       return;
     }
 
-    // B. Validate Contact Info (Only for New Users)
-    if (!hasVisited) {
+    // 2. Email/Phone required ONLY for new devices
+    if (!hasRegistered) {
       if (!isValidEmail(email)) {
         alert("Please enter a valid email address.");
         return;
@@ -1645,26 +1657,25 @@ window.addEventListener("resize", () => {
       }
     }
 
-    // C. Success! Save & Close
+    // 3. Success -> Save State
     localStorage.setItem('ocean_viewer_registered', 'true');
     localStorage.setItem('ocean_viewer_last_user', name);
     
-    // Hide the gate
+    // Hide Gate
     gate.style.display = 'none';
 
-    // D. Notify Discord
-    sendNotification(name, email, phone, !hasVisited);
+    // 4. Send Notification with Device ID
+    sendNotification(name, email, phone, !hasRegistered, deviceId);
   });
 
-  function sendNotification(name, email, phone, isNewUser) {
-    // REPLACE WITH YOUR URL
+  function sendNotification(name, email, phone, isNewUser, devId) {
     const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
 
     let content = "";
     if (isNewUser) {
-      content = `🆕 **New User:** ${name}\n📧 **Email:** ${email}\n📱 **Phone:** ${phone}`;
+      content = `🆕 **New Registration** (ID: \`${devId}\`)\n👤 **Name:** ${name}\n📧 **Email:** ${email}\n📱 **Phone:** ${phone}`;
     } else {
-      content = `👋 **Return Visit:** ${name}`;
+      content = `👋 **Return Visit** (ID: \`${devId}\`)\n👤 **Name:** ${name}`;
     }
 
     fetch(WEBHOOK_URL, {
