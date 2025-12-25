@@ -1725,25 +1725,19 @@ async function pollForUpdates() {
     const res = await fetch("index.json?nocache=" + Date.now());
     const data = await res.json();
 
-    if (lastUpdateTimestamp && data.last_updated !== lastUpdateTimestamp) {
+    // Check if the SERVER has a timestamp, and if it differs from ours.
+    // This allows the page to refresh even if our local timestamp was null (first run).
+    if (data.last_updated && data.last_updated !== lastUpdateTimestamp) {
       console.log("New data detected! Reloading...");
-      
-      // Option A: Hard refresh (easiest, clears all memory)
       window.location.reload(); 
-
-      /* // Option B: Silent refresh (smoother, but more complex)
-      lastUpdateTimestamp = data.last_updated;
-      await loadIndex(); 
-      showFrame(); 
-      */
     }
   } catch (e) {
     console.error("Update check failed", e);
   }
 }
 
-// Check for updates every 5 minutes (300,000 milliseconds)
-setInterval(pollForUpdates, 300000);
+// Check for updates every 60 seconds (1 minute)
+setInterval(pollForUpdates, 60000);
 
 </script>
 </body>
