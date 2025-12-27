@@ -384,6 +384,10 @@
 	.remove-mode .nsewdrag {
 	  cursor: no-drop !important; /* Or 'not-allowed' */
 	}
+	
+	.measure-mode .nsewdrag {
+	  cursor: cell !important; /* Looks like a precision cross/plus */
+	}
   </style>
 </head>
 
@@ -590,7 +594,7 @@ let markerTrace = {
   type:"scatter",
   mode:"markers+text",
   x:[], y:[], text:[],
-  marker:{ size:5, color:"#ff0000", symbol:"circle" },
+  marker:{ size:10, color:"#ff0000", symbol:"circle" },
   textfont:{ size:12, color:"#ff0000" },
   textposition:"top center",
   hoverinfo:"none",
@@ -606,14 +610,23 @@ function syncMarkerTraceFromState() {
   markerTrace.text = markers.map(m => m.label ?? "");
 }
 
+
 function injectMarkers(fig) {
   if (!fig) return;
+  
+  // 1. Standard Markers
   syncMarkerTraceFromState();
-  fig.data = (fig.data || []).filter(t => t?.name !== "Markers");
+  fig.data = (fig.data || []).filter(t => t?.name !== "Markers" && t?.name !== "Measure");
   fig.data.push(markerTrace);
+
+  // 2. Measurement Trace (NEW)
+  if (measurePoints.length > 0) {
+    updateMeasureTrace();
+    fig.data.push(measureTrace);
+  }
 }
 
-function removeNearestMarker(lon, lat, tolDeg = 0.01) {
+function removeNearestMarker(lon, lat, tolDeg = 0.05) {
   let bestI = -1, bestD = Infinity;
   for (let i = 0; i < markers.length; i++) {
     const dx = (markers[i].lon - lon);
@@ -624,6 +637,52 @@ function removeNearestMarker(lon, lat, tolDeg = 0.01) {
   if (bestI >= 0 && bestD <= tolDeg) markers.splice(bestI, 1);
 }
 
+
+/* ================= MEASURE TOOL STATE ================= */
+let measureMode = "off"; // "off" | "start" (waiting for 1st click) | "end" (waiting for 2nd)
+let measurePoints = [];  // Stores [{lon, lat}, {lon, lat}]
+
+// The visual line for the measurement
+let measureTrace = {
+  type: "scatter",
+  mode: "lines+markers+text",
+  x: [], y: [], text: [],
+  line: { color: "#ffaa00", width: 4, dash: "dot" }, // Orange, dotted
+  marker: { size: 8, color: "#ffaa00" },
+  textfont: { size: 16, color: "#ffaa00", weight: "900" },
+  textposition: "top center",
+  hoverinfo: "none",
+  name: "Measure"
+};
+
+// Haversine Formula (Calculate dist in km)
+function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Radius of the earth in km
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function updateMeasureTrace() {
+  measureTrace.x = measurePoints.map(p => p.lon);
+  measureTrace.y = measurePoints.map(p => p.lat);
+  
+  if (measurePoints.length === 2) {
+    const d = getDistanceFromLatLonInKm(
+      measurePoints[0].lat, measurePoints[0].lon,
+      measurePoints[1].lat, measurePoints[1].lon
+    );
+    // Show distance label on the 2nd point
+    measureTrace.text = ["Start", `${d.toFixed(2)} km`];
+  } else {
+    measureTrace.text = measurePoints.map(() => "");
+  }
+}
 
 /* ========================= DOM ========================= */
 const plotDiv   = document.getElementById("plot");
@@ -1138,26 +1197,59 @@ function setupReadoutHandlersOnce() {
   });
 
   plotDiv.on("plotly_click", async (ev) => {
+    // 1. DETERMINE COORDINATES
+    let lon, lat;
     const p = ev.points && ev.points[0];
-    if (!p) return;
 
-    const lon = Number(p.x);
-    const lat = Number(p.y);
+    // Use Exact Mouse Calculation for Add OR Measure modes
+    if (markerMode === "add" || measureMode !== "off") {
+      const domEvent = ev.event; 
+      const xaxis = plotDiv._fullLayout.xaxis;
+      const yaxis = plotDiv._fullLayout.yaxis;
+      const dragLayer = plotDiv.querySelector('.nsewdrag');
+      const rect = dragLayer.getBoundingClientRect();
+      const xPx = domEvent.clientX - rect.left;
+      const yPx = domEvent.clientY - rect.top;
+      lon = xaxis.p2d(xPx);
+      lat = yaxis.p2d(yPx);
+    } else {
+      if (!p) return;
+      lon = Number(p.x);
+      lat = Number(p.y);
+    }
+
     if (!isFinite(lon) || !isFinite(lat)) return;
 
-    if (markerMode === "add") {
-      markers.push({ lon, lat, label: String(markers.length + 1) });
+    // --- NEW MEASURE LOGIC ---
+    if (measureMode !== "off") {
+      if (measureMode === "start") {
+        // First Click: Set Start
+        measurePoints = [{ lon, lat }];
+        measureMode = "end";
+        setReadout("Measure Mode: Click END point");
+      } else {
+        // Second Click: Set End & Show Result
+        measurePoints[1] = { lon, lat };
+        
+        // Calculate immediately for the readout
+        const d = getDistanceFromLatLonInKm(
+          measurePoints[0].lat, measurePoints[0].lon,
+          measurePoints[1].lat, measurePoints[1].lon
+        );
+        setReadout(`Distance: ${d.toFixed(2)} km. Click to restart.`);
+        
+        // Reset to start for next click (allows rapid re-measuring)
+        measureMode = "start"; 
+      }
       await showFrame();
       return;
     }
+    // -------------------------
 
-    if (markerMode === "remove") {
-      removeNearestMarker(lon, lat);
-      await showFrame();
-      return;
-    }
-
-    renderReadoutFromPoint(p);
+    // ... Existing Marker Logic ...
+    if (markerMode === "add") { ... }
+    if (markerMode === "remove") { ... }
+    if (p) renderReadoutFromPoint(p);
   });
 }
 
@@ -1479,6 +1571,29 @@ function plotConfig() {
             plotDiv.classList.remove("remove-mode");
             setReadout("");
           }
+        }
+      },
+      {
+        name: "Measure Distance",
+        title: "Measure distance between two points",
+        icon: Plotly.Icons.drawline, // Built-in diagonal line icon
+        click: () => {
+          // Toggle Mode
+          if (measureMode === "off") {
+            measureMode = "start";
+            markerMode = "off"; // Turn off other modes
+            plotDiv.classList.add("measure-mode");
+            plotDiv.classList.remove("crosshair-mode", "remove-mode");
+            measurePoints = []; // Reset previous measurement
+            setReadout("Measure Mode: Click START point");
+          } else {
+            measureMode = "off";
+            plotDiv.classList.remove("measure-mode");
+            measurePoints = [];
+            setReadout("");
+          }
+          // Refresh to clear/show lines
+          showFrame();
         }
       },
     ]
