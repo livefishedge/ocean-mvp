@@ -639,15 +639,15 @@ function removeNearestMarker(lon, lat, tolDeg = 0.05) {
 
 
 /* ================= MEASURE TOOL STATE ================= */
-let measureMode = "off"; // "off" | "start" (waiting for 1st click) | "end" (waiting for 2nd)
-let measurePoints = [];  // Stores [{lon, lat}, {lon, lat}]
+let measureMode = "off"; // "off" | "start" | "end"
+let measurePoints = [];  
+let measureResultVisible = false; // NEW: Tracks if a line is currently shown
 
-// The visual line for the measurement
 let measureTrace = {
   type: "scatter",
   mode: "lines+markers+text",
   x: [], y: [], text: [],
-  line: { color: "#ffaa00", width: 4, dash: "dot" }, // Orange, dotted
+  line: { color: "#ffaa00", width: 4, dash: "dot" },
   marker: { size: 8, color: "#ffaa00" },
   textfont: { size: 16, color: "#ffaa00", weight: "900" },
   textposition: "top center",
@@ -655,9 +655,9 @@ let measureTrace = {
   name: "Measure"
 };
 
-// Haversine Formula (Calculate dist in km)
-function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of the earth in km
+// UPDATED: Haversine Formula for Nautical Miles (nm)
+function getDistanceInNM(lat1, lon1, lat2, lon2) {
+  const R = 3440.065; // Radius of earth in Nautical Miles
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
@@ -673,16 +673,17 @@ function updateMeasureTrace() {
   measureTrace.y = measurePoints.map(p => p.lat);
   
   if (measurePoints.length === 2) {
-    const d = getDistanceFromLatLonInKm(
+    const d = getDistanceInNM(
       measurePoints[0].lat, measurePoints[0].lon,
       measurePoints[1].lat, measurePoints[1].lon
     );
-    // Show distance label on the 2nd point
-    measureTrace.text = ["Start", `${d.toFixed(2)} km`];
+    // Show "nm" in the label
+    measureTrace.text = [null, `${d.toFixed(2)} nm`];
   } else {
     measureTrace.text = measurePoints.map(() => "");
   }
 }
+
 
 /* ========================= DOM ========================= */
 const plotDiv   = document.getElementById("plot");
@@ -1183,7 +1184,6 @@ function buildForVar(varKey, gridInfo, dataObj) {
 }
 
 /* ========================= READOUT (hover + tap) ========================= */
-/* ========================= READOUT (hover + tap) ========================= */
 function setupReadoutHandlersOnce() {
   if (_readoutHooked) return;
   _readoutHooked = true;
@@ -1198,7 +1198,16 @@ function setupReadoutHandlersOnce() {
   });
 
   plotDiv.on("plotly_click", async (ev) => {
-    // 1. DETERMINE COORDINATES
+    // 1. CLEANUP PREVIOUS MEASUREMENT (If exists)
+    // If the user clicks ANYWHERE while a measurement line is visible, clear it first.
+    if (measureResultVisible) {
+      measurePoints = [];
+      measureResultVisible = false;
+      await showFrame();
+      // We continue processing this click (so they can immediately click to add a marker or see a value)
+    }
+
+    // 2. DETERMINE COORDINATES
     let lon, lat;
     const p = ev.points && ev.points[0];
 
@@ -1207,18 +1216,13 @@ function setupReadoutHandlersOnce() {
       const domEvent = ev.event; 
       const xaxis = plotDiv._fullLayout.xaxis;
       const yaxis = plotDiv._fullLayout.yaxis;
-      
-      // Get the bounding box of the drag layer to ensure pixel math is correct
       const dragLayer = plotDiv.querySelector('.nsewdrag');
       const rect = dragLayer.getBoundingClientRect();
-      
       const xPx = domEvent.clientX - rect.left;
       const yPx = domEvent.clientY - rect.top;
-      
       lon = xaxis.p2d(xPx);
       lat = yaxis.p2d(yPx);
     } else {
-      // For normal clicks, use Plotly's "snapped" data point
       if (!p) return;
       lon = Number(p.x);
       lat = Number(p.y);
@@ -1226,47 +1230,49 @@ function setupReadoutHandlersOnce() {
 
     if (!isFinite(lon) || !isFinite(lat)) return;
 
-    // --- 2. MEASURE LOGIC ---
+    // --- 3. MEASURE LOGIC (Updated) ---
     if (measureMode !== "off") {
       if (measureMode === "start") {
-        // First Click: Set Start
+        // Point A
         measurePoints = [{ lon, lat }];
         measureMode = "end";
-        setReadout("Measure Mode: Click END point");
+        setReadout("Measure: Click END point");
       } else {
-        // Second Click: Set End & Show Result
+        // Point B (Finish)
         measurePoints[1] = { lon, lat };
         
-        // Calculate distance
-        const d = getDistanceFromLatLonInKm(
+        const d = getDistanceInNM(
           measurePoints[0].lat, measurePoints[0].lon,
           measurePoints[1].lat, measurePoints[1].lon
         );
-        setReadout(`Distance: ${d.toFixed(2)} km. Click to restart.`);
         
-        // Reset to start for next click
-        measureMode = "start"; 
+        // 1. Show result in top bar
+        setReadout(`Distance: ${d.toFixed(2)} nm`);
+        
+        // 2. Turn OFF mode immediately
+        measureMode = "off";
+        plotDiv.classList.remove("measure-mode");
+        
+        // 3. Flag result as visible so NEXT click clears it
+        measureResultVisible = true;
       }
       await showFrame();
       return;
     }
 
-    // --- 3. MARKER ADD LOGIC ---
+    // --- 4. MARKER LOGIC ---
     if (markerMode === "add") {
       markers.push({ lon, lat, label: String(markers.length + 1) });
       await showFrame();
       return;
     }
-
-    // --- 4. MARKER REMOVE LOGIC ---
     if (markerMode === "remove") {
-      // Logic: remove the marker nearest to where we clicked
       removeNearestMarker(lon, lat);
       await showFrame();
       return;
     }
 
-    // --- 5. DEFAULT READOUT ---
+    // --- 5. NORMAL READOUT ---
     if (p) renderReadoutFromPoint(p);
   });
 }
