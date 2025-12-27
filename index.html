@@ -376,6 +376,14 @@
 	  cursor: pointer;
 	}
 	.gate-box button:hover { background: #2663b5; }
+	
+	/* Force cursor overrides for marker modes */
+	.crosshair-mode .nsewdrag {
+	  cursor: crosshair !important; /* The "thin cross" */
+	}
+	.remove-mode .nsewdrag {
+	  cursor: no-drop !important; /* Or 'not-allowed' */
+	}
   </style>
 </head>
 
@@ -579,13 +587,13 @@ function isPortrait() { return window.innerHeight > window.innerWidth; }
 let markers = [];
 let markerMode = "off"; // "off" | "add" | "remove"
 let markerTrace = {
-  type:"circle",
+  type:"scatter",
   mode:"markers+text",
   x:[], y:[], text:[],
   marker:{ size:10, color:"#ff0000", symbol:"circle" },
   textfont:{ size:12, color:"#ff0000" },
   textposition:"top center",
-  hoverinfo:"text",
+  hoverinfo:"none",
   visible: true,
   showlegend: false,
   name: "Markers"
@@ -1433,38 +1441,46 @@ function plotConfig() {
     displaylogo: false,
     scrollZoom: false,
     doubleClick: "reset",
-    modeBarButtonsToRemove: ["lasso2d","select2d","resetScale2d"],
+    modeBarButtonsToRemove: ["lasso2d", "select2d", "resetScale2d"],
     modeBarButtonsToAdd: [
       {
         name: "Add marker",
-        title: "Click to add markers)",
+        title: "Click to add markers",
         icon: Plotly.Icons.pencil,
         click: () => {
+          // Toggle Mode
           markerMode = (markerMode === "add") ? "off" : "add";
-          plotDiv.style.cursor = (markerMode === "add") ? "crosshair" : "";
-          setReadout(markerMode === "add" ? "Marker mode ON: click map to drop marker" : "");
+          
+          // Toggle CSS Classes
+          if (markerMode === "add") {
+            plotDiv.classList.add("crosshair-mode");
+            plotDiv.classList.remove("remove-mode");
+            setReadout("Marker mode ON: click map to drop marker");
+          } else {
+            plotDiv.classList.remove("crosshair-mode");
+            setReadout("");
+          }
         }
       },
       {
         name: "Remove marker",
-        title: "Click to remove a marker)",
+        title: "Click to remove a marker",
         icon: Plotly.Icons.eraseshape,
         click: () => {
+          // Toggle Mode
           markerMode = (markerMode === "remove") ? "off" : "remove";
-          plotDiv.style.cursor = (markerMode === "remove") ? "not-allowed" : "";
-          setReadout(markerMode === "remove" ? "Remove mode ON: click near a marker to remove" : "");
+          
+          // Toggle CSS Classes
+          if (markerMode === "remove") {
+            plotDiv.classList.add("remove-mode");
+            plotDiv.classList.remove("crosshair-mode");
+            setReadout("Remove mode ON: click near a marker to remove");
+          } else {
+            plotDiv.classList.remove("remove-mode");
+            setReadout("");
+          }
         }
       },
-      /*{
-        name: "Clear markers",
-        title: "Remove all markers",
-        icon: Plotly.Icons.trash,
-        click: () => {
-          markers = [];
-          setReadout("");
-          showFrame();
-        }
-      }*/
     ]
   };
 }
