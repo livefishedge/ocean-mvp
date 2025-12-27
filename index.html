@@ -669,19 +669,46 @@ function getDistanceInNM(lat1, lon1, lat2, lon2) {
 }
 
 function updateMeasureTrace() {
-  measureTrace.x = measurePoints.map(p => p.lon);
-  measureTrace.y = measurePoints.map(p => p.lat);
-  
-  if (measurePoints.length === 2) {
-    const d = getDistanceInNM(
-      measurePoints[0].lat, measurePoints[0].lon,
-      measurePoints[1].lat, measurePoints[1].lon
-    );
-    // Show "nm" in the label
-    measureTrace.text = [null, `${d.toFixed(2)} nm`];
-  } else {
-    measureTrace.text = measurePoints.map(() => "");
+  // Case 1: Start Mode (Only 1 point)
+  if (measurePoints.length < 2) {
+    measureTrace.x = measurePoints.map(p => p.lon);
+    measureTrace.y = measurePoints.map(p => p.lat);
+    measureTrace.text = [""];
+    
+    // Reset style for single dot
+    measureTrace.marker.size = 8;
+    measureTrace.marker.opacity = 1; 
+    return;
   }
+
+  // Case 2: Measurement Mode
+  const p1 = measurePoints[0];
+  const p2 = measurePoints[1];
+
+  const midLon = (p1.lon + p2.lon) / 2;
+  const midLat = (p1.lat + p2.lat) / 2;
+
+  const dist = getDistanceInNM(p1.lat, p1.lon, p2.lat, p2.lon);
+
+  measureTrace.x = [p1.lon, midLon, p2.lon];
+  measureTrace.y = [p1.lat, midLat, p2.lat];
+  measureTrace.text = ["", `${dist.toFixed(2)} nm`, ""];
+  
+  // --- DYNAMIC ORIENTATION ---
+  // Check if the line is more "Vertical" (dLat > dLon) or "Horizontal"
+  const dLon = Math.abs(p1.lon - p2.lon);
+  const dLat = Math.abs(p1.lat - p2.lat);
+  const isVertical = dLat > dLon;
+
+  // If Vertical: Push text to the Side (Middle Right)
+  // If Horizontal: Push text Up (Top Center)
+  measureTrace.textposition = isVertical ? "middle right" : "top center";
+
+  // --- PADDING TRICK ---
+  // We make the middle marker LARGE (30px) so the text is pushed away from the center.
+  // We make it INVISIBLE (opacity 0) so you don't actually see a giant dot.
+  measureTrace.marker.size = [8, 30, 8]; 
+  measureTrace.marker.opacity = [1, 0, 1];
 }
 
 
@@ -1807,7 +1834,7 @@ window.addEventListener("resize", () => {
 
     // D. Update UI
     if (isRegistered) {
-      title.innerText = "Welcome Back";
+      title.innerText = "Welcome Back!";
       msg.innerText = "Identity confirmed.";
       inpEmail.style.display = 'none';
       inpPhone.style.display = 'none';
