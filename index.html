@@ -590,7 +590,7 @@ let markerTrace = {
   type:"scatter",
   mode:"markers+text",
   x:[], y:[], text:[],
-  marker:{ size:10, color:"#ff0000", symbol:"circle" },
+  marker:{ size:5, color:"#ff0000", symbol:"circle" },
   textfont:{ size:12, color:"#ff0000" },
   textposition:"top center",
   hoverinfo:"none",
@@ -613,7 +613,7 @@ function injectMarkers(fig) {
   fig.data.push(markerTrace);
 }
 
-function removeNearestMarker(lon, lat, tolDeg = 0.05) {
+function removeNearestMarker(lon, lat, tolDeg = 0.01) {
   let bestI = -1, bestD = Infinity;
   for (let i = 0; i < markers.length; i++) {
     const dx = (markers[i].lon - lon);
