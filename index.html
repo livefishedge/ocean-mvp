@@ -1183,6 +1183,7 @@ function buildForVar(varKey, gridInfo, dataObj) {
 }
 
 /* ========================= READOUT (hover + tap) ========================= */
+/* ========================= READOUT (hover + tap) ========================= */
 function setupReadoutHandlersOnce() {
   if (_readoutHooked) return;
   _readoutHooked = true;
@@ -1206,13 +1207,18 @@ function setupReadoutHandlersOnce() {
       const domEvent = ev.event; 
       const xaxis = plotDiv._fullLayout.xaxis;
       const yaxis = plotDiv._fullLayout.yaxis;
+      
+      // Get the bounding box of the drag layer to ensure pixel math is correct
       const dragLayer = plotDiv.querySelector('.nsewdrag');
       const rect = dragLayer.getBoundingClientRect();
+      
       const xPx = domEvent.clientX - rect.left;
       const yPx = domEvent.clientY - rect.top;
+      
       lon = xaxis.p2d(xPx);
       lat = yaxis.p2d(yPx);
     } else {
+      // For normal clicks, use Plotly's "snapped" data point
       if (!p) return;
       lon = Number(p.x);
       lat = Number(p.y);
@@ -1220,7 +1226,7 @@ function setupReadoutHandlersOnce() {
 
     if (!isFinite(lon) || !isFinite(lat)) return;
 
-    // --- NEW MEASURE LOGIC ---
+    // --- 2. MEASURE LOGIC ---
     if (measureMode !== "off") {
       if (measureMode === "start") {
         // First Click: Set Start
@@ -1231,24 +1237,36 @@ function setupReadoutHandlersOnce() {
         // Second Click: Set End & Show Result
         measurePoints[1] = { lon, lat };
         
-        // Calculate immediately for the readout
+        // Calculate distance
         const d = getDistanceFromLatLonInKm(
           measurePoints[0].lat, measurePoints[0].lon,
           measurePoints[1].lat, measurePoints[1].lon
         );
         setReadout(`Distance: ${d.toFixed(2)} km. Click to restart.`);
         
-        // Reset to start for next click (allows rapid re-measuring)
+        // Reset to start for next click
         measureMode = "start"; 
       }
       await showFrame();
       return;
     }
-    // -------------------------
 
-    // ... Existing Marker Logic ...
-    if (markerMode === "add") { ... }
-    if (markerMode === "remove") { ... }
+    // --- 3. MARKER ADD LOGIC ---
+    if (markerMode === "add") {
+      markers.push({ lon, lat, label: String(markers.length + 1) });
+      await showFrame();
+      return;
+    }
+
+    // --- 4. MARKER REMOVE LOGIC ---
+    if (markerMode === "remove") {
+      // Logic: remove the marker nearest to where we clicked
+      removeNearestMarker(lon, lat);
+      await showFrame();
+      return;
+    }
+
+    // --- 5. DEFAULT READOUT ---
     if (p) renderReadoutFromPoint(p);
   });
 }
