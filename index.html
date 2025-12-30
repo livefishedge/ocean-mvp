@@ -1764,7 +1764,7 @@ window.addEventListener("resize", () => {
   }
 })();
 
-/* ================= LOGIN GATE (ROBUST HYBRID) ================= */
+/* ================= LOGIN GATE (ONE CLICK PER DAY) ================= */
 (function() {
   // UI Elements
   const gate = document.getElementById('login-gate');
@@ -1783,74 +1783,81 @@ window.addEventListener("resize", () => {
 
   // --- 1. ROBUST ID GENERATION ---
   async function getStableId() {
-    // A. Check if we already have a saved ID in LocalStorage (Fastest & Most Reliable)
     let localId = localStorage.getItem('ocean_viewer_device_id');
-    
-    // B. Try to get a Fingerprint (More secure, but might be blocked)
     let fpId = null;
     try {
       const fp = await FingerprintJS.load();
       const result = await fp.get();
       fpId = result.visitorId;
     } catch (e) {
-      console.warn("Fingerprint blocked/failed, using local ID.");
+      console.warn("Fingerprint blocked, using local ID.");
     }
 
-    // C. DECISION LOGIC:
-    // If we have a Fingerprint, use it (it persists even if cache is cleared).
-    // If we don't, fall back to the LocalStorage ID.
-    // If we have neither, generate a new Random ID.
     if (fpId) {
       stableId = fpId;
-      // Also save this as our local ID for future speed
       localStorage.setItem('ocean_viewer_device_id', fpId);
     } else if (localId) {
       stableId = localId;
     } else {
-      // Generate new random ID
       stableId = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
       localStorage.setItem('ocean_viewer_device_id', stableId);
     }
-
     return stableId;
   }
 
   // --- 2. INITIALIZE ---
   async function initGate() {
-    // A. Get IP (Background)
-    fetch('https://api.ipify.org?format=json')
+    // Start IP fetch
+    const ipPromise = fetch('https://api.ipify.org?format=json')
       .then(res => res.json())
       .then(data => { userIp = data.ip; })
       .catch(() => {});
 
-    // B. Get ID
     await getStableId();
-    console.log("Device ID:", stableId);
 
-    // C. Check Registration Logic
-    // We check if this specific ID has registered before
+    // Check Registration & Date
     const storedReg = localStorage.getItem('ocean_viewer_reg_' + stableId);
     isRegistered = (storedReg === 'true');
+    
+    // Date Check: Create a string like "Tue Dec 30 2025"
+    const todayStr = new Date().toDateString();
+    const lastVisit = localStorage.getItem('ocean_viewer_last_visit_' + stableId);
 
-    // D. Update UI
+    // === SCENARIO A: REGISTERED + SAME DAY ===
+    // Auto-login immediately
+    if (isRegistered && lastVisit === todayStr) {
+      gate.style.display = 'none';
+      
+      // Log silently in background
+      const savedName = localStorage.getItem('ocean_viewer_name_' + stableId);
+      await ipPromise; 
+      sendNotification(savedName || "Return Visitor", "", "", false, true); // true = silent log
+      return; 
+    }
+
+    // === SCENARIO B: REGISTERED + NEW DAY ===
+    // Show "Continue" button
     if (isRegistered) {
-      title.innerText = "Welcome Back!";
-      msg.innerText = "Identity confirmed.";
+      title.innerText = "Welcome Back";
+      msg.innerText = "Please confirm attendance for today.";
+      btn.innerText = "Continue"; // Change button text
+      
       inpEmail.style.display = 'none';
       inpPhone.style.display = 'none';
       
       const savedName = localStorage.getItem('ocean_viewer_name_' + stableId);
       if (savedName) inpName.value = savedName;
-    } else {
+    } 
+    // === SCENARIO C: NEW USER ===
+    else {
       title.innerText = "First Time Access";
       msg.innerText = "New device detected. Please register.";
-      // Ensure fields are visible
+      btn.innerText = "Enter";
       inpEmail.style.display = 'block';
       inpPhone.style.display = 'block';
     }
   }
 
-  // Start
   initGate();
 
   // --- 3. SUBMIT HANDLER ---
@@ -1858,42 +1865,49 @@ window.addEventListener("resize", () => {
     const name = inpName.value.trim();
     const email = inpEmail.value.trim();
     const phone = inpPhone.value.trim();
+    const todayStr = new Date().toDateString();
 
     if (name.length < 2) {
       alert("Please enter a name.");
       return;
     }
 
-    // If new user, validate contact info
+    // Validate only if new user
     if (!isRegistered) {
       const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
       const validPhone = phone.replace(/\D/g, '').length >= 10;
-
       if (!validEmail || !validPhone) {
         alert("Valid Email and Phone are required for new devices.");
         return;
       }
     }
 
-    // SAVE EVERYTHING
+    // SAVE STATE
     localStorage.setItem('ocean_viewer_reg_' + stableId, 'true');
     localStorage.setItem('ocean_viewer_name_' + stableId, name);
-    // Also update global "last user" for feedback form compatibility
     localStorage.setItem('ocean_viewer_last_user', name);
+    
+    // SAVE TODAY'S DATE (So we don't ask again today)
+    localStorage.setItem('ocean_viewer_last_visit_' + stableId, todayStr);
 
     gate.style.display = 'none';
-
-    sendNotification(name, email, phone, !isRegistered);
+    
+    // Log to Discord (Visible log since they clicked button)
+    sendNotification(name, email, phone, !isRegistered, false);
   });
 
-  function sendNotification(name, email, phone, isNewUser) {
+  function sendNotification(name, email, phone, isNewUser, isSilent) {
+    // If it's a "silent" auto-login same-day revisit, maybe skip logging OR log simply.
+    // Here we log everything, but you can return if isSilent === true.
+    
     const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
 
     let content = "";
     if (isNewUser) {
-      content = `🆕 **New Device**\n👤 **Name:** ${name}\n📧 **Email:** ${email}\n📱 **Phone:** ${phone}\n🆔 **ID:** \`${stableId}\`\n🌐 **IP:** ${userIp}`;
+      content = `🆕 **New Registration**\n👤 **Name:** ${name}\n📧 **Email:** ${email}\n📱 **Phone:** ${phone}\n🆔 **ID:** \`${stableId}\`\n🌐 **IP:** ${userIp}`;
     } else {
-      content = `👋 **Return Visit**\n👤 **Name:** ${name}\n🆔 **ID:** \`${stableId}\`\n🌐 **IP:** ${userIp}`;
+      const type = isSilent ? "⚡ **Auto-Login (Same Day)**" : "👋 **Daily Check-in**";
+      content = `${type}\n👤 **Name:** ${name}\n🆔 **ID:** \`${stableId}\`\n🌐 **IP:** ${userIp}`;
     }
 
     fetch(WEBHOOK_URL, {
