@@ -1764,7 +1764,7 @@ window.addEventListener("resize", () => {
   }
 })();
 
-/* ================= LOGIN GATE (ONE CLICK PER DAY) ================= */
+/* ================= LOGIN GATE (NOTIFY ONCE PER DAY) ================= */
 (function() {
   // UI Elements
   const gate = document.getElementById('login-gate');
@@ -1815,32 +1815,27 @@ window.addEventListener("resize", () => {
 
     await getStableId();
 
-    // Check Registration & Date
     const storedReg = localStorage.getItem('ocean_viewer_reg_' + stableId);
     isRegistered = (storedReg === 'true');
     
-    // Date Check: Create a string like "Tue Dec 30 2025"
+    // Date Check
     const todayStr = new Date().toDateString();
     const lastVisit = localStorage.getItem('ocean_viewer_last_visit_' + stableId);
 
-    // === SCENARIO A: REGISTERED + SAME DAY ===
-    // Auto-login immediately
+    // === SCENARIO A: SAME DAY REVISIT (Auto-Login) ===
     if (isRegistered && lastVisit === todayStr) {
       gate.style.display = 'none';
       
-      // Log silently in background
-      const savedName = localStorage.getItem('ocean_viewer_name_' + stableId);
-      await ipPromise; 
-      sendNotification(savedName || "Return Visitor", "", "", false, true); // true = silent log
+      // Pass 'true' for isSilent so we DO NOT spam Discord
+      sendNotification("", "", "", false, true); 
       return; 
     }
 
-    // === SCENARIO B: REGISTERED + NEW DAY ===
-    // Show "Continue" button
+    // === SCENARIO B: NEW DAY (Require Click) ===
     if (isRegistered) {
       title.innerText = "Welcome Back";
-      msg.innerText = "Please confirm for today.";
-      btn.innerText = "Continue"; // Change button text
+      msg.innerText = "Please confirm attendance for today.";
+      btn.innerText = "Continue"; 
       
       inpEmail.style.display = 'none';
       inpPhone.style.display = 'none';
@@ -1886,28 +1881,27 @@ window.addEventListener("resize", () => {
     localStorage.setItem('ocean_viewer_reg_' + stableId, 'true');
     localStorage.setItem('ocean_viewer_name_' + stableId, name);
     localStorage.setItem('ocean_viewer_last_user', name);
-    
-    // SAVE TODAY'S DATE (So we don't ask again today)
     localStorage.setItem('ocean_viewer_last_visit_' + stableId, todayStr);
 
     gate.style.display = 'none';
     
-    // Log to Discord (Visible log since they clicked button)
+    // Send Notification (isSilent = false)
     sendNotification(name, email, phone, !isRegistered, false);
   });
 
   function sendNotification(name, email, phone, isNewUser, isSilent) {
-    // If it's a "silent" auto-login same-day revisit, maybe skip logging OR log simply.
-    // Here we log everything, but you can return if isSilent === true.
-    
+    // --- STOP HERE IF SILENT ---
+    // If this is an auto-login (same day), we return immediately.
+    // No request is sent to Discord.
+    if (isSilent) return;
+
     const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
 
     let content = "";
     if (isNewUser) {
       content = `🆕 **New Registration**\n👤 **Name:** ${name}\n📧 **Email:** ${email}\n📱 **Phone:** ${phone}\n🆔 **ID:** \`${stableId}\`\n🌐 **IP:** ${userIp}`;
     } else {
-      const type = isSilent ? "⚡ **Auto-Login (Same Day)**" : "👋 **Daily Check-in**";
-      content = `${type}\n👤 **Name:** ${name}\n🆔 **ID:** \`${stableId}\`\n🌐 **IP:** ${userIp}`;
+      content = `👋 **Daily Check-in**\n👤 **Name:** ${name}\n🆔 **ID:** \`${stableId}\`\n🌐 **IP:** ${userIp}`;
     }
 
     fetch(WEBHOOK_URL, {
