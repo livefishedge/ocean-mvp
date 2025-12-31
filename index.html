@@ -1312,14 +1312,14 @@ function toDDM(val) {
   
   // Format: Degrees + Minutes with 3 decimal places (Standard GPS precision)
   // padStart(2, '0') ensures "05.123" instead of "5.123"
-  const mStr = m.toFixed(3).padStart(6, '0'); 
+  const mStr = m.toFixed(2).padStart(5, '0'); 
   
   // West/South Handling
   // You can also add N/S/E/W suffixes if preferred, 
   // but standard negative signs work well for compact readouts.
   const sign = val < 0 ? "-" : "";
   
-  return `${sign}${d}° ${mStr}'`;
+  return `${sign}${d}°${mStr}'`;
 }
 
 /* ================= READOUT ================= */
@@ -1329,7 +1329,7 @@ function renderReadoutFromPoint(p) {
   if (!isFinite(lon) || !isFinite(lat)) return;
 
   // CHANGED: Use DDM format
-  const base = `${toDDM(lon)}, ${toDDM(lat)}`;
+  const base = `${toDDM(lon)} ${toDDM(lat)}`;
   
   const cd = p.customdata;
   if (cd === null || cd === undefined || !isFinite(cd)) { 
@@ -1342,7 +1342,7 @@ function renderReadoutFromPoint(p) {
   
   if (currentVar === "sst") setReadout(`${base}, ${val.toFixed(2)}${unit}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else setReadout(`${base}, ${val.toFixed(3)}${unit}`);
+  else setReadout(`${base} ${val.toFixed(3)}${unit}`);
 }
 
 /* move plotly modebar into #modebar-host */
