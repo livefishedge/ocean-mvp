@@ -1304,22 +1304,45 @@ function setupReadoutHandlersOnce() {
   });
 }
 
+/* ================= DDM CONVERSION HELPER (Standard Marine) ================= */
+function toDDM(val) {
+  const absVal = Math.abs(val);
+  const d = Math.floor(absVal);
+  const m = (absVal - d) * 60;
+  
+  // Format: Degrees + Minutes with 3 decimal places (Standard GPS precision)
+  // padStart(2, '0') ensures "05.123" instead of "5.123"
+  const mStr = m.toFixed(3).padStart(6, '0'); 
+  
+  // West/South Handling
+  // You can also add N/S/E/W suffixes if preferred, 
+  // but standard negative signs work well for compact readouts.
+  const sign = val < 0 ? "-" : "";
+  
+  return `${sign}${d}° ${mStr}'`;
+}
+
+/* ================= READOUT ================= */
 function renderReadoutFromPoint(p) {
   const lon = Number(p.x);
   const lat = Number(p.y);
   if (!isFinite(lon) || !isFinite(lat)) return;
 
-  const base = `${lon.toFixed(4)}°, ${lat.toFixed(4)}°`;
+  // CHANGED: Use DDM format
+  const base = `${toDDM(lon)}, ${toDDM(lat)}`;
+  
   const cd = p.customdata;
-
-  if (cd === null || cd === undefined || !isFinite(cd)) { setReadout(base); return; }
+  if (cd === null || cd === undefined || !isFinite(cd)) { 
+    setReadout(base); 
+    return; 
+  }
 
   const val = Number(cd);
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
+  
   if (currentVar === "sst") setReadout(`${base}, ${val.toFixed(2)}${unit}`);
-  else { if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
+  else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
   else setReadout(`${base}, ${val.toFixed(3)}${unit}`);
-  }
 }
 
 /* move plotly modebar into #modebar-host */
