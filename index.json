@@ -1,6 +1,6 @@
 {
   "region": "mbh",
-  "last_updated": "2026-01-03T00:05:56.096945Z",
+  "last_updated": "2026-01-03T14:12:32.107983Z",
   "vars": [
     "chl",
     "sst",
@@ -3432,6 +3432,41 @@
         "label": "2026-01-02",
         "time_iso": "2026-01-02T00:00:00Z",
         "json_path": "data/mbh/sst/sstcomp_mbh_2026002_20260102_16_g19_c377.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026002_20260102_22_g19_c378",
+        "label": "2026-01-02",
+        "time_iso": "2026-01-02T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026002_20260102_22_g19_c378.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026003_20260103_06_g19_c379",
+        "label": "2026-01-03",
+        "time_iso": "2026-01-03T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026003_20260103_06_g19_c379.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026003_20260103_10_g19_c380",
+        "label": "2026-01-03",
+        "time_iso": "2026-01-03T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026003_20260103_10_g19_c380.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026003_20260103_11_g19_c381",
+        "label": "2026-01-03",
+        "time_iso": "2026-01-03T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026003_20260103_11_g19_c381.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026003_20260103_12_g19_c382",
+        "label": "2026-01-03",
+        "time_iso": "2026-01-03T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026003_20260103_12_g19_c382.json"
       }
     ],
     "uv": [
@@ -3658,6 +3693,13 @@
         "label": "2026-01-02",
         "time_iso": "2026-01-02T00:00:00Z",
         "json_path": "data/mbh/uv/uv_mbh_2026002_20260102_cmems-duacs.json"
+      },
+      {
+        "var": "uv",
+        "id": "uv_mbh_2026003_20260103_cmems-duacs",
+        "label": "2026-01-03",
+        "time_iso": "2026-01-03T00:00:00Z",
+        "json_path": "data/mbh/uv/uv_mbh_2026003_20260103_cmems-duacs.json"
       }
     ]
   }
