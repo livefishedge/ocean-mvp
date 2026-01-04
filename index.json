@@ -1,6 +1,6 @@
 {
   "region": "mbh",
-  "last_updated": "2026-01-03T17:50:27.254262Z",
+  "last_updated": "2026-01-04T14:40:48.632740Z",
   "vars": [
     "chl",
     "sst",
@@ -3721,6 +3721,13 @@
         "label": "2026-01-03",
         "time_iso": "2026-01-03T00:00:00Z",
         "json_path": "data/mbh/uv/uv_mbh_2026003_20260103_cmems-duacs.json"
+      },
+      {
+        "var": "uv",
+        "id": "uv_mbh_2026004_20260104_cmems-duacs",
+        "label": "2026-01-04",
+        "time_iso": "2026-01-04T00:00:00Z",
+        "json_path": "data/mbh/uv/uv_mbh_2026004_20260104_cmems-duacs.json"
       }
     ]
   }
