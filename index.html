@@ -529,11 +529,10 @@ let userRanges = {
 /* CHL colorscale (algae-ish) */
 const CHL_ALGAE = [
   [0.00, "#ff00ff"], // Magenta (Lowest)
-  [0.16, "#0000ff"], // Blue
-  [0.33, "#00ffff"], // Cyan
-  [0.50, "#00ff00"], // Green (Mid-range)
-  [0.66, "#ffff00"], // Yellow
-  [0.83, "#ff7f00"], // Orange
+  [0.25, "#0000ff"], // Blue (shifted up to 25%)
+  [0.50, "#00ffff"], // Cyan (Midpoint is now strictly cool)
+  [0.70, "#00ff00"], // Green (Delayed until 70%)
+  [0.85, "#ffff00"], // Yellow (Compressed into top 15%)
   [1.00, "#ff0000"]  // Red (Highest)
 ];
 
