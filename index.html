@@ -526,19 +526,18 @@ let userRanges = {
   bathy: { ...DEFAULT_RANGES.bathy }
 };
 
-/* CHL colorscale (algae-ish) 
+/* CHL colorscale (algae-ish) */
 const CHL_ALGAE = [
-  [0.00, "#081d38"],
-  [0.10, "#1d4f91"],
-  [0.22, "#00a6ca"],
-  [0.36, "#00d17f"],
-  [0.52, "#a3f700"],
-  [0.70, "#ffe600"],
-  [0.86, "#ff7a00"],
-  [1.00, "#b30000"]
-];*/
+  [0.00, "#ff00ff"], // Magenta (Lowest)
+  [0.16, "#0000ff"], // Blue
+  [0.33, "#00ffff"], // Cyan
+  [0.50, "#00ff00"], // Green (Mid-range)
+  [0.66, "#ffff00"], // Yellow
+  [0.83, "#ff7f00"], // Orange
+  [1.00, "#ff0000"]  // Red (Highest)
+];
 
-const CHL_ALGAE = [
+/* const CHL_ALGAE = [
   [0.0, "#021029"], // Pitch Dark Blue (Lowest)
   [0.2, "#002a70"], // Deep Royal Blue
   [0.4, "#0055ff"], // Bright Electric Blue
@@ -546,7 +545,7 @@ const CHL_ALGAE = [
   [0.6, "#00c42e"], // Bright Lime/Emerald
   [0.8, "#007a1c"], // Rich Green
   [1.0, "#003300"]  // Deepest Forest Green (Highest)
-];
+];*/
 
 // Professional Bathymetry Scale: Shallow (Light Teal) to Deep (Navy)
 const BATHY_SCALE = [
