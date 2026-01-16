@@ -992,48 +992,43 @@ function stableLayout() {
 }
 
 /* ========================= FIGURES ========================= */
-function buildChl(gridInfo, dataObj) {
-  const { xAxis, yAxis, nx, ny } = gridInfo;
-  if (!is2D(dataObj.chl)) throw new Error("CHL JSON missing 2-D key: chl");
+/* ================= BUILD CHL (No Internal Colorbar) ================= */
+function buildChl(grid, data) {
+  // 1. READ USER INPUTS (Dynamic Range)
+  const minInput = document.getElementById('range-min');
+  const maxInput = document.getElementById('range-max');
+  
+  const cmin = (minInput && minInput.value) ? parseFloat(minInput.value) : 0.04;
+  const cmax = (maxInput && maxInput.value) ? parseFloat(maxInput.value) : 30.0;
 
-  const vmin = userRanges.chl.vmin;
-  const vmax = userRanges.chl.vmax;
-  const zmin = Math.log10(vmin);
-  const zmax = Math.log10(vmax);
+  // 2. DEFINE TRACE
+  const trace = {
+    type: "heatmap",
+    x: grid.xAxis,
+    y: grid.yAxis,
+    z: data.z,          
+    customdata: data.z, 
+    colorscale: (typeof CHL_ALGAE !== 'undefined') ? CHL_ALGAE : 'Viridis',
+    
+    zmin: cmin,        
+    zmax: cmax,        
 
-  const z = Array.from({ length: ny }, () => Array(nx).fill(null));
-  const cd = Array.from({ length: ny }, () => Array(nx).fill(null));
+    // --- CRITICAL FIX: FORCE REMOVAL OF RIGHT-SIDE COLORBAR ---
+    showscale: false, 
+    // ----------------------------------------------------------
 
-  for (let j=0;j<ny;j++){
-    for (let i=0;i<nx;i++){
-      const vv = dataObj.chl[j][i];
-      const num = (vv===null||vv===undefined||!isFinite(vv)) ? null : Number(vv);
-      cd[j][i] = num;
-      z[j][i] = (num!==null && num>0) ? Math.log10(num) : null;
-    }
-  }
-
-  const cb = colorbarFor("chl");
-  cb.tickmode = "array";
-  cb.tickvals = CHL_TICKVALS;
-  cb.ticktext = CHL_TICKTEXT;
-  cb.ticks = "outside";
-
-  return {
-    data: [{
-      type:"heatmap",
-      x:xAxis, y:yAxis,
-      z,
-      customdata: cd,
-      hoverinfo:"none",
-      showscale:false,
-      zauto:false, zmin, zmax,
-      colorscale: CHL_ALGAE,
-      colorbar: cb,
-      zsmooth:false
-    }],
-    layout: stableLayout()
+    hovertemplate: `<b>CHL</b>: %{z:.2f} mg/m³<extra></extra>`
   };
+
+  const layout = {
+    title: false,
+    xaxis: { title: "Longitude", scaleanchor: "y", scaleratio: 1 },
+    yaxis: { title: "Latitude" },
+    margin: { t: 40, l: 60, r: 60, b: 40 },
+    dragmode: "pan"
+  };
+
+  return { data: [trace], layout };
 }
 
 function buildSst(gridInfo, dataObj) {
@@ -1528,6 +1523,7 @@ async function loadIndex() {
   return data;
 }
 
+
 async function loadGridForVar(v) {
   if (gridCache[v]) return gridCache[v];
   const gridName = VAR_TO_GRID[v];
@@ -1550,6 +1546,7 @@ async function loadGridForVar(v) {
   gridCache[v] = info;
   return info;
 }
+
 
 async function fetchFrameData(varKey, frameMeta) {
   const p = framePathOf(frameMeta);
