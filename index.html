@@ -992,49 +992,55 @@ function stableLayout() {
 }
 
 /* ========================= FIGURES ========================= */
-function buildChl(gridInfo, dataObj) {
-  const { xAxis, yAxis, nx, ny } = gridInfo;
-  if (!is2D(dataObj.chl)) throw new Error("CHL JSON missing 2-D key: chl");
+function buildChl(grid, data) {
+  // 1. Get Axis & Data
+  let plotY = grid.yAxis; // Start with cached axis
+  const zData = data.z;
 
-  const vmin = userRanges.chl.vmin;
-  const vmax = userRanges.chl.vmax;
-  const zmin = Math.log10(vmin);
-  const zmax = Math.log10(vmax);
-
-  const z = Array.from({ length: ny }, () => Array(nx).fill(null));
-  const cd = Array.from({ length: ny }, () => Array(nx).fill(null));
-
-  for (let j=0;j<ny;j++){
-    for (let i=0;i<nx;i++){
-      const vv = dataObj.chl[j][i];
-      const num = (vv===null||vv===undefined||!isFinite(vv)) ? null : Number(vv);
-      cd[j][i] = num;
-      z[j][i] = (num!==null && num>0) ? Math.log10(num) : null;
-    }
+  // 2. UPSIDE DOWN FIX
+  // Check if Grid is Ascending (South -> North, e.g. 24, 25, 26).
+  // Standard Images are Top-Down (North -> South).
+  // If we map Top-Down Image to Ascending Axis, it looks upside down.
+  // FIX: We Reverse the Y-Axis array so it matches the Image (North -> South).
+  const isGridAscending = plotY.length > 1 && plotY[0] < plotY[plotY.length - 1];
+  
+  if (isGridAscending) {
+    // Create a generic reversed copy of the axis for this plot only
+    // (Do not mutate the original cached grid object)
+    plotY = [...plotY].reverse();
   }
 
-  const cb = colorbarFor("chl");
-  cb.tickmode = "array";
-  cb.tickvals = CHL_TICKVALS;
-  cb.ticktext = CHL_TICKTEXT;
-  cb.ticks = "outside";
-
-  return {
-    data: [{
-      type:"heatmap",
-      x:xAxis, y:yAxis,
-      z,
-      customdata: cd,
-      hoverinfo:"none",
-      showscale:false,
-      zauto:false, zmin, zmax,
-      colorscale: CHL_ALGAE,
-      colorbar: cb,
-      zsmooth:false
-    }],
-    layout: stableLayout()
+  // 3. Define Trace
+  const trace = {
+    type: "heatmap",
+    x: grid.xAxis,
+    y: plotY,          // Use the (potentially flipped) axis
+    z: zData,          // Keep data as is (safer)
+    customdata: zData, 
+    colorscale: (typeof CHL_ALGAE !== 'undefined') ? CHL_ALGAE : 'Viridis',
+    zmin: 0.04,        
+    zmax: 30.0,        
+    colorbar: {
+      title: "mg/m³",
+      titleside: "right",
+      x: 1.02,
+      thickness: 20
+    },
+    hovertemplate: `<b>CHL</b>: %{z:.2f} mg/m³<extra></extra>`
   };
+
+  // 4. Define Layout
+  const layout = {
+    title: false,
+    xaxis: { title: "Longitude", scaleanchor: "y", scaleratio: 1 },
+    yaxis: { title: "Latitude" },
+    margin: { t: 40, l: 60, r: 60, b: 40 },
+    dragmode: "pan"
+  };
+
+  return { data: [trace], layout };
 }
+
 
 function buildSst(gridInfo, dataObj) {
   const { xAxis, yAxis } = gridInfo;
@@ -1528,37 +1534,30 @@ async function loadIndex() {
   return data;
 }
 
+
 async function loadGridForVar(v) {
   if (gridCache[v]) return gridCache[v];
   const gridName = VAR_TO_GRID[v];
-  const url = `data/${REGION_ID}/grids/${gridName}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Could not load grid for ${v}: ${url}`);
+  
+  const res = await fetch(`data/${REGION_ID}/grids/${gridName}`);
+  if (!res.ok) throw new Error(`Could not load grid: ${gridName}`);
   const grid = await res.json();
 
   const lon = grid.lon, lat = grid.lat;
-  if (!Array.isArray(lon) || !Array.isArray(lat) || !Array.isArray(lon[0]) || !Array.isArray(lat[0])) {
-    throw new Error("Grid JSON must contain 2-D lon/lat arrays");
-  }
-
   const ny = lon.length;
   const nx = lon[0].length;
-
-  // --- FIX START: Use the middle row/col to minimize projection skew ---
   const midY = Math.floor(ny / 2);
   const midX = Math.floor(nx / 2);
 
-  // Use the middle row of longitudes for the X-axis
+  // Load axes normally (Do NOT reverse here)
   const xAxis = lon[midY].slice();
-  
-  // Use the middle column of latitudes for the Y-axis
   const yAxis = lat.map(r => r[midX]);
-  // --- FIX END ---
 
   const info = { xAxis, yAxis, nx, ny };
   gridCache[v] = info;
   return info;
 }
+
 
 async function fetchFrameData(varKey, frameMeta) {
   const p = framePathOf(frameMeta);
@@ -1585,7 +1584,7 @@ async function prepareLandMask() {
       y: data.yAxis,
       z: zMask,
       showscale: false, // No colorbar for land
-      colorscale: [ [0, "#cccccc"], [1, "#cccccc"] ], // Solid Dark Grey
+      colorscale: [ [0, "#555555"], [1, "#555555"] ], // Solid Dark Grey
       hoverinfo: "skip", // Don't show hover tooltips for land
       zmin: 0, 
       zmax: 1,
