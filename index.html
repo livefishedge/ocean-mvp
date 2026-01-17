@@ -892,75 +892,69 @@ function colorbarFor(varKey) {
 
 
 /* ========================= FOOTER COLORBAR ========================= */
+/* ================= RENDER FOOTER (Uses CHL_ALGAE) ================= */
 async function renderFooterColorbar(varKey) {
   if (!cbarDiv) return;
-
+  
   const unit = DEFAULT_RANGES[varKey]?.unit || "";
   let cmin = userRanges[varKey]?.vmin;
   let cmax = userRanges[varKey]?.vmax;
-
+  
+  // Default Settings
   let colorscale = "Viridis";
-  let reversescale = false;
   let tickmode = undefined, tickvals = undefined, ticktext = undefined;
 
+  // --- SPECIAL CONFIG FOR CHL ---
   if (varKey === "chl") {
-    cmin = Math.log10(cmin);
-    cmax = Math.log10(cmax);
-    colorscale = CHL_ALGAE;
-    tickmode = "array";
-    tickvals = CHL_TICKVALS;
+    // 1. Convert limits to Log10
+    cmin = Math.log10(cmin > 0 ? cmin : 0.01); 
+    cmax = Math.log10(cmax > 0 ? cmax : 100);
+    
+    // 2. FORCE CUSTOM COLORSCALE
+    colorscale = CHL_ALGAE; 
+    
+    // 3. Setup Log Ticks (0.01, 0.1, 1, 10...)
+    tickmode = "array"; 
+    tickvals = CHL_TICKVALS; 
     ticktext = CHL_TICKTEXT;
-  } else if (varKey === "sst") {
-    colorscale = "RdBu";
-    reversescale = false;
-  } else if (varKey === "uv") {
-    colorscale = "Viridis";
-  } else if (varKey === "bathy") {
-    colorscale = BATHY_SCALE;
-    reversescale = false;
-  }
+  } 
+  else if (varKey === "sst") { colorscale = "RdBu"; } 
+  else if (varKey === "bathy") { colorscale = BATHY_SCALE; }
 
   const trace = {
-    type: "scatter",
-    mode: "markers",
-    x: [0, 1],
-    y: [0, 0],
+    type: "scatter", 
+    mode: "markers", 
+    x: [0, 1], y: [0, 0], 
     hoverinfo: "none",
     marker: {
-      size: 1,
-      opacity: 0.001,
-      color: [cmin, cmax],
-      cmin, cmax,
-      colorscale,
-      reversescale,
+      size: 1, 
+      opacity: 0.001, 
+      color: [cmin, cmax], 
+      cmin, cmax, 
+      colorscale, 
       showscale: true,
-      colorbar: {
-        title: { text: unit, side: "top" },
-        orientation: "h",
-        x: 0.5, xanchor: "center",
-        y: 0.5, yanchor: "middle",
-        len: 1.0,
-        thickness: 14,
-        tickmode,
-        tickvals,
-        ticktext,
-        ticks: "outside",
-        ticklen: 4,
-        tickwidth: 1,
-        tickfont: { color: "#e0e6ee", size: 11 },
-        titlefont: { color: "#e0e6ee", size: 11 }
+      colorbar: { 
+        title: { text: unit, side: "top" }, 
+        orientation: "h", 
+        x: 0.5, xanchor: "center", 
+        y: 0.5, yanchor: "middle", 
+        len: 1.0, thickness: 14, 
+        tickmode, tickvals, ticktext, 
+        ticks: "outside", ticklen: 4, tickwidth: 1, 
+        tickfont: { color: "#e0e6ee", size: 11 }, 
+        titlefont: { color: "#e0e6ee", size: 11 } 
       }
     }
   };
 
-  const layout = {
-    margin: { l: 0, r: 0, t: 0, b: 0 },
-    paper_bgcolor: "rgba(0,0,0,0)",
-    plot_bgcolor: "rgba(0,0,0,0)",
-    xaxis: { visible: false, fixedrange: true },
-    yaxis: { visible: false, fixedrange: true }
+  const layout = { 
+    margin: { l: 0, r: 0, t: 0, b: 0 }, 
+    paper_bgcolor: "rgba(0,0,0,0)", 
+    plot_bgcolor: "rgba(0,0,0,0)", 
+    xaxis: { visible: false }, 
+    yaxis: { visible: false } 
   };
-
+  
   await Plotly.react(cbarDiv, [trace], layout, { displayModeBar: false, responsive: true });
 }
 
@@ -992,73 +986,52 @@ function stableLayout() {
 }
 
 /* ========================= FIGURES ========================= */
-/* ================= BUILD CHL (Corrected: No Coordinate Shift) ================= */
+/* ================= BUILD CHL (Matches SST Layout + Custom Colors) ================= */
 function buildChl(grid, data) {
-  // 1. DATA SAFETY CHECK
-  // Ensure we have data before trying to map it
+  // 1. DATA FINDER
   const rawZ = data.z || data.chl || data.data;
-  if (!rawZ) {
-    console.error("buildChl: No 'z' data found.");
-    return { data: [], layout: {} };
-  }
+  if (!rawZ) return { data: [], layout: {} };
 
-  // 2. GET AXES (Clone to protect cache)
-  // Your grid file already has the correct negative longitudes (e.g. -79.0).
-  // We use them EXACTLY as is.
-  let plotX = [...grid.xAxis];
-  let plotY = [...grid.yAxis];
+  // 2. GET AXES
+  let plotX = grid.xAxis; 
+  let plotY = grid.yAxis;
 
-  // 3. UPSIDE DOWN FIX (Vertical Flip)
-  // Images are Top-Down (Row 0 is North).
-  // If the Grid Y-axis is Ascending (24 -> 28), Row 0 maps to South (Upside Down).
-  // FIX: Reverse the Y-axis to (28 -> 24) so Row 0 maps to North.
-  const isGridAscending = plotY.length > 1 && plotY[0] < plotY[plotY.length - 1];
-  if (isGridAscending) {
-    plotY.reverse();
+  // 3. UPSIDE DOWN FIX (Flip Y if needed)
+  if (plotY.length > 1 && plotY[0] < plotY[plotY.length - 1]) {
+    plotY = [...plotY].reverse();
   }
 
   // 4. LOG-SCALE COLORS
-  // Convert Z-values to Log10 for the colorscale to match the footer.
-  // We keep 'rawZ' in customdata so the hover tooltip shows the real value.
+  // We map the data to Log10 so it matches the footer's Log scale.
   const logZ = rawZ.map(row => {
     if (!Array.isArray(row)) return row;
     return row.map(v => (v > 0 ? Math.log10(v) : null));
   });
 
-  // 5. LOG-SCALE USER RANGES
+  // Convert User Sliders (Linear) to Log Limits
   const linearMin = userRanges.chl.vmin;
   const linearMax = userRanges.chl.vmax;
   const cminLog = Math.log10(linearMin > 0 ? linearMin : 0.01);
   const cmaxLog = Math.log10(linearMax > 0 ? linearMax : 100);
 
-  // 6. DEFINE TRACE
+  // 5. DEFINE TRACE
   const trace = {
     type: "heatmap",
     x: plotX,           
     y: plotY,          
-    z: logZ,            // Log values for Color
-    customdata: rawZ,   // Linear values for Hover
+    z: logZ,            // Log values (Controls Color)
+    customdata: rawZ,   // Linear values (Controls Hover Text)
 
-    colorscale: (typeof CHL_ALGAE !== 'undefined') ? CHL_ALGAE : 'Viridis',
+    colorscale: CHL_ALGAE, // <--- EXPLICITLY USE CUSTOM SCALE
     zmin: cminLog,        
     zmax: cmaxLog,        
-    showscale: false,   // Internal bar hidden (using Footer)
+    showscale: false,   // Internal bar hidden (Footer used instead)
 
     hovertemplate: `<b>CHL</b>: %{customdata:.2f} mg/m³<extra></extra>`
   };
 
-  const layout = {
-    title: false,
-    xaxis: { 
-      title: "Longitude", 
-      scaleanchor: "y", 
-      scaleratio: 1
-      // NO RANGE CLAMPING: We trust the grid file fully.
-    },
-    yaxis: { title: "Latitude" },
-    margin: { t: 40, l: 60, r: 60, b: 40 },
-    dragmode: "pan"
-  };
+  // 6. USE STABLE LAYOUT (Critical for consistent margins)
+  const layout = stableLayout();
 
   return { data: [trace], layout };
 }
