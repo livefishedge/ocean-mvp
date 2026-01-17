@@ -992,70 +992,121 @@ function stableLayout() {
 }
 
 /* ========================= FIGURES ========================= */
-/* ================= BUILD CHL (Log-Scale Color + Lon Fix) ================= */
-function buildChl(grid, data) {
-  // 1. Get Axis & Data
-  let plotY = grid.yAxis;
-  let plotX = grid.xAxis;
-  const zData = data.z;
+function buildChl(chlJson, bbox, options = {}) {
+  const {
+    colorscale = "Viridis",
+    zmin = 0.01,
+    zmax = 10,
+    opacity = 0.85,
+    reverseY = true,
+    debug = false,
+  } = options;
 
-  // --- LONGITUDE FIX (0-360 to -180/180) ---
-  // If the grid uses East-coordinates (e.g. 281°), shift them to West (e.g. -79°)
-  // to match the BBOX and basemap.
-  if (plotX.length > 0 && plotX[0] > 180) {
-    plotX = plotX.map(x => x - 360);
+  let x = chlJson.x; // lon
+  let y = chlJson.y; // lat
+  let z = chlJson.z; // [lat][lon]
+
+  // --- helpers ---
+  const normLon180 = (lon) => {
+    // Normalize to [-180, 180)
+    let v = lon;
+    while (v >= 180) v -= 360;
+    while (v < -180) v += 360;
+    return v;
+  };
+
+  const normLon360 = (lon) => {
+    // Normalize to [0, 360)
+    let v = lon % 360;
+    if (v < 0) v += 360;
+    return v;
+  };
+
+  const nearlyInRange = (v, a, b, eps = 1e-10) => v >= a - eps && v <= b + eps;
+
+  // Decide x convention from data: if lots of values > 180, likely 0..360
+  const xLooks360 = x.some((v) => v > 180);
+
+  // Normalize x to a stable convention we will use for cropping
+  // We'll choose the same convention as bbox after we normalize bbox.
+  // First, keep two versions for flexibility:
+  const x180 = x.map(normLon180);
+  const x360 = x.map(normLon360);
+
+  // Fix y orientation + z row alignment
+  if (reverseY && y[0] > y[y.length - 1]) {
+    y = y.slice().reverse();
+    z = z.slice().reverse(); // critical
   }
 
-  // --- UPSIDE DOWN FIX ---
-  const isGridAscending = plotY.length > 1 && plotY[0] < plotY[plotY.length - 1];
-  if (isGridAscending) {
-    plotY = [...plotY].reverse();
+  // bbox = [minLon, minLat, maxLon, maxLat]
+  let [minLon, minLat, maxLon, maxLat] = bbox;
+
+  // Normalize bbox lon both ways
+  const bbox180 = [normLon180(minLon), minLat, normLon180(maxLon), maxLat];
+  const bbox360 = [normLon360(minLon), minLat, normLon360(maxLon), maxLat];
+
+  // Choose which lon convention to crop in:
+  // If bbox spans 0..360 style (e.g., > 180 present) OR x looks 360, use 0..360
+  const bboxLooks360 = minLon > 180 || maxLon > 180;
+  const use360 = bboxLooks360 || xLooks360;
+
+  const xx = use360 ? x360 : x180;
+  const bb = use360 ? bbox360 : bbox180;
+
+  minLon = bb[0];
+  maxLon = bb[2];
+
+  // Handle dateline crossing:
+  // In -180..180 or 0..360 space, if minLon > maxLon, bbox wraps across the seam.
+  const crossesDateline = minLon > maxLon;
+
+  const inLon = (lon) => {
+    if (!crossesDateline) return nearlyInRange(lon, minLon, maxLon);
+    // wrapped: lon >= minLon OR lon <= maxLon
+    return lon >= minLon || lon <= maxLon;
+  };
+
+  // Crop indices
+  const xIdx = [];
+  for (let i = 0; i < xx.length; i++) if (inLon(xx[i])) xIdx.push(i);
+
+  const yIdx = [];
+  for (let j = 0; j < y.length; j++) if (nearlyInRange(y[j], minLat, maxLat)) yIdx.push(j);
+
+  if (debug) {
+    console.log("[CHL] use360:", use360, "crossesDateline:", crossesDateline);
+    console.log("[CHL] bbox raw:", bbox, "bbox used:", [minLon, minLat, maxLon, maxLat]);
+    console.log("[CHL] x range:", Math.min(...xx), Math.max(...xx), "xIdx:", xIdx.length);
+    console.log("[CHL] y range:", Math.min(...y), Math.max(...y), "yIdx:", yIdx.length);
   }
 
-  // --- LOG-SCALE TRANSFORM (Color Match Fix) ---
-  // The footer uses Log10. We must convert the Z-data to Log10 for the map colors to match.
-  // We keep the original zData in 'customdata' for the hover tooltip.
-  const logZ = zData.map(row => {
-    if (!Array.isArray(row)) return row;
-    return row.map(v => (v > 0 ? Math.log10(v) : null));
-  });
+  // Fallback: if crop finds nothing, render full grid (so you don't get blank)
+  const hasCrop = xIdx.length > 1 && yIdx.length > 1;
 
-  // Convert the User Range (Linear) to Log10
-  const linearMin = userRanges.chl.vmin;
-  const linearMax = userRanges.chl.vmax;
-  const cminLog = Math.log10(linearMin > 0 ? linearMin : 0.01);
-  const cmaxLog = Math.log10(linearMax > 0 ? linearMax : 100);
+  const xUse = hasCrop ? xIdx.map((i) => xx[i]) : xx.slice();
+  const yUse = hasCrop ? yIdx.map((j) => y[j]) : y.slice();
+  const zUse = hasCrop
+    ? yIdx.map((j) => xIdx.map((i) => z[j][i]))
+    : z;
 
-  // 2. DEFINE TRACE
-  const trace = {
+  return {
     type: "heatmap",
-    x: plotX,           // Corrected Longitude
-    y: plotY,          
-    z: logZ,            // Log-Transformed Data (for Color)
-    customdata: zData,  // Original Data (for Cursor)
-
-    colorscale: (typeof CHL_ALGAE !== 'undefined') ? CHL_ALGAE : 'Viridis',
-    
-    // Apply Log Ranges
-    zmin: cminLog,        
-    zmax: cmaxLog,        
-    
-    showscale: false, // Hide internal bar
-
-    // Hovertemplate uses 'customdata' to show the REAL linear value
-    hovertemplate: `<b>CHL</b>: %{customdata:.2f} mg/m³<extra></extra>`
+    name: "Chlorophyll-a",
+    x: xUse,
+    y: yUse,
+    z: zUse,
+    colorscale,
+    zmin,
+    zmax,
+    opacity,
+    colorbar: {
+      title: "Chl-a (mg m⁻³)",
+      titleside: "right",
+    },
   };
-
-  const layout = {
-    title: false,
-    xaxis: { title: "Longitude", scaleanchor: "y", scaleratio: 1 },
-    yaxis: { title: "Latitude" },
-    margin: { t: 40, l: 60, r: 60, b: 40 },
-    dragmode: "pan"
-  };
-
-  return { data: [trace], layout };
 }
+
 
 function buildSst(gridInfo, dataObj) {
   const { xAxis, yAxis } = gridInfo;
