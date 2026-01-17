@@ -513,7 +513,7 @@ const INDEX_CANDIDATES = [
 ];
 
 const DEFAULT_RANGES = {
-  chl:   { vmin: 0.01, vmax: 1.0, unit: "mg/m³" },
+  chl:   { vmin: 0.01, vmax: 5.0, unit: "mg/m³" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   uv:    { vmin: 0.6, vmax: 0.9,  unit: "m" }, /* CHANGED: Now represents ADT/SSH range */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" }
@@ -1066,7 +1066,7 @@ function buildSst(gridInfo, dataObj) {
   if (!is2D(dataObj.sst)) throw new Error("SST JSON missing 2-D key: sst");
 
   const vmin = userRanges.sst.vmin;
-  const vmax = userRanges.sst.vmax;
+  const vmax = userRanges.sst.vmax;	
 
   return {
     data: [{
