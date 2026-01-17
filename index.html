@@ -892,7 +892,6 @@ function colorbarFor(varKey) {
 
 
 /* ========================= FOOTER COLORBAR ========================= */
-/* ================= RENDER FOOTER (Uses CHL_ALGAE) ================= */
 async function renderFooterColorbar(varKey) {
   if (!cbarDiv) return;
   
@@ -900,38 +899,62 @@ async function renderFooterColorbar(varKey) {
   let cmin = userRanges[varKey]?.vmin;
   let cmax = userRanges[varKey]?.vmax;
   
-  // Default Settings
-  let colorscale = "Viridis";
-  let tickmode = undefined, tickvals = undefined, ticktext = undefined;
+  let chosenScale = "Viridis"; 
+  let tickmode = undefined;
+  let tickvals = undefined;
+  let ticktext = undefined;
+  let xValues = [0, 1];
+  let cValues = [cmin, cmax];
 
-  // --- SPECIAL CONFIG FOR CHL ---
+  // --- SPECIAL CONFIG FOR CHL (Log10) ---
   if (varKey === "chl") {
-    // 1. Convert limits to Log10
+    console.log("[DEBUG] Building CHL Footer");
+    
+    // 1. Force Custom Colors
+    chosenScale = CHL_ALGAE;
+    
+    // 2. Log-Transform Limits
     cmin = Math.log10(cmin > 0 ? cmin : 0.01); 
     cmax = Math.log10(cmax > 0 ? cmax : 100);
     
-    // 2. FORCE CUSTOM COLORSCALE
-    colorscale = CHL_ALGAE; 
-    
-    // 3. Setup Log Ticks (0.01, 0.1, 1, 10...)
+    // 3. Setup Log Ticks
+    // Convert linear ticks (0.01, 1, 10) to Log10 (-2, 0, 1)
     tickmode = "array"; 
-    tickvals = CHL_TICKVALS; 
-    ticktext = CHL_TICKTEXT;
-  } 
-  else if (varKey === "sst") { colorscale = "RdBu"; } 
-  else if (varKey === "bathy") { colorscale = BATHY_SCALE; }
+    tickvals = CHL_TICKS_LINEAR.map(v => Math.log10(v));
+    ticktext = CHL_TICKS_LINEAR.map(v => String(v));
+
+    // 4. GENERATE DENSE GRADIENT
+    // To ensure Plotly renders the custom log gradient correctly, we create 100 points
+    // spanning cmin to cmax.
+    xValues = [];
+    cValues = [];
+    for (let i = 0; i <= 100; i++) {
+        xValues.push(i / 100); // 0.0 to 1.0
+        // Interpolate value between cmin and cmax
+        cValues.push(cmin + (cmax - cmin) * (i / 100));
+    }
+    
+  } else if (varKey === "sst") {
+    chosenScale = "RdBu";
+    cValues = [cmin, cmax];
+  } else if (varKey === "bathy") {
+    chosenScale = BATHY_SCALE;
+    cValues = [cmin, cmax];
+  }
 
   const trace = {
     type: "scatter", 
     mode: "markers", 
-    x: [0, 1], y: [0, 0], 
+    x: xValues, 
+    y: new Array(xValues.length).fill(0), // All at y=0
     hoverinfo: "none",
     marker: {
       size: 1, 
       opacity: 0.001, 
-      color: [cmin, cmax], 
-      cmin, cmax, 
-      colorscale, 
+      color: cValues, // This forces the full gradient range
+      cmin: cmin, 
+      cmax: cmax, 
+      colorscale: chosenScale, 
       showscale: true,
       colorbar: { 
         title: { text: unit, side: "top" }, 
@@ -955,8 +978,10 @@ async function renderFooterColorbar(varKey) {
     yaxis: { visible: false } 
   };
   
-  await Plotly.react(cbarDiv, [trace], layout, { displayModeBar: false, responsive: true });
+  // Use newPlot to ensure complete refresh
+  await Plotly.newPlot(cbarDiv, [trace], layout, { displayModeBar: false, responsive: true });
 }
+
 
 function stableLayout() {
   const portrait = isPortrait();
