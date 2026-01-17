@@ -992,32 +992,58 @@ function stableLayout() {
 }
 
 /* ========================= FIGURES ========================= */
-/* ================= BUILD CHL (No Internal Colorbar) ================= */
+/* ================= BUILD CHL (Log-Scale Color + Lon Fix) ================= */
 function buildChl(grid, data) {
-  // 1. READ USER INPUTS (Dynamic Range)
-  const minInput = document.getElementById('range-min');
-  const maxInput = document.getElementById('range-max');
-  
-  const cmin = (minInput && minInput.value) ? parseFloat(minInput.value) : 0.04;
-  const cmax = (maxInput && maxInput.value) ? parseFloat(maxInput.value) : 30.0;
+  // 1. Get Axis & Data
+  let plotY = grid.yAxis;
+  let plotX = grid.xAxis;
+  const zData = data.z;
+
+  // --- LONGITUDE FIX (0-360 to -180/180) ---
+  // If the grid uses East-coordinates (e.g. 281°), shift them to West (e.g. -79°)
+  // to match the BBOX and basemap.
+  if (plotX.length > 0 && plotX[0] > 180) {
+    plotX = plotX.map(x => x - 360);
+  }
+
+  // --- UPSIDE DOWN FIX ---
+  const isGridAscending = plotY.length > 1 && plotY[0] < plotY[plotY.length - 1];
+  if (isGridAscending) {
+    plotY = [...plotY].reverse();
+  }
+
+  // --- LOG-SCALE TRANSFORM (Color Match Fix) ---
+  // The footer uses Log10. We must convert the Z-data to Log10 for the map colors to match.
+  // We keep the original zData in 'customdata' for the hover tooltip.
+  const logZ = zData.map(row => {
+    if (!Array.isArray(row)) return row;
+    return row.map(v => (v > 0 ? Math.log10(v) : null));
+  });
+
+  // Convert the User Range (Linear) to Log10
+  const linearMin = userRanges.chl.vmin;
+  const linearMax = userRanges.chl.vmax;
+  const cminLog = Math.log10(linearMin > 0 ? linearMin : 0.01);
+  const cmaxLog = Math.log10(linearMax > 0 ? linearMax : 100);
 
   // 2. DEFINE TRACE
   const trace = {
     type: "heatmap",
-    x: grid.xAxis,
-    y: grid.yAxis,
-    z: data.z,          
-    customdata: data.z, 
+    x: plotX,           // Corrected Longitude
+    y: plotY,          
+    z: logZ,            // Log-Transformed Data (for Color)
+    customdata: zData,  // Original Data (for Cursor)
+
     colorscale: (typeof CHL_ALGAE !== 'undefined') ? CHL_ALGAE : 'Viridis',
     
-    zmin: cmin,        
-    zmax: cmax,        
+    // Apply Log Ranges
+    zmin: cminLog,        
+    zmax: cmaxLog,        
+    
+    showscale: false, // Hide internal bar
 
-    // --- CRITICAL FIX: FORCE REMOVAL OF RIGHT-SIDE COLORBAR ---
-    showscale: false, 
-    // ----------------------------------------------------------
-
-    hovertemplate: `<b>CHL</b>: %{z:.2f} mg/m³<extra></extra>`
+    // Hovertemplate uses 'customdata' to show the REAL linear value
+    hovertemplate: `<b>CHL</b>: %{customdata:.2f} mg/m³<extra></extra>`
   };
 
   const layout = {
