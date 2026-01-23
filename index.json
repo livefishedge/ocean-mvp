@@ -1,6 +1,6 @@
 {
   "region": "mbh",
-  "last_updated": "2026-01-23T00:38:41.066993Z",
+  "last_updated": "2026-01-23T16:45:04.145248Z",
   "vars": [
     "chl",
     "sst",
@@ -7649,6 +7649,46 @@
         "time_iso": "2026-01-21T00:00:00Z",
         "json_path": "data/mbh/sst/sstcomp_mbh_2026021_20260121_19_g19_c538.json",
         "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026022_20260122_23_g19_c539",
+        "label": "2026-01-22",
+        "time_iso": "2026-01-22T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026022_20260122_23_g19_c539.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026023_20260123_08_g19_c540",
+        "label": "2026-01-23",
+        "time_iso": "2026-01-23T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026023_20260123_08_g19_c540.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026023_20260123_11_g19_c541",
+        "label": "2026-01-23",
+        "time_iso": "2026-01-23T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026023_20260123_11_g19_c541.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026023_20260123_13_g19_c542",
+        "label": "2026-01-23",
+        "time_iso": "2026-01-23T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026023_20260123_13_g19_c542.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026023_20260123_14_g19_c543",
+        "label": "2026-01-23",
+        "time_iso": "2026-01-23T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026023_20260123_14_g19_c543.json",
+        "grid_file": "goes_sst_1000_grid.json"
       }
     ],
     "uv": [
@@ -8066,6 +8106,14 @@
         "label": "2026-01-22",
         "time_iso": "2026-01-22T00:00:00Z",
         "json_path": "data/mbh/uv/uv_mbh_2026022_20260122_cmems-duacs.json",
+        "grid_file": "uv_12500_grid.json"
+      },
+      {
+        "var": "uv",
+        "id": "uv_mbh_2026023_20260123_cmems-duacs",
+        "label": "2026-01-23",
+        "time_iso": "2026-01-23T00:00:00Z",
+        "json_path": "data/mbh/uv/uv_mbh_2026023_20260123_cmems-duacs.json",
         "grid_file": "uv_12500_grid.json"
       }
     ]
