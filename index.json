@@ -1,6 +1,6 @@
 {
   "region": "mbh",
-  "last_updated": "2026-01-29T18:05:47.707542Z",
+  "last_updated": "2026-01-29T21:07:44.193516Z",
   "vars": [
     "chl",
     "sst",
@@ -3454,6 +3454,38 @@
         "label": "2026-01-28 19:06 UTC | mbhchl_VJ1",
         "time_iso": "2026-01-28T19:06:00Z",
         "json_path": "data/mbh/chl/mbh_2026028.1906_chl_VJ1.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "mbh_2026029.1706_chl_VJ1",
+        "label": "2026-01-29 17:06 UTC | mbhchl_VJ1",
+        "time_iso": "2026-01-29T17:06:00Z",
+        "json_path": "data/mbh/chl/mbh_2026029.1706_chl_VJ1.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "mbh_2026029.1754_chl_VJ2",
+        "label": "2026-01-29 17:54 UTC | mbhchl_VJ2",
+        "time_iso": "2026-01-29T17:54:00Z",
+        "json_path": "data/mbh/chl/mbh_2026029.1754_chl_VJ2.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "mbh_2026029.1824_chl_VNP",
+        "label": "2026-01-29 18:24 UTC | mbhchl_VNP",
+        "time_iso": "2026-01-29T18:24:00Z",
+        "json_path": "data/mbh/chl/mbh_2026029.1824_chl_VNP.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "mbh_2026029.1848_chl_VJ1",
+        "label": "2026-01-29 18:48 UTC | mbhchl_VJ1",
+        "time_iso": "2026-01-29T18:48:00Z",
+        "json_path": "data/mbh/chl/mbh_2026029.1848_chl_VJ1.json",
         "grid_file": "viirs_chl_750_grid.json"
       }
     ],
@@ -8272,6 +8304,14 @@
         "label": "2026-01-29",
         "time_iso": "2026-01-29T00:00:00Z",
         "json_path": "data/mbh/sst/sstcomp_mbh_2026029_20260129_00_g19_c601.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_mbh_2026029_20260129_12_g19_c602",
+        "label": "2026-01-29",
+        "time_iso": "2026-01-29T00:00:00Z",
+        "json_path": "data/mbh/sst/sstcomp_mbh_2026029_20260129_12_g19_c602.json",
         "grid_file": "goes_sst_1000_grid.json"
       }
     ],
