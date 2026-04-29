@@ -1,6 +1,6 @@
 {
   "region": "ma",
-  "last_updated": "2026-04-29T19:34:01.703112Z",
+  "last_updated": "2026-04-29T20:04:26.881503Z",
   "vars": [
     "chl",
     "sst",
@@ -78,6 +78,14 @@
         "label": "2026-04-29 17:24 UTC | machl_VJ1",
         "time_iso": "2026-04-29T17:24:00Z",
         "json_path": "data/ma/chl/ma_2026119.1724_chl_VJ1.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "ma_2026119.1812_chl_VJ2",
+        "label": "2026-04-29 18:12 UTC | machl_VJ2",
+        "time_iso": "2026-04-29T18:12:00Z",
+        "json_path": "data/ma/chl/ma_2026119.1812_chl_VJ2.json",
         "grid_file": "viirs_chl_750_grid.json"
       }
     ],
