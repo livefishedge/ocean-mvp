@@ -246,6 +246,66 @@
       min-height:36px; /* REDUCED MIN HEIGHT */
     }
 
+
+    /* ======= Captain Briefing Demo Panel ======= */
+    #briefing-toggle{
+      background:#1a5cff;
+      border-color:#4d7dff;
+      font-weight:800;
+    }
+    #briefing-panel{
+      position:fixed;
+      top:82px;
+      right:14px;
+      z-index:900;
+      width:min(430px, calc(100vw - 28px));
+      max-height:calc(100dvh - 150px);
+      overflow:auto;
+      background:rgba(5,11,16,0.96);
+      color:var(--fg);
+      border:1px solid #2c4664;
+      border-radius:16px;
+      box-shadow:0 18px 50px rgba(0,0,0,0.45);
+      padding:14px;
+      display:none;
+    }
+    #briefing-panel.open{ display:block; }
+    #briefing-panel h2{ margin:0 0 4px; font-size:18px; }
+    #briefing-panel .muted{ color:#9fb0c3; font-size:12px; }
+    .briefing-plan{
+      border:1px solid #22384f;
+      border-radius:12px;
+      padding:10px;
+      margin-top:10px;
+      background:rgba(12,23,35,0.72);
+    }
+    .briefing-plan strong{ font-size:16px; }
+    .briefing-health{
+      display:grid;
+      grid-template-columns:1fr 1fr 1fr;
+      gap:8px;
+      margin-top:10px;
+    }
+    .briefing-health div{
+      border:1px solid #22384f;
+      border-radius:10px;
+      padding:8px;
+      background:rgba(12,23,35,0.55);
+      font-size:12px;
+    }
+    #briefing-full{
+      margin-top:10px;
+      white-space:pre-wrap;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:11px;
+      line-height:1.35;
+      color:#cbd6e2;
+      border-top:1px solid #22384f;
+      padding-top:10px;
+      display:none;
+    }
+    #briefing-full.open{ display:block; }
+
     /* ======= Portrait mobile layout (width < height) ======= */
     @media (orientation: portrait) {
       #controls{ align-items:stretch; }
@@ -442,6 +502,7 @@
         </select>
       </label>
       <button id="fs-btn" title="Fullscreen">⛶</button>
+      <button id="briefing-toggle" title="Captain briefing">Captain Briefing</button>
     </div>
 
     </div>
@@ -451,6 +512,15 @@
     <div id="modebar-tip" style="display:none;"></div>
   </div>
   <div id="plot"></div>
+
+  <div id="briefing-panel" aria-live="polite">
+    <h2>Captain Briefing</h2>
+    <div id="briefing-status" class="muted">Loading briefing…</div>
+    <div id="briefing-plans"></div>
+    <div id="briefing-health" class="briefing-health"></div>
+    <button id="briefing-full-toggle" style="margin-top:10px;">Show full briefing</button>
+    <div id="briefing-full"></div>
+  </div>
 
   <div id="ranges">
     <div id="ranges-left">
@@ -488,10 +558,10 @@
 
 <script>
 /* ========================= CONFIG ========================= */
-const REGION_ID = "mbh";
+let REGION_ID = "ma";
 
 // Bounding Box (LonMin, LatMin, LonMax, LatMax)
-const BBOX = [-79.0, 24.5, -75.0, 28.5];
+let BBOX = [-76.5, 35.5, -71.5, 40.5];
 
 // UPDATED: UV label is now Sea Surface Height, and Currents arrow unit is separate
 const VAR_LABELS = { 
@@ -506,7 +576,7 @@ const VAR_TO_GRID = {
   uv:  "uv_12500_grid.json"
 };
 
-const BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_mbh_bathy.json`;
+let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_mbh_bathy.json`;
 
 const INDEX_CANDIDATES = [
   "index.json",
@@ -1537,6 +1607,10 @@ async function loadIndex() {
   
   // 3. Use the data we already fetched instead of looping through CANDIDATES
   const idx = data; 
+  if (idx.region && idx.region !== REGION_ID) {
+    REGION_ID = idx.region;
+    BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_${REGION_ID}_bathy.json`;
+  }
 
   const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
 
@@ -1790,6 +1864,65 @@ window.addEventListener("resize", () => {
   try { Plotly.Plots.resize(plotDiv); } catch(_){}
   showFrame();
 });
+
+
+/* ========================= CAPTAIN BRIEFING PANEL ========================= */
+async function loadCaptainBriefing() {
+  const panel = document.getElementById("briefing-panel");
+  const status = document.getElementById("briefing-status");
+  const plansDiv = document.getElementById("briefing-plans");
+  const healthDiv = document.getElementById("briefing-health");
+  const fullDiv = document.getElementById("briefing-full");
+  if (!panel || !status || !plansDiv || !healthDiv || !fullDiv) return;
+
+  try {
+    const res = await fetch(`data/${REGION_ID}/briefing/latest.json?t=${Date.now()}`);
+    if (!res.ok) throw new Error(`No briefing artifact for ${REGION_ID}`);
+    const briefing = await res.json();
+    const when = briefing.generated_at ? new Date(briefing.generated_at).toLocaleString() : "unknown";
+    status.textContent = `${briefing.title || "Captain Briefing"} • ${when}`;
+
+    plansDiv.innerHTML = (briefing.plans || []).slice(0, 3).map((p, i) => `
+      <div class="briefing-plan">
+        <div class="muted">PLAN ${i === 0 ? "A" : i === 1 ? "B" : "C"}</div>
+        <strong>${p.zone || "Unknown"}</strong><br>
+        <span>${p.verdict || ""}</span> • Score ${p.score ?? "?"}/120 • ${p.confidence || "?"}
+      </div>
+    `).join("");
+
+    const products = (briefing.health && briefing.health.products) || {};
+    healthDiv.innerHTML = ["sst", "chl", "uv"].map(k => {
+      const h = products[k] || {};
+      return `<div><strong>${k.toUpperCase()}</strong><br>ok=${h.ok === true}<br>age=${h.age_min ?? "?"}m</div>`;
+    }).join("");
+
+    fullDiv.textContent = briefing.briefing_text || briefing.ranking_summary || "No briefing text available.";
+  } catch (e) {
+    status.textContent = `Briefing unavailable: ${e.message}`;
+    plansDiv.innerHTML = "";
+    healthDiv.innerHTML = "";
+    fullDiv.textContent = "";
+  }
+}
+
+(function setupBriefingPanel(){
+  const toggle = document.getElementById("briefing-toggle");
+  const panel = document.getElementById("briefing-panel");
+  const fullToggle = document.getElementById("briefing-full-toggle");
+  const fullDiv = document.getElementById("briefing-full");
+  if (toggle && panel) {
+    toggle.addEventListener("click", async () => {
+      panel.classList.toggle("open");
+      if (panel.classList.contains("open")) await loadCaptainBriefing();
+    });
+  }
+  if (fullToggle && fullDiv) {
+    fullToggle.addEventListener("click", () => {
+      fullDiv.classList.toggle("open");
+      fullToggle.textContent = fullDiv.classList.contains("open") ? "Hide full briefing" : "Show full briefing";
+    });
+  }
+})();
 
 /* ========================= INIT ========================= */
 (async function init() {
