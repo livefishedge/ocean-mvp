@@ -1133,7 +1133,8 @@ function buildChl(grid, data) {
 
 function buildSst(gridInfo, dataObj) {
   const { xAxis, yAxis } = gridInfo;
-  if (!is2D(dataObj.sst)) throw new Error("SST JSON missing 2-D key: sst");
+  const sst = dataObj.sst || dataObj.z || dataObj.data;
+  if (!is2D(sst)) throw new Error("SST JSON missing 2-D key: sst/z/data");
 
   const vmin = userRanges.sst.vmin;
   const vmax = userRanges.sst.vmax;	
@@ -1142,8 +1143,8 @@ function buildSst(gridInfo, dataObj) {
     data: [{
       type:"heatmap",
       x:xAxis, y:yAxis,
-      z: dataObj.sst,
-      customdata: dataObj.sst,
+      z: sst,
+      customdata: sst,
       hoverinfo:"none",
       showscale:false,
       zauto:false, zmin:vmin, zmax:vmax,
