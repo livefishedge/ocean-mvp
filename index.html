@@ -1629,27 +1629,49 @@ async function loadIndex() {
 }
 
 
-async function loadGridForVar(v) {
+function inferGridFromFrame(v, dataObj) {
+  const bbox = dataObj && dataObj.bbox;
+  const z = v === "uv" ? dataObj?.adt : (dataObj?.sst || dataObj?.z || dataObj?.chl || dataObj?.data);
+  const ny = dataObj?.ny || (Array.isArray(z) ? z.length : 0);
+  const nx = dataObj?.nx || (Array.isArray(z) && Array.isArray(z[0]) ? z[0].length : 0);
+  if (!bbox || bbox.length < 4 || !nx || !ny) throw new Error(`Cannot infer grid for ${v}`);
+
+  const [lonMin, latMin, lonMax, latMax] = bbox;
+  const linspace = (a, b, n) => Array.from({length:n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
+  const xAxis = linspace(lonMin, lonMax, nx);
+  // The SST composite rows are north-to-south; CHL and UV are south-to-north.
+  const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny);
+  return { xAxis, yAxis, nx, ny };
+}
+
+async function loadGridForVar(v, dataObj = null) {
   if (gridCache[v]) return gridCache[v];
   const gridName = VAR_TO_GRID[v];
   
-  const res = await fetch(`data/${REGION_ID}/grids/${gridName}`);
-  if (!res.ok) throw new Error(`Could not load grid: ${gridName}`);
-  const grid = await res.json();
+  try {
+    const res = await fetch(`data/${REGION_ID}/grids/${gridName}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const grid = await res.json();
 
-  const lon = grid.lon, lat = grid.lat;
-  const ny = lon.length;
-  const nx = lon[0].length;
-  const midY = Math.floor(ny / 2);
-  const midX = Math.floor(nx / 2);
+    const lon = grid.lon, lat = grid.lat;
+    const ny = lon.length;
+    const nx = lon[0].length;
+    const midY = Math.floor(ny / 2);
+    const midX = Math.floor(nx / 2);
 
-  // Load axes normally (Do NOT reverse here)
-  const xAxis = lon[midY].slice();
-  const yAxis = lat.map(r => r[midX]);
+    // Load axes normally (Do NOT reverse here)
+    const xAxis = lon[midY].slice();
+    const yAxis = lat.map(r => r[midX]);
 
-  const info = { xAxis, yAxis, nx, ny };
-  gridCache[v] = info;
-  return info;
+    const info = { xAxis, yAxis, nx, ny };
+    gridCache[v] = info;
+    return info;
+  } catch (e) {
+    console.warn(`Grid file unavailable for ${v}; inferring axes from frame metadata.`, e);
+    const info = inferGridFromFrame(v, dataObj || {});
+    gridCache[v] = info;
+    return info;
+  }
 }
 
 
@@ -1781,10 +1803,8 @@ async function showFrame() {
     const bathy = await loadBathymetryJson(BATHY_JSON_URL);
     fig = buildBathy(bathy);
   } else {
-    const [gridInfo, dataObj] = await Promise.all([
-      loadGridForVar(currentVar),
-      fetchFrameData(currentVar, frameMeta)
-    ]);
+    const dataObj = await fetchFrameData(currentVar, frameMeta);
+    const gridInfo = await loadGridForVar(currentVar, dataObj);
     fig = buildForVar(currentVar, gridInfo, dataObj);
   }
 
