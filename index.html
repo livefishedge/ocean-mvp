@@ -518,17 +518,9 @@
 </head>
 
 <body>
-  <div id="login-gate">
+  <div id="login-gate" style="display:none">
   <div class="gate-box">
-    <h2 id="gate-title">Ocean Viewer Access</h2>
-    <p id="gate-msg">Please identify yourself to continue.</p>
-    
-    <input type="text" id="visitor-name" placeholder="Name (Required)" />
-    
-    <input type="email" id="visitor-email" placeholder="Email (user@example.com)" />
-    <input type="tel" id="visitor-phone" placeholder="Phone (10 digits)" />
-    
-    <button id="gate-btn">Enter</button>
+    <h2 id="gate-title"></h2>
   </div>
   </div>
 
@@ -2135,108 +2127,16 @@ async function loadCaptainBriefing() {
   }
 })();
 
-/* ================= LOGIN GATE (NOTIFY ONCE PER DAY) ================= */
+/* ================= LOGIN GATE (DISABLED - always show map) ================= */
 (function() {
-  // UI Elements
   const gate = document.getElementById('login-gate');
-  const btn = document.getElementById('gate-btn');
-  const title = document.getElementById('gate-title');
-  const msg = document.getElementById('gate-msg');
-  
-  const inpName = document.getElementById('visitor-name');
-  const inpEmail = document.getElementById('visitor-email');
-  const inpPhone = document.getElementById('visitor-phone');
+  if (gate) gate.style.display = 'none';
 
-  // State variables
-  let userIp = "Unknown";
-  let stableId = null;
-  let isRegistered = false;
-
-  // --- 1. ROBUST ID GENERATION ---
-  async function getStableId() {
-    let localId = localStorage.getItem('ocean_viewer_device_id');
-    let fpId = null;
-    try {
-      const fp = await FingerprintJS.load();
-      const result = await fp.get();
-      fpId = result.visitorId;
-    } catch (e) {
-      console.warn("Fingerprint blocked, using local ID.");
-    }
-
-    if (fpId) {
-      stableId = fpId;
-      localStorage.setItem('ocean_viewer_device_id', fpId);
-    } else if (localId) {
-      stableId = localId;
-    } else {
-      stableId = 'dev_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-      localStorage.setItem('ocean_viewer_device_id', stableId);
-    }
-    return stableId;
-  }
-
-  // --- 2. INITIALIZE ---
-  async function initGate() {
-    // Start IP fetch
-    const ipPromise = fetch('https://api.ipify.org?format=json')
-      .then(res => res.json())
-      .then(data => { userIp = data.ip; })
-      .catch(() => {});
-
-    await getStableId();
-
-    const storedReg = localStorage.getItem('ocean_viewer_reg_' + stableId);
-    isRegistered = (storedReg === 'true');
-    
-    // Date Check
-    const todayStr = new Date().toDateString();
-    const lastVisit = localStorage.getItem('ocean_viewer_last_visit_' + stableId);
-
-    // === SCENARIO A: SAME DAY REVISIT (Auto-Login) ===
-    if (isRegistered && lastVisit === todayStr) {
-      gate.style.display = 'none';
-      
-      // Pass 'true' for isSilent so we DO NOT spam Discord
-      sendNotification("", "", "", false, true); 
-      return; 
-    }
-
-    // === SCENARIO B: NEW DAY (Require Click) ===
-    if (isRegistered) {
-      title.innerText = "Welcome Back";
-      msg.innerText = "Please confirm your name.";
-      btn.innerText = "Continue"; 
-      
-      inpEmail.style.display = 'none';
-      inpPhone.style.display = 'none';
-      
-      const savedName = localStorage.getItem('ocean_viewer_name_' + stableId);
-      if (savedName) inpName.value = savedName;
-    } 
-    // === SCENARIO C: NEW USER ===
-    else {
-      title.innerText = "First Time Access";
-      msg.innerText = "New device detected. Please register.";
-      btn.innerText = "Enter";
-      inpEmail.style.display = 'block';
-      inpPhone.style.display = 'block';
-    }
-  }
-
-  initGate();
-
-  // --- 3. SUBMIT HANDLER ---
-  btn.addEventListener('click', () => {
-    const name = inpName.value.trim();
-    const email = inpEmail.value.trim();
-    const phone = inpPhone.value.trim();
-    const todayStr = new Date().toDateString();
-
-    if (name.length < 2) {
-      alert("Please enter a name.");
-      return;
-    }
+  // === Original gate logic disabled. To re-enable: set display above to 'block'
+  // and restore the original initGate/sendNotification code. ===
+  async function initGate() { return; }
+  async function sendNotification(name, email, phone, spam, silent) { return; }
+  (function() {
 
     // Validate only if new user
     if (!isRegistered) {
