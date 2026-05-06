@@ -627,7 +627,7 @@ let REGION_ID = new URLSearchParams(location.search).get("region") || "usec_md";
 if (!REGIONS[REGION_ID]) REGION_ID = "usec_md";
 
 // Bounding Box (LonMin, LatMin, LonMax, LatMax)
-let BBOX = [-76.5, 35.5, -71.5, 40.5];
+let BBOX = [-81, 31, -71, 41]; // Extended to cover NC/SC + tournament spots
 
 // UPDATED: UV label is now Sea Surface Height, and Currents arrow unit is separate
 const VAR_LABELS = { 
