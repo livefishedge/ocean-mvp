@@ -46,20 +46,40 @@
       flex-wrap:wrap;
     }
 
-    #row-var{ flex: 0 0 auto; }
+    #row-region,
+    #row-var,
     #row-play{ flex: 0 0 auto; }
     #row-slider{ flex: 1 1 520px; min-width:320px; }
 
+    .control-group{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      min-height:44px;
+    }
+    .control-label{
+      color:#93a4b8;
+      font-size:12px;
+      font-weight:800;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .control-select,
+    #region-select,
     #var-select{
       background:#0c1723;
       color:var(--fg);
       border:1px solid #273649;
       border-radius:10px;
-      padding:10px 12px;
-      font-size:20px;
+      padding:9px 12px;
+      font-size:16px;
       font-weight:800;
-      min-height:44px;
+      min-height:42px;
+      max-width:280px;
     }
+    #var-select{ min-width:168px; }
+    #region-select{ min-width:250px; }
 
     button{
       background:#0c1723;
@@ -308,13 +328,15 @@
 
     /* ======= Portrait mobile layout (width < height) ======= */
     @media (orientation: portrait) {
-      #controls{ align-items:stretch; }
-      #row-var{ flex: 0 0 100%; }
+      #controls{ align-items:stretch; gap:8px; }
+      #row-region,
+      #row-var{ flex: 0 0 100%; justify-content:space-between; }
       /* row-play/row-slider display handled in JS for bathy */
       #row-play{ flex: 0 0 100%; justify-content:flex-start; }
       #row-slider{ flex: 0 0 100%; }
 
-      #var-select{ width:100%; font-size:18px; }
+      #region-select,
+      #var-select{ width:100%; max-width:none; font-size:18px; }
       #frame-label{
         width:100%;
         min-width:0;
@@ -469,14 +491,17 @@
     
 
   <div id="controls">
-    <div class="row" id="row-region">
-      <select id="region-select" title="Region">
+    <div class="row control-group" id="row-region">
+      <span class="control-label">Region</span>
+      <select id="region-select" class="control-select" title="Region">
         <option value="usec_md">US East Coast — Mid-Atlantic</option>
         <option value="usec_south">US East Coast — NC/SC</option>
       </select>
     </div>
-    <div class="row" id="row-var">
-      <select id="var-select">
+
+    <div class="row control-group" id="row-var">
+      <span class="control-label">Product</span>
+      <select id="var-select" class="control-select" title="Product">
         <option value="chl">Chlorophyll</option>
         <option value="sst">Temperature</option>
         <option value="uv">Currents</option>
@@ -484,19 +509,14 @@
       </select>
     </div>
 
-
     <div class="row" id="row-slider">
-    
       <span id="frame-label"></span>
-      
-        <div class="row" id="row-play">
-          <button id="prev-btn">&#9664;</button>
-          <button id="play-btn">Play</button>
-          <button id="next-btn">&#9654;</button>
-        </div>
-        
+      <div class="row" id="row-play">
+        <button id="prev-btn" title="Previous frame">&#9664;</button>
+        <button id="play-btn">Play</button>
+        <button id="next-btn" title="Next frame">&#9654;</button>
+      </div>
       <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" />
-      
       <label id="speed-wrap">
         <span id="speed-label">Speed</span>
         <select id="speed-select" title="Animation speed">
@@ -510,8 +530,7 @@
       <button id="fs-btn" title="Fullscreen">⛶</button>
       <button id="briefing-toggle" title="Captain briefing">Captain Briefing</button>
     </div>
-
-    </div>
+  </div>
 
   <div id="readout"></div>
   <div id="modebar-host">
@@ -712,8 +731,13 @@ const PLACE_LABELS = [
   {type:"port", name:"Charleston Harbor", lon:-79.9237, lat:32.7810},
 ];
 
+function placeInRegion(p) {
+  const [w, s, e, n] = BBOX.map(Number);
+  return p.lon >= w && p.lon <= e && p.lat >= s && p.lat <= n;
+}
+
 function placeTrace(type) {
-  const pts = PLACE_LABELS.filter(p => p.type === type);
+  const pts = PLACE_LABELS.filter(p => p.type === type && placeInRegion(p));
   const isPort = type === "port";
   return {
     type:"scatter",
@@ -733,8 +757,10 @@ function placeTrace(type) {
 function injectPlaceLabels(fig) {
   if (!fig) return;
   fig.data = (fig.data || []).filter(t => t?.name !== "Major cities" && t?.name !== "Fishing ports");
-  fig.data.push(placeTrace("city"));
-  fig.data.push(placeTrace("port"));
+  const cityTrace = placeTrace("city");
+  const portTrace = placeTrace("port");
+  if (cityTrace.x.length) fig.data.push(cityTrace);
+  if (portTrace.x.length) fig.data.push(portTrace);
 }
 
 /* Marker helpers (persist across var switches via injection in showFrame) */
@@ -1691,6 +1717,9 @@ async function loadIndex() {
   if (idx.region && idx.region !== REGION_ID) {
     REGION_ID = idx.region;
     BATHY_JSON_URL = `data/${REGION_ID}/${idx.region_meta?.bathy_path || "gebco_bath_latest/gebco_bathy.json"}`;
+  }
+  if (idx.region_meta?.bbox?.length >= 4) {
+    BBOX = idx.region_meta.bbox.map(Number);
   }
 
   const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
