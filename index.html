@@ -480,7 +480,7 @@
         <option value="chl">Chlorophyll</option>
         <option value="sst">Temperature</option>
         <option value="uv">Currents</option>
-        <option value="bathy" disabled>Bathymetry — MA GEBCO pending</option>
+        <option value="bathy">Bathymetry</option>
       </select>
     </div>
 
@@ -587,7 +587,7 @@ const VAR_TO_GRID = {
   uv:  "uv_12500_grid.json"
 };
 
-let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_${REGION_ID}_bathy.json`;
+let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.01, vmax: 5.0, unit: "mg/m³" },
@@ -1631,7 +1631,7 @@ async function loadIndex() {
   const idx = data; 
   if (idx.region && idx.region !== REGION_ID) {
     REGION_ID = idx.region;
-    BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_${REGION_ID}_bathy.json`;
+    BATHY_JSON_URL = `data/${REGION_ID}/${idx.region_meta?.bathy_path || "gebco_bath_latest/gebco_bathy.json"}`;
   }
 
   const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || framesByVar;
@@ -1647,7 +1647,6 @@ async function loadIndex() {
   }
 
   for (const opt of varSelect.options) {
-    if (opt.value === "bathy") continue;
     const count = (framesByVar[opt.value] || []).length;
     opt.disabled = count === 0;
     opt.textContent = count === 0 ? `${VAR_LABELS[opt.value]} — no data` : VAR_LABELS[opt.value];
