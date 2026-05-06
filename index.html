@@ -335,14 +335,30 @@
     #briefing-panel.open{ display:block; }
     #briefing-panel h2{ margin:0 0 4px; font-size:18px; }
     #briefing-panel .muted{ color:#9fb0c3; font-size:12px; }
+    .briefing-port-group{
+      margin-top:8px;
+      padding:10px;
+      background:rgba(255,255,255,0.03);
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.1);
+    }
+    .briefing-port-plans{
+      margin-top:6px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
     .briefing-plan{
       border:1px solid #22384f;
-      border-radius:12px;
-      padding:10px;
-      margin-top:10px;
-      background:rgba(12,23,35,0.72);
+      border-radius:8px;
+      padding:8px;
+      margin-top:0;
+      background:rgba(12,23,35,0.6);
+      border-left:3px solid #2d7d46;
     }
-    .briefing-plan strong{ font-size:16px; }
+    .briefing-plan:nth-child(2){ border-left-color:#d4a017; }
+    .briefing-plan:nth-child(3){ border-left-color:#8b4513; }
+    .briefing-plan strong{ font-size:14px; }
     .briefing-health{
       display:grid;
       grid-template-columns:1fr 1fr 1fr;
@@ -2074,13 +2090,29 @@ async function loadCaptainBriefing() {
     if (!res.ok) throw new Error(`No briefing artifact for ${REGION_ID}`);
     const briefing = await res.json();
     const when = briefing.generated_at ? new Date(briefing.generated_at).toLocaleString() : "unknown";
-    status.textContent = `${briefing.title || "Captain Briefing"} • ${when}`;
+    status.textContent = `${briefing.target_window || briefing.title || "Captain Briefing"} • ${when}`;
 
-    plansDiv.innerHTML = (briefing.plans || []).slice(0, 3).map((p, i) => `
-      <div class="briefing-plan">
-        <div class="muted">PLAN ${i === 0 ? "A" : i === 1 ? "B" : "C"}</div>
-        <strong>${p.zone || "Unknown"}</strong><br>
-        <span>${p.verdict || ""}</span> • Score ${p.score ?? "?"}/120 • ${p.confidence || "?"}
+    // New structure: plans grouped by departure_port
+    // Each plan has: { departure_port, destinations: [{zone, verdict, score, confidence, rank_within_port}] }
+    const portGroups = {};
+    (briefing.plans || []).forEach(p => {
+      const port = p.departure_port || p.zone || "Unknown Port";
+      if (!portGroups[port]) portGroups[port] = [];
+      portGroups[port].push(p);
+    });
+    plansDiv.innerHTML = Object.entries(portGroups).slice(0, 4).map(([port, plans]) => `
+      <div class="briefing-port-group">
+        <div class="muted" style="font-size:11px;margin-bottom:4px;">DEPARTURE PORT</div>
+        <strong style="font-size:14px;">${port}</strong>
+        <div class="briefing-port-plans">
+          ${(plans || []).slice(0, 3).map((p, i) => `
+            <div class="briefing-plan" style="margin-left:0;padding-left:8px;border-left:2px solid ${i===0?'#2d7d46':i===1?'#d4a017':'#8b4513'}">
+              <div class="muted">PLAN ${"ABC"[i]}</div>
+              <strong>${p.zone || "Unknown"}</strong><br>
+              <span>${p.verdict || ""}</span> • Score ${p.score ?? "?"}/120 • ${p.confidence || "?"}
+            </div>
+          `).join("")}
+        </div>
       </div>
     `).join("");
 
