@@ -770,7 +770,14 @@ const PLACE_LABELS = [
   {type:"port", name:"Little River", lon:-78.6142, lat:33.8732},
   {type:"port", name:"Georgetown", lon:-79.2945, lat:33.3768},
   {type:"port", name:"Charleston Harbor", lon:-79.9237, lat:32.7810},
-];
+  // USEC South tournament spots
+  {type:"spot", name:"Wilmington Canyon", lon:-73.60, lat:38.10},
+  {type:"spot", name:"Norfolk Canyon", lon:-74.80, lat:36.90},
+  {type:"spot", name:"Cape May Rim", lon:-74.40, lat:38.90},
+  {type:"spot", name:"Polar Fork", lon:-72.80, lat:38.70},
+  {type:"spot", name:"Saxon State", lon:-73.40, lat:38.00},
+  {type:"spot", name:"Northern Rim", lon:-73.00, lat:38.60},
+  // Mid-Atlantic cities
 
 function placeInRegion(p) {
   const [w, s, e, n] = BBOX.map(Number);
@@ -780,18 +787,20 @@ function placeInRegion(p) {
 function placeTrace(type) {
   const pts = PLACE_LABELS.filter(p => p.type === type && placeInRegion(p));
   const isPort = type === "port";
+  const isSpot = type === "spot";
+  const isCity = type === "city";
   return {
     type:"scatter",
     mode:"markers+text",
     x: pts.map(p => p.lon),
     y: pts.map(p => p.lat),
     text: pts.map(p => p.name),
-    textposition: isPort ? "bottom center" : "top center",
-    textfont:{ size: isPort ? 10 : 11, color: isPort ? "#ffd166" : "#ffffff" },
-    marker:{ size: isPort ? 7 : 6, color: isPort ? "#ff9f1c" : "#7bdff2", symbol: isPort ? "diamond" : "circle", line:{color:"#061018", width:1} },
-    hovertemplate: `<b>${isPort ? "Fishing port" : "City"}</b>: %{text}<extra></extra>`,
+    textposition: isSpot ? "top center" : isPort ? "bottom center" : "top center",
+    textfont:{ size: isSpot ? 11 : isPort ? 10 : 11, color: isSpot ? "#ff9f1c" : isPort ? "#ffd166" : "#ffffff", font:{ weight: isSpot ? "bold" : "normal" } },
+    marker:{ size: isSpot ? 9 : isPort ? 7 : 6, color: isSpot ? "#ff6b35" : isPort ? "#ff9f1c" : "#7bdff2", symbol: isSpot ? "star" : isPort ? "diamond" : "circle", line:{color:"#061018", width: isSpot ? 2 : 1} },
+    hovertemplate: `<b>${isSpot ? "Tournament Spot" : isPort ? "Fishing Port" : "City"}</b>: %{text}<extra></extra>`,
     showlegend:false,
-    name: isPort ? "Fishing ports" : "Major cities"
+    name: isSpot ? "Tournament Spots" : isPort ? "Fishing Ports" : "Major Cities"
   };
 }
 
@@ -800,8 +809,10 @@ function injectPlaceLabels(fig) {
   fig.data = (fig.data || []).filter(t => t?.name !== "Major cities" && t?.name !== "Fishing ports");
   const cityTrace = placeTrace("city");
   const portTrace = placeTrace("port");
+  const spotTrace = placeTrace("spot");
   if (cityTrace.x.length) fig.data.push(cityTrace);
   if (portTrace.x.length) fig.data.push(portTrace);
+  if (spotTrace.x.length) fig.data.push(spotTrace);
 }
 
 /* Marker helpers (persist across var switches via injection in showFrame) */
