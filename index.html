@@ -1645,6 +1645,13 @@ async function loadIndex() {
     framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
+
+  for (const opt of varSelect.options) {
+    if (opt.value === "bathy") continue;
+    const count = (framesByVar[opt.value] || []).length;
+    opt.disabled = count === 0;
+    opt.textContent = count === 0 ? `${VAR_LABELS[opt.value]} — no data` : VAR_LABELS[opt.value];
+  }
   
   return data;
 }
@@ -1674,15 +1681,24 @@ async function loadGridForVar(v, dataObj = null) {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const grid = await res.json();
 
-    const lon = grid.lon, lat = grid.lat;
-    const ny = lon.length;
-    const nx = lon[0].length;
-    const midY = Math.floor(ny / 2);
-    const midX = Math.floor(nx / 2);
+    const lon = grid.lon || grid.longitude;
+    const lat = grid.lat || grid.latitude;
+    if (!lon || !lat) throw new Error("grid missing lon/lat axes");
 
-    // Load axes normally (Do NOT reverse here)
-    const xAxis = lon[midY].slice();
-    const yAxis = lat.map(r => r[midX]);
+    let xAxis, yAxis, nx, ny;
+    if (Array.isArray(lon[0]) && Array.isArray(lat[0])) {
+      ny = lon.length;
+      nx = lon[0].length;
+      const midY = Math.floor(ny / 2);
+      const midX = Math.floor(nx / 2);
+      xAxis = lon[midY].slice();
+      yAxis = lat.map(r => r[midX]);
+    } else {
+      xAxis = lon.slice();
+      yAxis = lat.slice();
+      nx = xAxis.length;
+      ny = yAxis.length;
+    }
 
     const info = { xAxis, yAxis, nx, ny };
     gridCache[v] = info;
