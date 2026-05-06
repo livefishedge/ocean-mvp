@@ -1,0 +1,74 @@
+{
+  "region": "usec_south",
+  "last_updated": "2026-05-06T15:13:59.666981Z",
+  "vars": [
+    "chl",
+    "uv"
+  ],
+  "frames": {
+    "chl": [
+      {
+        "var": "chl",
+        "id": "usec_south_20260504_2026124.1439_chl_S3A",
+        "label": "2026-05-04 14:39 UTC | S3A",
+        "time_iso": "2026-05-04T14:39:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260504_2026124.1439_chl_S3A.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260505_2026125.1515_chl_S3B",
+        "label": "2026-05-05 15:15 UTC | S3B",
+        "time_iso": "2026-05-05T15:15:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260505_2026125.1515_chl_S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      }
+    ],
+    "uv": [
+      {
+        "var": "uv",
+        "id": "uv_usec_south_2026125_20260505_cmems-duacs",
+        "label": "2026-05-05",
+        "time_iso": "2026-05-05T00:00:00Z",
+        "json_path": "data/usec_south/uv/uv_usec_south_2026125_20260505_cmems-duacs.json",
+        "grid_file": "uv_12500_grid.json"
+      },
+      {
+        "var": "uv",
+        "id": "uv_usec_south_2026126_20260506_cmems-duacs",
+        "label": "2026-05-06",
+        "time_iso": "2026-05-06T00:00:00Z",
+        "json_path": "data/usec_south/uv/uv_usec_south_2026126_20260506_cmems-duacs.json",
+        "grid_file": "uv_12500_grid.json"
+      }
+    ]
+  },
+  "region_meta": {
+    "id": "usec_south",
+    "label": "US East Coast \u2014 NC/SC",
+    "polygon": [
+      [
+        -81,
+        32
+      ],
+      [
+        -76,
+        36
+      ],
+      [
+        -73,
+        35
+      ],
+      [
+        -79,
+        31
+      ]
+    ],
+    "bbox": [
+      "-81",
+      "31",
+      "-73",
+      "36"
+    ]
+  }
+}

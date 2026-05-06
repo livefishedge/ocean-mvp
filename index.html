@@ -469,6 +469,12 @@
     
 
   <div id="controls">
+    <div class="row" id="row-region">
+      <select id="region-select" title="Region">
+        <option value="usec_md">US East Coast — Mid-Atlantic</option>
+        <option value="usec_south">US East Coast — NC/SC</option>
+      </select>
+    </div>
     <div class="row" id="row-var">
       <select id="var-select">
         <option value="chl">Chlorophyll</option>
@@ -558,7 +564,12 @@
 
 <script>
 /* ========================= CONFIG ========================= */
-let REGION_ID = "ma";
+const REGIONS = {
+  usec_md: { label: "US East Coast — Mid-Atlantic", index: "index-usec_md.json" },
+  usec_south: { label: "US East Coast — NC/SC", index: "index-usec_south.json" }
+};
+let REGION_ID = new URLSearchParams(location.search).get("region") || "usec_md";
+if (!REGIONS[REGION_ID]) REGION_ID = "usec_md";
 
 // Bounding Box (LonMin, LatMin, LonMax, LatMax)
 let BBOX = [-76.5, 35.5, -71.5, 40.5];
@@ -576,11 +587,7 @@ const VAR_TO_GRID = {
   uv:  "uv_12500_grid.json"
 };
 
-let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_mbh_bathy.json`;
-
-const INDEX_CANDIDATES = [
-  "index.json",
-];
+let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_20251208/gebco_2025_${REGION_ID}_bathy.json`;
 
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.01, vmax: 5.0, unit: "mg/m³" },
@@ -1594,11 +1601,25 @@ function installModebarHoverHelpOnce(){
 }
 
 
+function installRegionSelector(){
+  const sel = document.getElementById("region-select");
+  if (!sel || sel.__installed) return;
+  sel.__installed = true;
+  sel.value = REGION_ID;
+  sel.addEventListener("change", () => {
+    const next = sel.value;
+    const url = new URL(location.href);
+    url.searchParams.set("region", next);
+    location.href = url.toString();
+  });
+}
+
 /* ========================= LOADING ========================= */
 async function loadIndex() {
-  // 1. Fetch the data ONCE with a cache-buster
-  const res = await fetch("index.json?t=" + Date.now());
-  if (!res.ok) throw new Error("Failed to load index.json");
+  // 1. Fetch selected region index ONCE with a cache-buster
+  const indexUrl = REGIONS[REGION_ID]?.index || `index-${REGION_ID}.json`;
+  const res = await fetch(indexUrl + "?t=" + Date.now());
+  if (!res.ok) throw new Error(`Failed to load ${indexUrl}`);
   const data = await res.json();
   
   // 2. Set the global timestamp if it's the first load
@@ -1948,7 +1969,7 @@ async function loadCaptainBriefing() {
 /* ========================= INIT ========================= */
 (async function init() {
   try {
-    //await loadIndex();
+    installRegionSelector();
     await Promise.all([ loadIndex(), prepareLandMask() ]);
     await setCurrentVar("chl", false);
     syncRangeInputsToVar();
