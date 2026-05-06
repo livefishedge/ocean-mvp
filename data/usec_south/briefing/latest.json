@@ -1,34 +1,46 @@
 {
   "region": "usec_south",
-  "generated_at": "2026-05-06T17:20:52.096623Z",
+  "generated_at": "2026-05-06T17:39:02.996319Z",
   "source_repo": "/home/gzheng/.openclaw/workspace-cto",
   "source_commit": "manual-grid-read",
   "title": "Captain Briefing \u2014 US East Coast NC/SC",
-  "target_window": "dawn",
+  "target_window": "Departure: Wednesday, May 6 / Thursday, May 7",
+  "departure_date": "Wednesday, May 6",
+  "data_freshness": {
+    "sst": "unavailable",
+    "chl": "297m ago",
+    "uv": "unavailable"
+  },
   "plans": [
     {
-      "zone": "Wilmington Canyon",
+      "zone": "Ocean City MD",
       "verdict": "\ud83d\udd34 NO-GO",
-      "score": 30,
+      "score": 20,
       "confidence": "LOW"
     },
     {
-      "zone": "Norfolk Canyon",
+      "zone": "Morehead City NC",
       "verdict": "\ud83d\udd34 NO-GO",
-      "score": 30,
+      "score": 20,
       "confidence": "LOW"
     },
     {
-      "zone": "Cape May Rim",
+      "zone": "Wrightsville Beach NC",
       "verdict": "\ud83d\udd34 NO-GO",
-      "score": 30,
+      "score": 20,
+      "confidence": "LOW"
+    },
+    {
+      "zone": "Little River SC",
+      "verdict": "\ud83d\udd34 NO-GO",
+      "score": 20,
       "confidence": "LOW"
     }
   ],
   "health": {
     "region": "usec_south",
     "root": "/home/gzheng/data/prod/usec_south",
-    "checked_at": "2026-05-06T17:20:52.096623Z",
+    "checked_at": "2026-05-06T17:39:02.996319Z",
     "products": {
       "sst": {
         "ok": false,
@@ -40,7 +52,7 @@
       "chl": {
         "ok": true,
         "kind": "chl",
-        "age_min": 279,
+        "age_min": 297,
         "path": "/home/gzheng/data/prod/usec_south/chl/images/json/usec_south_2026125.1800_chl_VJ2.json",
         "mtime": "2026-05-06T12:41:25.767136"
       },
@@ -53,7 +65,7 @@
       }
     }
   },
-  "ranking_summary": "Top spot: Wilmington Canyon (\ud83d\udd34 NO-GO, score 30/120)",
-  "briefing_text": "Data-derived briefing for USEC South. CHL: 3 frames. SST: 0 frames. UV: 0 frames.",
+  "ranking_summary": "Best: Ocean City MD \ud83d\udd34 NO-GO (score 20/120)",
+  "briefing_text": "DEPARTURE WINDOW: Wednesday, May 6 & Thursday, May 7\n==========================================\n\nDATA STATUS:\n  SST: unavailable | CHL: 297m ago | Currents: unavailable\n\nTOP ZONES FOR YOUR PORT:",
   "demo_status": "active"
 }
