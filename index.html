@@ -678,6 +678,65 @@ let markerTrace = {
   name: "Markers"
 };
 
+
+/* Place labels: major coastal cities + fishing ports */
+const PLACE_LABELS = [
+  // Mid-Atlantic cities
+  {type:"city", name:"New York", lon:-74.0060, lat:40.7128},
+  {type:"city", name:"Philadelphia", lon:-75.1652, lat:39.9526},
+  {type:"city", name:"Atlantic City", lon:-74.4229, lat:39.3643},
+  {type:"city", name:"Baltimore", lon:-76.6122, lat:39.2904},
+  {type:"city", name:"Washington DC", lon:-77.0369, lat:38.9072},
+  {type:"city", name:"Norfolk", lon:-76.2859, lat:36.8508},
+  {type:"city", name:"Virginia Beach", lon:-75.9780, lat:36.8529},
+  // NC/SC cities
+  {type:"city", name:"Wilmington", lon:-77.9447, lat:34.2257},
+  {type:"city", name:"Myrtle Beach", lon:-78.8867, lat:33.6891},
+  {type:"city", name:"Charleston", lon:-79.9311, lat:32.7765},
+  {type:"city", name:"Savannah", lon:-81.0998, lat:32.0809},
+
+  // Fishing ports / inlets
+  {type:"port", name:"Montauk", lon:-71.9448, lat:41.0359},
+  {type:"port", name:"Brielle / Manasquan", lon:-74.0565, lat:40.1079},
+  {type:"port", name:"Barnegat Light", lon:-74.1065, lat:39.7576},
+  {type:"port", name:"Cape May", lon:-74.9060, lat:38.9351},
+  {type:"port", name:"Ocean City MD", lon:-75.0849, lat:38.3365},
+  {type:"port", name:"Wachapreague", lon:-75.6896, lat:37.6057},
+  {type:"port", name:"Oregon Inlet", lon:-75.5488, lat:35.7957},
+  {type:"port", name:"Hatteras", lon:-75.6902, lat:35.2196},
+  {type:"port", name:"Morehead City", lon:-76.7260, lat:34.7229},
+  {type:"port", name:"Beaufort NC", lon:-76.6638, lat:34.7182},
+  {type:"port", name:"Wrightsville Beach", lon:-77.7950, lat:34.2085},
+  {type:"port", name:"Little River", lon:-78.6142, lat:33.8732},
+  {type:"port", name:"Georgetown", lon:-79.2945, lat:33.3768},
+  {type:"port", name:"Charleston Harbor", lon:-79.9237, lat:32.7810},
+];
+
+function placeTrace(type) {
+  const pts = PLACE_LABELS.filter(p => p.type === type);
+  const isPort = type === "port";
+  return {
+    type:"scatter",
+    mode:"markers+text",
+    x: pts.map(p => p.lon),
+    y: pts.map(p => p.lat),
+    text: pts.map(p => p.name),
+    textposition: isPort ? "bottom center" : "top center",
+    textfont:{ size: isPort ? 10 : 11, color: isPort ? "#ffd166" : "#ffffff" },
+    marker:{ size: isPort ? 7 : 6, color: isPort ? "#ff9f1c" : "#7bdff2", symbol: isPort ? "diamond" : "circle", line:{color:"#061018", width:1} },
+    hovertemplate: `<b>${isPort ? "Fishing port" : "City"}</b>: %{text}<extra></extra>`,
+    showlegend:false,
+    name: isPort ? "Fishing ports" : "Major cities"
+  };
+}
+
+function injectPlaceLabels(fig) {
+  if (!fig) return;
+  fig.data = (fig.data || []).filter(t => t?.name !== "Major cities" && t?.name !== "Fishing ports");
+  fig.data.push(placeTrace("city"));
+  fig.data.push(placeTrace("port"));
+}
+
 /* Marker helpers (persist across var switches via injection in showFrame) */
 function syncMarkerTraceFromState() {
   markerTrace.x = markers.map(m => m.lon);
@@ -1846,9 +1905,10 @@ async function showFrame() {
 
   injectMarkers(fig);
   
-  if (landTrace && currentVar !== "bathy") {
+  if (landTrace) {
     fig.data.push(landTrace);
   }
+  injectPlaceLabels(fig);
 
   await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
   await renderFooterColorbar(currentVar);

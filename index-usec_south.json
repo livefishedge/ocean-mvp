@@ -1,8 +1,9 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-06T15:56:06.769420Z",
+  "last_updated": "2026-05-06T16:27:27.254950Z",
   "vars": [
     "chl",
+    "sst",
     "uv"
   ],
   "frames": {
@@ -62,6 +63,56 @@
         "time_iso": "2026-05-05T15:15:00Z",
         "json_path": "data/usec_south/chl/usec_south_20260505_2026125.1515_chl_S3B.json",
         "grid_file": "viirs_chl_750_grid.json"
+      }
+    ],
+    "sst": [
+      {
+        "var": "sst",
+        "id": "sstcomp_usec_south_2026123_20260503_10_g19_c01_c001",
+        "label": "2026-05-03",
+        "time_iso": "2026-05-03T00:00:00Z",
+        "json_path": "data/usec_south/sst/sstcomp_usec_south_2026123_20260503_10_g19_c01_c001.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_usec_south_2026124_20260504_04_g19_c02_c002",
+        "label": "2026-05-04",
+        "time_iso": "2026-05-04T00:00:00Z",
+        "json_path": "data/usec_south/sst/sstcomp_usec_south_2026124_20260504_04_g19_c02_c002.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_usec_south_2026124_20260504_14_g19_c03_c003",
+        "label": "2026-05-04",
+        "time_iso": "2026-05-04T00:00:00Z",
+        "json_path": "data/usec_south/sst/sstcomp_usec_south_2026124_20260504_14_g19_c03_c003.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_usec_south_2026124_20260504_17_g19_c04_c004",
+        "label": "2026-05-04",
+        "time_iso": "2026-05-04T00:00:00Z",
+        "json_path": "data/usec_south/sst/sstcomp_usec_south_2026124_20260504_17_g19_c04_c004.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_usec_south_2026124_20260504_19_g19_c05_c005",
+        "label": "2026-05-04",
+        "time_iso": "2026-05-04T00:00:00Z",
+        "json_path": "data/usec_south/sst/sstcomp_usec_south_2026124_20260504_19_g19_c05_c005.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sstcomp_usec_south_2026124_20260504_21_g19_c06_c006",
+        "label": "2026-05-04",
+        "time_iso": "2026-05-04T00:00:00Z",
+        "json_path": "data/usec_south/sst/sstcomp_usec_south_2026124_20260504_21_g19_c06_c006.json",
+        "grid_file": "goes_sst_1000_grid.json"
       }
     ],
     "uv": [
