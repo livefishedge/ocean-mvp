@@ -1,0 +1,59 @@
+{
+  "region": "usec_south",
+  "generated_at": "2026-05-06T17:20:52.096623Z",
+  "source_repo": "/home/gzheng/.openclaw/workspace-cto",
+  "source_commit": "manual-grid-read",
+  "title": "Captain Briefing \u2014 US East Coast NC/SC",
+  "target_window": "dawn",
+  "plans": [
+    {
+      "zone": "Wilmington Canyon",
+      "verdict": "\ud83d\udd34 NO-GO",
+      "score": 30,
+      "confidence": "LOW"
+    },
+    {
+      "zone": "Norfolk Canyon",
+      "verdict": "\ud83d\udd34 NO-GO",
+      "score": 30,
+      "confidence": "LOW"
+    },
+    {
+      "zone": "Cape May Rim",
+      "verdict": "\ud83d\udd34 NO-GO",
+      "score": 30,
+      "confidence": "LOW"
+    }
+  ],
+  "health": {
+    "region": "usec_south",
+    "root": "/home/gzheng/data/prod/usec_south",
+    "checked_at": "2026-05-06T17:20:52.096623Z",
+    "products": {
+      "sst": {
+        "ok": false,
+        "kind": "sst",
+        "age_min": null,
+        "path": null,
+        "mtime": null
+      },
+      "chl": {
+        "ok": true,
+        "kind": "chl",
+        "age_min": 279,
+        "path": "/home/gzheng/data/prod/usec_south/chl/images/json/usec_south_2026125.1800_chl_VJ2.json",
+        "mtime": "2026-05-06T12:41:25.767136"
+      },
+      "uv": {
+        "ok": false,
+        "kind": "uv",
+        "age_min": null,
+        "path": null,
+        "mtime": null
+      }
+    }
+  },
+  "ranking_summary": "Top spot: Wilmington Canyon (\ud83d\udd34 NO-GO, score 30/120)",
+  "briefing_text": "Data-derived briefing for USEC South. CHL: 3 frames. SST: 0 frames. UV: 0 frames.",
+  "demo_status": "active"
+}
