@@ -1326,14 +1326,16 @@ function buildSst(gridInfo, dataObj) {
 
 function buildUv(gridInfo, dataObj) {
   const { xAxis, yAxis, nx, ny } = gridInfo;
-  const d = dataObj.data || dataObj;
+  const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+  const grid = dataObj?.meta?.grid || dataObj?.layout?.meta?.grid || {};
 
-  if (!d || !is2D(d.u) || !is2D(d.v) || !is2D(d.adt)) {
-    throw new Error("UV JSON missing 2-D keys: data.u, data.v, data.adt");
+  const u = d?.u || grid.u;
+  const v = d?.v || grid.v;
+  const adt = d?.adt || grid.adt || d?.z;
+
+  if (!is2D(u) || !is2D(v) || !is2D(adt)) {
+    throw new Error("UV JSON missing 2-D keys: u, v, adt/z");
   }
-
-  const adt = d.adt;
-  const u = d.u, v = d.v;
 
   // Use the UV range, which is now configured for ADT (Sea Surface Height)
   const vmin = userRanges.uv.vmin; 
@@ -2257,15 +2259,18 @@ async function loadCaptainBriefing() {
       // 3. Send
       fetch(WEBHOOK_URL, {
         method: 'POST',
+        mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
       .then(() => {
-        // Success feedback
         alert("Feedback sent!");
-        inputField.value = ""; // Clear the box
+        inputField.value = "";
       })
-      .catch(err => console.error("Failed to send", err));
+      .catch(err => {
+        console.error("Failed to send", err);
+        alert("Feedback could not be sent. Please try again later.");
+      });
     }
   }
 })();
