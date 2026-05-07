@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-07T18:34:32.553882Z",
+  "last_updated": "2026-05-07T18:38:48.689687Z",
   "vars": [
     "chl",
     "sst",
@@ -8,6 +8,54 @@
   ],
   "frames": {
     "chl": [
+      {
+        "var": "chl",
+        "id": "usec_south_20260424_2026114.1502_chl_S3B",
+        "label": "2026-04-24 15:02 UTC | S3B",
+        "time_iso": "2026-04-24T15:02:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260424_2026114.1502_chl_S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260425_2026115.1455_chl_S3A-S3B",
+        "label": "2026-04-25 14:55 UTC | S3A-S3B",
+        "time_iso": "2026-04-25T14:55:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260425_2026115.1455_chl_S3A-S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260426_2026116.1448_chl_S3A",
+        "label": "2026-04-26 14:48 UTC | S3A",
+        "time_iso": "2026-04-26T14:48:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260426_2026116.1448_chl_S3A.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260427_2026117.1452_chl_S3A-S3B",
+        "label": "2026-04-27 14:52 UTC | S3A-S3B",
+        "time_iso": "2026-04-27T14:52:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260427_2026117.1452_chl_S3A-S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260428_2026118.1457_chl_S3B",
+        "label": "2026-04-28 14:57 UTC | S3B",
+        "time_iso": "2026-04-28T14:57:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260428_2026118.1457_chl_S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260429_2026119.1450_chl_S3A-S3B",
+        "label": "2026-04-29 14:50 UTC | S3A-S3B",
+        "time_iso": "2026-04-29T14:50:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260429_2026119.1450_chl_S3A-S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
       {
         "var": "chl",
         "id": "usec_south_20260429_2026119.1510_chl_S3A",
