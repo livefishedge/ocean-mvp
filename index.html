@@ -548,7 +548,7 @@
     <div class="row control-group" id="row-region">
       <select id="region-select" class="control-select" title="Region">
         <option value="usec_md">US East Coast — Mid-Atlantic</option>
-        <option value="usec_south">US East Coast — NC/SC</option>
+        <option value="usec_south">US East Coast — South-Atlantic</option>
       </select>
     </div>
 
@@ -637,13 +637,15 @@
 const CTO_TEST_LABEL = "hello pages rebuild";
 const REGIONS = {
   usec_md: { label: "US East Coast — Mid-Atlantic", index: "index-usec_md.json" },
-  usec_south: { label: "US East Coast — NC/SC", index: "index-usec_south.json" }
+  usec_south: { label: "US East Coast — South-Atlantic", index: "index-usec_south.json" }
 };
 let REGION_ID = new URLSearchParams(location.search).get("region") || "usec_md";
 if (!REGIONS[REGION_ID]) REGION_ID = "usec_md";
 
 // Bounding Box (LonMin, LatMin, LonMax, LatMax)
-let BBOX = [-81, 31, -71, 41]; // Extended to cover NC/SC + tournament spots
+  // usec_south BBOX: lon [-81, -71], lat [31, 40] — South Atlantic shelf and tournament grounds
+  // Do NOT extend into Mid-Atlantic; usec_md covers the northerly area
+  let BBOX = [-81, 31, -71, 40];
 
 // UPDATED: UV label is now Sea Surface Height, and Currents arrow unit is separate
 const VAR_LABELS = { 
@@ -2271,14 +2273,34 @@ async function loadCaptainBriefing() {
 async function pollForUpdates() {
   try {
     // Ping index.json with a random string to force GitHub to give us the newest version
-    const res = await fetch("index.json?nocache=" + Date.now());
+    const regionIndexUrl = REGIONS[REGION_ID]?.index || `index-${REGION_ID}.json`;
+    const res = await fetch(regionIndexUrl + "?nocache=" + Date.now());
+    if (!res.ok) throw new Error(`Failed to poll ${regionIndexUrl}`);
     const data = await res.json();
 
     // Check if the SERVER has a timestamp, and if it differs from ours.
     // This allows the page to refresh even if our local timestamp was null (first run).
     if (data.last_updated && data.last_updated !== lastUpdateTimestamp) {
-      console.log("New data detected! Reloading...");
-      window.location.reload(); 
+      // New data detected — silently update the frame list without resetting user state.
+      // Only jump to latest if user is on the last frame and new data is newer than what they saw;
+      // otherwise just let the new data be available on next step.
+      console.log("New data available in index — refreshing frame list silently.");
+      lastUpdateTimestamp = data.last_updated;
+      // Reload the index in the background and rebuild framesByVar; preserve current view state.
+      // Reload THIS region's index (not the hardcoded ma index)
+      const regionIndexUrl = REGIONS[REGION_ID]?.index || `index-${REGION_ID}.json`;
+      loadIndex().then(idx => {
+        // loadIndex() already updates framesByVar, frameTimesByVar, and BBOX in place.
+        // If user was on the last available frame, advance to new latest automatically;
+        // otherwise just make new data available without disrupting navigation.
+        const maxIdx = frameTimesByVar[currentVar].length - 1;
+        if (currentFrameIdx >= maxIdx && maxIdx >= 0) {
+          currentFrameIdx = maxIdx;
+          showFrame(currentFrameIdx);
+        }
+      }).catch(e => {
+        console.error("Silent index refresh failed:", e);
+      });
     }
   } catch (e) {
     console.error("Update check failed", e);
