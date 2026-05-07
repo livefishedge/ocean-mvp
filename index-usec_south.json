@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-07T17:47:05.751665Z",
+  "last_updated": "2026-05-07T17:48:28.860634Z",
   "vars": [
     "chl",
     "sst",
@@ -1275,6 +1275,14 @@
         "time_iso": "2026-05-06T00:00:00Z",
         "json_path": "data/usec_south/uv/uv_usec_south_2026126_20260506_cmems-duacs.json",
         "grid_file": "uv_12500_grid.json"
+      },
+      {
+        "var": "uv",
+        "id": "uv_usec_south_2026127_20260507_cmems-duacs",
+        "label": "2026-05-07",
+        "time_iso": "2026-05-07T00:00:00Z",
+        "json_path": "data/usec_south/uv/uv_usec_south_2026127_20260507_cmems-duacs.json",
+        "grid_file": "uv_12500_grid.json"
       }
     ]
   },
@@ -1282,10 +1290,10 @@
     "id": "usec_south",
     "label": "US East Coast \u2014 South-Atlantic",
     "bbox": [
-      "-81",
-      "31",
-      "-73",
-      "36"
+      -81,
+      31,
+      -73,
+      36
     ],
     "polygon": [
       [
