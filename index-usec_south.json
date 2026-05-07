@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-07T17:00:00.041051Z",
+  "last_updated": "2026-05-07T17:35:04.964459Z",
   "vars": [
     "chl",
     "sst",
@@ -263,6 +263,14 @@
         "time_iso": "2026-05-06T18:30:00Z",
         "json_path": "data/usec_south/chl/usec_south_2026126.1830_chl_VJ1.json",
         "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260507_2026127.1442_chl_S3A-S3B",
+        "label": "2026-05-07 14:42 UTC | S3A-S3B",
+        "time_iso": "2026-05-07T14:42:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260507_2026127.1442_chl_S3A-S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
       }
     ],
     "sst": [
@@ -432,7 +440,7 @@
   },
   "region_meta": {
     "id": "usec_south",
-    "label": "US East Coast \u2014 NC/SC",
+    "label": "US East Coast \u2014 South-Atlantic",
     "bbox": [
       "-81",
       "31",
