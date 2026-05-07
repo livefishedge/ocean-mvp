@@ -1,6 +1,6 @@
 {
   "region": "usec_md",
-  "last_updated": "2026-05-06T15:56:03.457602Z",
+  "last_updated": "2026-05-07T17:01:43.850151Z",
   "vars": [
     "chl",
     "sst",
@@ -374,6 +374,46 @@
         "label": "2026-05-05 14:44 UTC | S3A-S3B",
         "time_iso": "2026-05-05T14:44:00Z",
         "json_path": "data/usec_md/chl/ma_20260505_2026125.1444_chl_S3A-S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "ma_20260506_2026126.1449_chl_S3B",
+        "label": "2026-05-06 14:49 UTC | S3B",
+        "time_iso": "2026-05-06T14:49:00Z",
+        "json_path": "data/usec_md/chl/ma_20260506_2026126.1449_chl_S3B.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "ma_2026126.1654_chl_VJ1",
+        "label": "2026-05-06 16:54 UTC | VJ1",
+        "time_iso": "2026-05-06T16:54:00Z",
+        "json_path": "data/usec_md/chl/ma_2026126.1654_chl_VJ1.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "ma_2026126.1742_chl_VJ2",
+        "label": "2026-05-06 17:42 UTC | VJ2",
+        "time_iso": "2026-05-06T17:42:00Z",
+        "json_path": "data/usec_md/chl/ma_2026126.1742_chl_VJ2.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "ma_2026126.1812_chl_VNP",
+        "label": "2026-05-06 18:12 UTC | VNP",
+        "time_iso": "2026-05-06T18:12:00Z",
+        "json_path": "data/usec_md/chl/ma_2026126.1812_chl_VNP.json",
+        "grid_file": "viirs_chl_750_grid.json"
+      },
+      {
+        "var": "chl",
+        "id": "ma_2026126.1830_chl_VJ1",
+        "label": "2026-05-06 18:30 UTC | VJ1",
+        "time_iso": "2026-05-06T18:30:00Z",
+        "json_path": "data/usec_md/chl/ma_2026126.1830_chl_VJ1.json",
         "grid_file": "viirs_chl_750_grid.json"
       }
     ],
@@ -1002,6 +1042,14 @@
         "label": "2026-05-06",
         "time_iso": "2026-05-06T00:00:00Z",
         "json_path": "data/usec_md/uv/uv_ma_2026126_20260506_cmems-duacs.json",
+        "grid_file": "uv_12500_grid.json"
+      },
+      {
+        "var": "uv",
+        "id": "uv_ma_2026127_20260507_cmems-duacs",
+        "label": "2026-05-07",
+        "time_iso": "2026-05-07T00:00:00Z",
+        "json_path": "data/usec_md/uv/uv_ma_2026127_20260507_cmems-duacs.json",
         "grid_file": "uv_12500_grid.json"
       }
     ]
