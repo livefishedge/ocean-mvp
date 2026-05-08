@@ -1008,7 +1008,8 @@ function parseSstUtcFromName(filename) {
     return new Date(d0.getTime() + (jjj-1)*86400e3 + hh*3600e3);
   }
   // Scan: sst_region_yyyyjjj_yyyymmdd_hh_g19.json
-  m = filename.match(/^sst_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
+  // Region names can contain underscores, e.g. sst_usec_south_2026127_20260507_23_g19.json
+  m = filename.match(/^sst_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
   if (m) {
     const year = Number(m[1]);
     const jjj  = Number(m[2]);
@@ -1675,7 +1676,7 @@ async function setCurrentVar(v, keepTime = true) {
   const frames = framesByVar[currentVar] || [];
   const times = frameTimesByVar[currentVar] || [];
 
-  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestIndex(times, prevT) : 0;
+  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestIndex(times, prevT) : frames.length - 1;
   else currentFrameIdx = 0;
 
   syncRangeInputsToVar();
@@ -2049,7 +2050,8 @@ async function showFrame() {
 /* ========================= EVENTS ========================= */
 varSelect.addEventListener("change", () => {
   setPlaying(false);
-  setCurrentVar(varSelect.value, true);
+  // Default variable switches to that variable's latest frame.
+  setCurrentVar(varSelect.value, false);
 });
 
 slider.addEventListener("input", () => {
