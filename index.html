@@ -2165,8 +2165,19 @@ async function loadCaptainBriefing() {
   try {
     installRegionSelector();
     await Promise.all([ loadIndex(), prepareLandMask() ]);
-    await setCurrentVar("chl", false);
+    // Start on the latest frame for each variable (not the oldest)
+    for (const v of ["chl","sst","uv"]) {
+      if (framesByVar[v]?.length) {
+        frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f));
+      }
+    }
+    currentFrameIdx = Math.max(0, (framesByVar[currentVar]?.length || 1) - 1);
     syncRangeInputsToVar();
+    updateSliderUI();
+    syncTimeControls();
+    syncArrowLegend();
+    if (framesByVar[currentVar]?.length) await showFrame();
+    else Plotly.purge(plotDiv);
   } catch (e) {
     console.error("Init failed:", e);
   }
