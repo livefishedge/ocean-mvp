@@ -639,8 +639,8 @@ const REGIONS = {
   usec_md: { label: "US East Coast — Mid-Atlantic", index: "index-usec_md.json" },
   usec_south: { label: "US East Coast — South-Atlantic", index: "index-usec_south.json" }
 };
-let REGION_ID = new URLSearchParams(location.search).get("region") || "usec_md";
-if (!REGIONS[REGION_ID]) REGION_ID = "usec_md";
+let REGION_ID = new URLSearchParams(location.search).get("region") || "usec_south";
+if (!REGIONS[REGION_ID]) REGION_ID = "usec_south";
 
 // Bounding Box (LonMin, LatMin, LonMax, LatMax)
   // usec_south BBOX: lon [-81, -71], lat [31, 40] — South Atlantic shelf and tournament grounds
