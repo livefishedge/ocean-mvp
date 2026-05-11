@@ -1851,7 +1851,6 @@ function inferGridFromFrame(v, dataObj) {
 }
 
 async function loadGridForVar(v, dataObj = null) {
-  if (gridCache[v]) return gridCache[v];
   const gridName = VAR_TO_GRID[v];
   
   try {
@@ -1882,10 +1881,13 @@ async function loadGridForVar(v, dataObj = null) {
     gridCache[v] = info;
     return info;
   } catch (e) {
-    console.warn(`Grid file unavailable for ${v}; inferring axes from frame metadata.`, e);
-    const info = inferGridFromFrame(v, dataObj || {});
-    gridCache[v] = info;
-    return info;
+    // No grid file — compute axes from frame metadata each time (no caching for inferred axes)
+    if (dataObj && dataObj.nx && dataObj.ny) {
+      return inferGridFromFrame(v, dataObj);
+    }
+    // Last resort fallback
+    const info2 = inferGridFromFrame(v, {});
+    return info2;
   }
 }
 
