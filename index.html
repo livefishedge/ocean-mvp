@@ -1851,6 +1851,14 @@ function inferGridFromFrame(v, dataObj) {
 }
 
 async function loadGridForVar(v, dataObj = null) {
+  // CHL now mixes OLCI composites and VIIRS model frames with different
+  // raster dimensions. A single var-level grid file silently misplaces frames.
+  // Prefer each CHL frame's own bbox/nx/ny metadata; fall back to grid only for
+  // legacy frames missing metadata.
+  if (v === "chl" && dataObj && dataObj.bbox && dataObj.nx && dataObj.ny) {
+    return inferGridFromFrame(v, dataObj);
+  }
+
   const gridName = VAR_TO_GRID[v];
   
   try {
