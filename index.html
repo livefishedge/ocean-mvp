@@ -1845,8 +1845,11 @@ function inferGridFromFrame(v, dataObj) {
   const [lonMin, latMin, lonMax, latMax] = bbox;
   const linspace = (a, b, n) => Array.from({length:n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
   const xAxis = linspace(lonMin, lonMax, nx);
-  // The SST composite rows are north-to-south; CHL and UV are south-to-north.
-  const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny);
+  // CHL pipeline outputs are South-Up (raw OLCI: 31→36 ascending was flipped to 36→31;
+  // raw VIIRS North-Up was also flipped to South-Up). Use descending so the
+  // buildChl flipud check (yAxis[0] > yAxis[-1]) does NOT fire — data is
+  // already correctly oriented.
+  const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : (v === "chl" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny));
   return { xAxis, yAxis, nx, ny };
 }
 
