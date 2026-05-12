@@ -663,7 +663,7 @@ const VAR_TO_GRID = {
 let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 
 const DEFAULT_RANGES = {
-  chl:   { vmin: 0.01, vmax: 5.0, unit: "mg/m³" },
+  chl:   { vmin: 0.02, vmax: 10.0, unit: "mg/m³" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   uv:    { vmin: 0.6, vmax: 0.9,  unit: "m" }, /* CHANGED: Now represents ADT/SSH range */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" }
@@ -678,12 +678,12 @@ let userRanges = {
 
 /* CHL colorscale (algae-ish) */
 const CHL_ALGAE = [
-  [0.00, "#ff00ff"], // Magenta (Lowest)
-  [0.25, "#0000ff"], // Blue (shifted up to 25%)
-  [0.50, "#00ffff"], // Cyan (Midpoint is now strictly cool)
-  [0.70, "#00ff00"], // Green (Delayed until 70%)
-  [0.85, "#ffff00"], // Yellow (Compressed into top 15%)
-  [1.00, "#ff0000"]  // Red (Highest)
+  [0.00, "#001f3f"], // Dark Navy Blue (Oligotrophic - very low CHL)
+  [0.20, "#0074d9"], // Ocean Blue (Low CHL)
+  [0.40, "#39cccc"], // Teal (Medium-Low CHL)
+  [0.60, "#2ecc40"], // Bright Green (Medium CHL - chlorophyll bloom)
+  [0.80, "#ffdc00"], // Yellow (High CHL - strong bloom)
+  [1.00, "#ff851b"]  // Orange (Very High CHL - dense bloom)
 ];
 
 /* const CHL_ALGAE = [
