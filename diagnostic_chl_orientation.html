@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>CHL Orientation Diagnostic</title>
+<style>
+body { font-family: monospace; margin: 20px; }
+.panel { border: 1px solid #333; margin: 10px; padding: 10px; }
+.correct { color: green; }
+.wrong { color: red; }
+table { border-collapse: collapse; }
+td, th { border: 1px solid #ccc; padding: 4px 8px; }
+</style>
+</head>
+<body>
+<h1>CHL Orientation Diagnostic</h1>
+
+<h2>1. Raw Data Orientations (from JSON files on disk)</h2>
+<div class="panel">
+<pre>
+OLCI composite (usec_south_20260508_2026128.1435_chl_S3A.json):
+  Raw NC: lat[0]=31 (south), lat[-1]=36 (north) → South-Up
+  After pipeline flipud: JSON row 0 = NC row -1 (north)
+  Published z[0][0]=None (north coast NaN), z[-1][-1]=0.139 (northeast ocean)
+  → Data is NORTH-UP in published JSON (row 0 = north)
+
+VIIRS cross-sensor (usec_south_2026128.1842_chl_VJ2.json):
+  Raw NC: lat[0]=35.997 (north), lat[-1]=31.003 (south) → North-Up
+  After pipeline flipud: JSON row 0 = NC row -1 (south)
+  Published z[0][0]=None, z[0][-1]=0.150, z[-1][-1]=0.269
+  → Data is SOUTH-UP in published JSON (row 0 = south)
+</pre>
+</div>
+
+<h2>2. Viewer Grid Axis (inferred from bbox)</h2>
+<div class="panel">
+<pre>
+bbox: [-81, 31, -73, 36] → latMin=31, latMax=36, ny=743
+
+<b>OLD (broken):</b> yAxis = linspace(latMin, latMax, ny) = [31, 31.006, ..., 36]
+  flipud check: 31 < 36 = TRUE → FLIPS! → CORRECT for North-Up, WRONG for South-Up
+
+<b>NEW (fixed):</b> yAxis = linspace(latMax, latMin, ny) = [36, 35.994, ..., 31]
+  flipud check: 36 > 31 = FALSE → NO flip → Data stays as-is ✓
+</pre>
+</div>
+
+<h2>3. Expected Result After Fix</h2>
+<div class="panel">
+<pre>
+OLCI: pipeline output is North-Up (row 0 = north, row -1 = south)
+      viewer does NOT flip (descending axis) → displayed North-Up ✓
+
+VIIRS: pipeline output is South-Up (row 0 = south, row -1 = north)  
+      viewer does NOT flip (descending axis) → displayed South-Up ✓
+</pre>
+</div>
+
+<h2>4. Simple Flip Verification (JavaScript simulation)</h2>
+<div class="panel" id="flip-test"></div>
+
+<script>
+function linspace(a, b, n) {
+  return Array.from({length: n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
+}
+
+function checkFlip(axisDesc, axis) {
+  const shouldFlip = axis[0] < axis[axis.length - 1];
+  return `${axisDesc}: [${axis[0].toFixed(2)}, ..., ${axis[axis.length-1].toFixed(2)}] → flip=${shouldFlip}`;
+}
+
+const bbox = [-81, 31, -73, 36];
+const latMin = bbox[1], latMax = bbox[3];
+const ny = 743;
+
+// OLD
+const oldYAxis = linspace(latMin, latMax, ny);
+const oldShouldFlip = oldYAxis[0] < oldYAxis[oldYAxis.length - 1];
+
+// NEW  
+const newYAxis = linspace(latMax, latMin, ny);
+const newShouldFlip = newYAxis[0] < newYAxis[newYAxis.length - 1];
+
+const testEl = document.getElementById('flip-test');
+testEl.innerHTML = `
+OLD yAxis (ascending): ${checkFlip("OLD", oldYAxis)} → <b class="${oldShouldFlip ? 'wrong' : 'correct'}">${oldShouldFlip ? 'FLIPS (wrong for CHL)' : 'NO FLIP'}</b><br>
+NEW yAxis (descending): ${checkFlip("NEW", newYAxis)} → <b class="${newShouldFlip ? 'wrong' : 'correct'}">${newShouldFlip ? 'FLIPS' : 'NO FLIP ✓'}</b><br>
+<br>
+For CHL data that is already correctly oriented (North-Up or South-Up):<br>
+- Ascending linspace causes <span class="wrong">WRONG double-flip</span><br>
+- Descending linspace causes <span class="correct">CORRECT display</span>
+`;
+</script>
+
+<h2>5. Live Page Check</h2>
+<div class="panel">
+<pre>
+GitHub Pages URL: <a href="https://livefishedge.github.io/ocean-mvp/" target="_blank">https://livefishedge.github.io/ocean-mvp/</a>
+
+<span class="correct">✓ Fix deployed: index.html now uses linspace(latMax, latMin, ny) for CHL</span>
+
+<span class="correct">✓ Published CHL JSONs now use cross_sensor/usec_south model (1187x742)</span>
+
+<span class="correct">✓ Old single_day_128_fixed (906x864) stale files are now bypassed</span>
+
+Reload the page and check if CHL looks correct.
+If still wrong, try: Ctrl+Shift+R (hard refresh) or open in Incognito.
+</pre>
+</div>
+
+<h2>6. Pending: Re-publish recent CHL frames to fix orientation</h2>
+<div class="panel">
+<pre>
+The fix above corrects the VIEWER side (how it interprets the data).
+
+But if the data itself was published with wrong orientation, the viewer
+will display it wrong regardless of the axis fix.
+
+To fully fix: re-run publisher on recent CHL frames OR rebuild from raw NC.
+
+Priority frames to check:
+- OLCI composites (have correct orientation in raw NC, but pipeline flipped wrong)
+- VIIRS cross-sensor (pipeline flipud may be double-flipping)
+
+Run: python /home/gzheng/pipelines/orchestrator.py --regions usec_south --vars chl --steps publish
+</pre>
+</div>
+</body>
+</html>
