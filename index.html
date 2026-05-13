@@ -2295,7 +2295,7 @@ async function loadCaptainBriefing() {
     // No request is sent to Discord.
     if (isSilent) return;
 
-    const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
+    const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwQoQQ_bK0AW8796hC92EYjLeX1eQtHW0_rbuFTdaFdY6fQUYOdWdZGst04RpckcFmz_A/exec";
 
     let content = "";
     if (isNewUser) {
@@ -2340,31 +2340,34 @@ async function loadCaptainBriefing() {
 
     function sendFeedback() {
       const text = inputField.value.trim();
-      if (!text) return; // Don't send empty messages
+      if (!text) return;
 
-      // 1. Get User Name
       const user = localStorage.getItem('ocean_viewer_last_user') || "Anonymous";
-
-      // 2. Prepare Webhook
-      const WEBHOOK_URL = "https://discord.com/api/webhooks/1453131435522265291/1MrssyUuxkTWxOP_AP8rQMKqhpE3wxTQymN36evICSjpmF6AyUNzaTtYfq9q6YRGci2o";
+      const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwQoQQ_bK0AW8796hC92EYjLeX1eQtHW0_rbuFTdaFdY6fQUYOdWdZGst04RpckcFmz_A/exec";
 
       const payload = {
-        content: `💬 **Comment from ${user}:** ${text}`
+        name: user,
+        region: REGION_ID || "unknown",
+        message: text,
+        link: window.location.href
       };
 
-      // 3. Send
       fetch(WEBHOOK_URL, {
         method: 'POST',
-        mode: 'no-cors',
+        mode: 'cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      .then(() => {
-        alert("Feedback sent!");
-        inputField.value = "";
+      .then(resp => {
+        if (resp.ok) {
+          alert("Feedback sent!");
+          inputField.value = "";
+        } else {
+          alert("Feedback could not be sent. Please try again.");
+        }
       })
       .catch(err => {
-        console.error("Failed to send", err);
+        console.error("Feedback error", err);
         alert("Feedback could not be sent. Please try again later.");
       });
     }
