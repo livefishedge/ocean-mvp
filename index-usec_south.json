@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-13T13:41:47.743756Z",
+  "last_updated": "2026-05-13T13:57:13.969361Z",
   "vars": [
     "chl",
     "sst",
@@ -258,6 +258,14 @@
       },
       {
         "var": "chl",
+        "id": "usec_south_2026125.1709_chl_VJ1",
+        "label": "2026-05-05 17:09 UTC | VJ1",
+        "time_iso": "2026-05-05T17:09:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026125.1709_chl_VJ1.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
         "id": "usec_south_2026125.1712_chl_VJ1",
         "label": "2026-05-05 17:12 UTC | VJ1",
         "time_iso": "2026-05-05T17:12:00Z",
@@ -298,6 +306,14 @@
       },
       {
         "var": "chl",
+        "id": "usec_south_2026126.1739_chl_VJ2",
+        "label": "2026-05-06 17:39 UTC | VJ2",
+        "time_iso": "2026-05-06T17:39:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026126.1739_chl_VJ2.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
         "id": "usec_south_2026126.1812_chl_VNP",
         "label": "2026-05-06 18:12 UTC | VNP",
         "time_iso": "2026-05-06T18:12:00Z",
@@ -318,6 +334,22 @@
         "label": "2026-05-07 14:42 UTC | S3A-S3B",
         "time_iso": "2026-05-07T14:42:00Z",
         "json_path": "data/usec_south/chl/usec_south_20260507_2026127.1442_chl_S3A-S3B.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_2026127.1718_chl_VJ2",
+        "label": "2026-05-07 17:18 UTC | VJ2",
+        "time_iso": "2026-05-07T17:18:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026127.1718_chl_VJ2.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_2026127.1754_chl_VNP",
+        "label": "2026-05-07 17:54 UTC | VNP",
+        "time_iso": "2026-05-07T17:54:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026127.1754_chl_VNP.json",
         "grid_file": "frame_bbox"
       },
       {
