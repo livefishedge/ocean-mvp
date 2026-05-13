@@ -1272,10 +1272,9 @@ function buildChl(grid, data) {
   let plotX = grid.xAxis; 
   let plotY = grid.yAxis;
 
-  // 3. UPSIDE DOWN FIX (Flip Y if needed)
-  if (plotY.length > 1 && plotY[0] < plotY[plotY.length - 1]) {
-    plotY = [...plotY].reverse();
-  }
+  // 3. Preserve producer row order.
+  // CHL JSON is written south-up: row 0 maps to latMin, last row maps to latMax.
+  // Reversing only the axis (without flipping z/customdata) mirrors the map north/south.
 
   // 4. LOG-SCALE COLORS
   // We map the data to Log10 so it matches the footer's Log scale.
@@ -1845,11 +1844,10 @@ function inferGridFromFrame(v, dataObj) {
   const [lonMin, latMin, lonMax, latMax] = bbox;
   const linspace = (a, b, n) => Array.from({length:n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
   const xAxis = linspace(lonMin, lonMax, nx);
-  // CHL pipeline outputs are South-Up (raw OLCI: 31→36 ascending was flipped to 36→31;
-  // raw VIIRS North-Up was also flipped to South-Up). Use descending so the
-  // buildChl flipud check (yAxis[0] > yAxis[-1]) does NOT fire — data is
-  // already correctly oriented.
-  const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : (v === "chl" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny));
+  // CHL producer writes frames south-up: row 0 = latMin, last row = latMax.
+  // Therefore inferred CHL axes must be ascending to keep z[row] aligned with latitude.
+  // SST keeps its existing north-up convention; UV remains south-up.
+  const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny);
   return { xAxis, yAxis, nx, ny };
 }
 
