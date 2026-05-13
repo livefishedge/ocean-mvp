@@ -372,6 +372,13 @@
       background:rgba(12,23,35,0.55);
       font-size:12px;
     }
+    /* Make map place labels readable over CHL/SST/current rasters. */
+    #plot .textpoint text{
+      paint-order: stroke;
+      stroke: rgba(0,0,0,0.88);
+      stroke-width: 3px;
+      stroke-linejoin: round;
+    }
     #briefing-full{
       margin-top:10px;
       white-space:pre-wrap;
@@ -816,9 +823,9 @@ function placeTrace(type) {
     y: pts.map(p => p.lat),
     text: pts.map(p => p.name),
     textposition: isSpot ? "top center" : isPort ? "bottom center" : "top center",
-    textfont:{ size: isSpot ? 11 : isPort ? 10 : 11, color: isSpot ? "#ff9f1c" : isPort ? "#ffd166" : "#ffffff", font:{ weight: isSpot ? "bold" : "normal" } },
-    marker:{ size: isSpot ? 9 : isPort ? 7 : 6, color: isSpot ? "#ff6b35" : isPort ? "#ff9f1c" : "#7bdff2", symbol: isSpot ? "star" : isPort ? "diamond" : "circle", line:{color:"#061018", width: isSpot ? 2 : 1} },
-    hovertemplate: `<b>${isSpot ? "Tournament Spot" : isPort ? "Fishing Port" : "City"}</b>: %{text}<extra></extra>`,
+    textfont:{ size: isSpot ? 13 : isPort ? 13 : 13, color: isSpot ? "#ffb000" : isPort ? "#ffe066" : "#ffffff", font:{ weight: "bold" } },
+    marker:{ size: isSpot ? 10 : isPort ? 8 : 7, color: isSpot ? "#ff6b35" : isPort ? "#ffb000" : "#7bdff2", symbol: isSpot ? "star" : isPort ? "diamond" : "circle", line:{color:"#000000", width: 2} },
+    hovertemplate: `%{text}<extra></extra>`,
     showlegend:false,
     name: isSpot ? "Tournament Spots" : isPort ? "Fishing Ports" : "Major Cities"
   };
@@ -2083,8 +2090,9 @@ async function showFrame() {
 /* ========================= EVENTS ========================= */
 varSelect.addEventListener("change", () => {
   setPlaying(false);
-  // Default variable switches to that variable's latest frame.
-  setCurrentVar(varSelect.value, false);
+  // Preserve the user's viewed timestamp and land on the nearest daytime frame
+  // in the newly selected product. This is the actual product-switch path.
+  setCurrentVar(varSelect.value, true);
 });
 
 slider.addEventListener("input", () => {
