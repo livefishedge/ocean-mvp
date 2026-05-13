@@ -2313,6 +2313,18 @@ async function loadCaptainBriefing() {
 })();
 
 
+
+/* ================= FEEDBACK TOGGLE ================= */
+(function() {
+  const toggleBtn = document.getElementById('feedback-toggle');
+  const panel = document.getElementById('feedback-panel');
+  if (toggleBtn && panel) {
+    toggleBtn.addEventListener('click', () => {
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+  }
+})();
+
 /* ================= INLINE FEEDBACK LOGIC ================= */
 (function() {
   const submitBtn = document.getElementById('feedbackSubmit');
