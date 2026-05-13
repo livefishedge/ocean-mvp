@@ -556,7 +556,7 @@
       <select id="var-select" class="control-select" title="Product">
         <option value="chl">Chlorophyll</option>
         <option value="sst">Temperature</option>
-        <option value="uv">Currents</option>
+        <option value="uv">Currents/SSH</option>
         <option value="bathy">Bathymetry</option>
       </select>
     </div>
@@ -647,10 +647,10 @@ if (!REGIONS[REGION_ID]) REGION_ID = "usec_south";
   // Do NOT extend into Mid-Atlantic; usec_md covers the northerly area
   let BBOX = [-81, 31, -71, 40];
 
-// UPDATED: UV label is now Sea Surface Height, and Currents arrow unit is separate
+// UV product contains currents vectors over SSH/ADT background.
 const VAR_LABELS = { 
   chl:"Chlorophyll", sst:"Temperature", 
-  uv:"Sea Surface Height", /* CHANGED for Range Input Title */
+  uv:"Currents/SSH",
   bathy:"Bathymetry" 
 };
 
@@ -663,7 +663,7 @@ const VAR_TO_GRID = {
 let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 
 const DEFAULT_RANGES = {
-  chl:   { vmin: 0.02, vmax: 10.0, unit: "mg/m³" },
+  chl:   { vmin: 0.02, vmax: 60.0, unit: "mg/m³" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   uv:    { vmin: 0.6, vmax: 0.9,  unit: "m" }, /* CHANGED: Now represents ADT/SSH range */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" }
@@ -708,9 +708,9 @@ const BATHY_SCALE = [
 ];
 
 /* show 0.01, 0.1, 1, 10 on CHL colorbar */
-const CHL_TICKS_LINEAR = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
+const CHL_TICKS_LINEAR = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60];
 const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
-const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => (v===0.01||v===0.1||v===1||v===10) ? String(v) : "");
+const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => ([0.02,0.1,1,10,60].includes(v)) ? String(v) : "");
 
 /* ========================= STATE ========================= */
 let lastUpdateTimestamp = null;
@@ -1093,6 +1093,28 @@ function closestIndex(times, targetMs) {
     if (d < bestDist){ bestDist = d; best = i; }
   }
   return best;
+}
+
+function isDaytimeFrame(varKey, frameMeta) {
+  if (varKey === "bathy" || varKey === "uv") return true;
+  const t = epochMsForFrame(varKey, frameMeta);
+  if (t === null) return true;
+  const hr = new Date(t).getUTCHours();
+  // USEC daylight window in UTC, inclusive. CHL is daylight by source, but
+  // keeping this generic prevents product switches from landing on overnight SST.
+  return hr >= 10 && hr <= 22;
+}
+
+function closestDaytimeIndex(varKey, times, frames, targetMs) {
+  if (!times.length || targetMs === null) return 0;
+  let best = -1, bestDist = Infinity;
+  for (let i=0;i<times.length;i++){
+    const t = times[i];
+    if (t === null || !isDaytimeFrame(varKey, frames[i])) continue;
+    const d = Math.abs(t - targetMs);
+    if (d < bestDist){ bestDist = d; best = i; }
+  }
+  return best >= 0 ? best : closestIndex(times, targetMs);
 }
 
 /* ========================= VIEW SYNC ========================= */
@@ -1675,7 +1697,7 @@ async function setCurrentVar(v, keepTime = true) {
   const frames = framesByVar[currentVar] || [];
   const times = frameTimesByVar[currentVar] || [];
 
-  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestIndex(times, prevT) : frames.length - 1;
+  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : frames.length - 1;
   else currentFrameIdx = 0;
 
   syncRangeInputsToVar();
