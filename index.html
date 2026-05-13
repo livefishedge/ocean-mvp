@@ -1698,11 +1698,14 @@ function syncArrowLegend() {
   arrowLegendDiv.style.display = isUv ? "flex" : "none";
 }
 
-async function setCurrentVar(v, keepTime = true) {
+async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const prevVar = currentVar;
   const prevFrames = framesByVar[prevVar] || [];
   const prevFrame = prevFrames[currentFrameIdx] || null;
   const prevT = (keepTime && prevFrame) ? epochMsForFrame(prevVar, prevFrame) : null;
+
+  // Save current viewport before switching products
+  const savedRange = (keepRange && viewState.hasRange) ? { x: viewState.xRange, y: viewState.yRange } : null;
 
   currentVar = v;
   varSelect.value = v;
@@ -1712,6 +1715,13 @@ async function setCurrentVar(v, keepTime = true) {
 
   if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : frames.length - 1;
   else currentFrameIdx = 0;
+
+  // Restore saved geographic viewport after switching
+  if (savedRange) {
+    viewState.xRange = savedRange.x;
+    viewState.yRange = savedRange.y;
+    viewState.hasRange = true;
+  }
 
   syncRangeInputsToVar();
   updateSliderUI();
