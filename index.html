@@ -316,6 +316,10 @@
       border-color:#4d7dff;
       font-weight:800;
     }
+    #briefing-panel{ display:none; }
+    #briefing-panel[aria-live]{ display:none; }
+    /* OVERRIDE any .open class to keep briefing hidden until explicitly opened */
+    #briefing-panel.open{ display:none !important; }
     #briefing-panel{
       position:fixed;
       top:82px;
@@ -1117,11 +1121,13 @@ function closestDaytimeIndex(varKey, times, frames, targetMs) {
   let best = -1, bestDist = Infinity;
   for (let i=0;i<times.length;i++){
     const t = times[i];
-    if (t === null || !isDaytimeFrame(varKey, frames[i])) continue;
+    if (t === null) continue;
+    // Skip daylight filter — all frames are valid candidates when anchoring a timestamp.
+    // A 4/24 CHL frame maps to the nearest available SST/UV/CHL frame regardless of hour.
     const d = Math.abs(t - targetMs);
     if (d < bestDist){ bestDist = d; best = i; }
   }
-  return best >= 0 ? best : closestIndex(times, targetMs);
+  return best >= 0 ? best : 0;
 }
 
 /* ========================= VIEW SYNC ========================= */
