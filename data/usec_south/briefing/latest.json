@@ -1,71 +1,1025 @@
 {
   "region": "usec_south",
-  "generated_at": "2026-05-06T17:39:02.996319Z",
+  "generated_at": "2026-05-13T17:59:07.889798Z",
   "source_repo": "/home/gzheng/.openclaw/workspace-cto",
-  "source_commit": "manual-grid-read",
-  "title": "Captain Briefing \u2014 US East Coast NC/SC",
-  "target_window": "Departure: Wednesday, May 6 / Thursday, May 7",
-  "departure_date": "Wednesday, May 6",
+  "source_commit": "f2f9e00",
+  "title": "Captain Briefing — US East Coast NC/SC",
+  "target_window": "Departure: Thursday, May 14 dawn / first light",
   "data_freshness": {
-    "sst": "unavailable",
-    "chl": "297m ago",
-    "uv": "unavailable"
+    "sst": "45.0h ago",
+    "chl": "2.9h ago",
+    "uv": "18.0h ago"
   },
   "plans": [
     {
-      "zone": "Ocean City MD",
-      "verdict": "\ud83d\udd34 NO-GO",
-      "score": 20,
-      "confidence": "LOW"
+      "departure_port": "Charleston SC",
+      "zone": "Charleston Bump north edge",
+      "lat": 32.25,
+      "lon": -79.0,
+      "note": "northern Charleston offshore lane",
+      "verdict": "🔴 NO-GO",
+      "score": 42,
+      "confidence": "LOW",
+      "drivers": [
+        "current 0.66 kt",
+        "SSH/ADT 0.12 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded"
+      ],
+      "values": {
+        "sst_f": 76.3,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3239,
+        "chl_mgm3": 0.105,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2843,
+        "current_kt": 0.66,
+        "current_dir_deg": 48.0,
+        "adt_m": 0.117,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 1
     },
     {
-      "zone": "Morehead City NC",
-      "verdict": "\ud83d\udd34 NO-GO",
-      "score": 20,
-      "confidence": "LOW"
+      "departure_port": "Charleston SC",
+      "zone": "Charleston Shelf / 226 area",
+      "lat": 32.05,
+      "lon": -79.45,
+      "note": "shorter Charleston option",
+      "verdict": "🔴 NO-GO",
+      "score": 42,
+      "confidence": "LOW",
+      "drivers": [
+        "current 0.42 kt",
+        "SSH/ADT 0.10 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded"
+      ],
+      "values": {
+        "sst_f": 75.0,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3239,
+        "chl_mgm3": 0.132,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2843,
+        "current_kt": 0.42,
+        "current_dir_deg": 58.0,
+        "adt_m": 0.105,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 2
     },
     {
-      "zone": "Wrightsville Beach NC",
-      "verdict": "\ud83d\udd34 NO-GO",
-      "score": 20,
-      "confidence": "LOW"
+      "departure_port": "Georgetown SC",
+      "zone": "Winyah Scarp",
+      "lat": 32.85,
+      "lon": -78.8,
+      "note": "Georgetown offshore structure lane",
+      "verdict": "🟡 WATCH",
+      "score": 70,
+      "confidence": "MED",
+      "drivers": [
+        "CHL 0.10 mg/m³ fishable",
+        "current 0.25 kt",
+        "SSH/ADT 0.06 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable"
+      ],
+      "values": {
+        "sst_f": 73.6,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3239,
+        "chl_mgm3": 0.1,
+        "chl_quality": "degraded",
+        "chl_age_min": 1373,
+        "current_kt": 0.25,
+        "current_dir_deg": 34.0,
+        "adt_m": 0.062,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 1
     },
     {
-      "zone": "Little River SC",
-      "verdict": "\ud83d\udd34 NO-GO",
-      "score": 20,
-      "confidence": "LOW"
+      "departure_port": "Georgetown SC",
+      "zone": "Georgetown deep edge",
+      "lat": 32.65,
+      "lon": -79.05,
+      "note": "deeper/southern option",
+      "verdict": "🔴 NO-GO",
+      "score": 28,
+      "confidence": "MED",
+      "drivers": [
+        "SSH/ADT 0.06 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL 0.02 mg/m³ marginal",
+        "current 0.19 kt weak/strong"
+      ],
+      "values": {
+        "sst_f": 73.9,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3239,
+        "chl_mgm3": 0.023,
+        "chl_quality": "degraded",
+        "chl_age_min": 1373,
+        "current_kt": 0.19,
+        "current_dir_deg": 62.0,
+        "adt_m": 0.059,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 2
+    },
+    {
+      "departure_port": "Little River SC",
+      "zone": "Frying Pan west edge",
+      "lat": 33.65,
+      "lon": -77.95,
+      "note": "north/east fallback",
+      "verdict": "🟡 WATCH",
+      "score": 70,
+      "confidence": "MED",
+      "drivers": [
+        "CHL 0.56 mg/m³ fishable",
+        "current 0.36 kt",
+        "SSH/ADT 0.12 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable"
+      ],
+      "values": {
+        "sst_f": 69.7,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3239,
+        "chl_mgm3": 0.562,
+        "chl_quality": "degraded",
+        "chl_age_min": 1373,
+        "current_kt": 0.36,
+        "current_dir_deg": 325.0,
+        "adt_m": 0.116,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 1
+    },
+    {
+      "departure_port": "Little River SC",
+      "zone": "Long Bay offshore edge",
+      "lat": 33.4,
+      "lon": -78.15,
+      "note": "Little River / Long Bay offshore lane",
+      "verdict": "🔴 NO-GO",
+      "score": 28,
+      "confidence": "LOW",
+      "drivers": [
+        "SSH/ADT 0.09 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded",
+        "current 0.16 kt weak/strong"
+      ],
+      "values": {
+        "sst_f": 70.7,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3239,
+        "chl_mgm3": 0.331,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2861,
+        "current_kt": 0.16,
+        "current_dir_deg": 50.0,
+        "adt_m": 0.09,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 2
+    },
+    {
+      "departure_port": "Little River SC",
+      "zone": "Winyah Scarp north",
+      "lat": 33.2,
+      "lon": -78.55,
+      "note": "southern pivot lane",
+      "verdict": "🔴 NO-GO",
+      "score": 28,
+      "confidence": "LOW",
+      "drivers": [
+        "SSH/ADT 0.08 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded",
+        "current 0.12 kt weak/strong"
+      ],
+      "values": {
+        "sst_f": 72.6,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3239,
+        "chl_mgm3": 0.3,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2861,
+        "current_kt": 0.12,
+        "current_dir_deg": 53.0,
+        "adt_m": 0.084,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 3
+    },
+    {
+      "departure_port": "Morehead City NC",
+      "zone": "Big Rock / Swansboro Hole",
+      "lat": 34.35,
+      "lon": -76.05,
+      "note": "classic Morehead bluewater lane",
+      "verdict": "🔴 NO-GO",
+      "score": 42,
+      "confidence": "LOW",
+      "drivers": [
+        "current 1.36 kt",
+        "SSH/ADT 0.05 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded"
+      ],
+      "values": {
+        "sst_f": 74.8,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.01,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2890,
+        "current_kt": 1.36,
+        "current_dir_deg": 32.0,
+        "adt_m": 0.047,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 1
+    },
+    {
+      "departure_port": "Morehead City NC",
+      "zone": "Onslow Bay offshore edge",
+      "lat": 34.05,
+      "lon": -76.35,
+      "note": "southwest fallback lane",
+      "verdict": "🔴 NO-GO",
+      "score": 42,
+      "confidence": "LOW",
+      "drivers": [
+        "current 0.90 kt",
+        "SSH/ADT 0.05 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded"
+      ],
+      "values": {
+        "sst_f": 75.6,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.01,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2890,
+        "current_kt": 0.9,
+        "current_dir_deg": 56.0,
+        "adt_m": 0.052,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 2
+    },
+    {
+      "departure_port": "Morehead City NC",
+      "zone": "Cape Lookout east break",
+      "lat": 34.55,
+      "lon": -75.95,
+      "note": "northeast fallback lane",
+      "verdict": "🔴 NO-GO",
+      "score": 42,
+      "confidence": "LOW",
+      "drivers": [
+        "current 1.23 kt",
+        "SSH/ADT 0.01 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded"
+      ],
+      "values": {
+        "sst_f": 74.2,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.01,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2890,
+        "current_kt": 1.23,
+        "current_dir_deg": 45.0,
+        "adt_m": 0.011,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 3
+    },
+    {
+      "departure_port": "Oregon Inlet",
+      "zone": "Oregon-to-Hatteras inside option",
+      "lat": 35.35,
+      "lon": -75.05,
+      "note": "shorter run / inside edge",
+      "verdict": "🟡 WATCH",
+      "score": 70,
+      "confidence": "MED",
+      "drivers": [
+        "CHL 0.30 mg/m³ fishable",
+        "current 1.53 kt",
+        "SSH/ADT -0.03 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable"
+      ],
+      "values": {
+        "sst_f": 73.1,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.298,
+        "chl_quality": "degraded",
+        "chl_age_min": 1420,
+        "current_kt": 1.53,
+        "current_dir_deg": 40.0,
+        "adt_m": -0.034,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 1
+    },
+    {
+      "departure_port": "Oregon Inlet",
+      "zone": "Hatteras shelf break",
+      "lat": 35.2,
+      "lon": -74.55,
+      "note": "shelf-break water east of Hatteras",
+      "verdict": "🟡 WATCH",
+      "score": 56,
+      "confidence": "MED",
+      "drivers": [
+        "CHL 0.21 mg/m³ fishable",
+        "SSH/ADT 0.50 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "current 2.07 kt weak/strong"
+      ],
+      "values": {
+        "sst_f": 78.0,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.206,
+        "chl_quality": "degraded",
+        "chl_age_min": 1420,
+        "current_kt": 2.07,
+        "current_dir_deg": 39.0,
+        "adt_m": 0.501,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 2
+    },
+    {
+      "departure_port": "Oregon Inlet",
+      "zone": "Oregon Inlet offshore edge",
+      "lat": 35.45,
+      "lon": -74.75,
+      "note": "near northern edge of USEC South grid",
+      "verdict": "🔴 NO-GO",
+      "score": 28,
+      "confidence": "MED",
+      "drivers": [
+        "SSH/ADT 0.12 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL 0.05 mg/m³ marginal",
+        "current 2.59 kt weak/strong"
+      ],
+      "values": {
+        "sst_f": 76.7,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.052,
+        "chl_quality": "degraded",
+        "chl_age_min": 1420,
+        "current_kt": 2.59,
+        "current_dir_deg": 32.0,
+        "adt_m": 0.118,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 3
+    },
+    {
+      "departure_port": "Wrightsville Beach NC",
+      "zone": "Wilmington offshore edge",
+      "lat": 33.95,
+      "lon": -76.85,
+      "note": "northeast fallback",
+      "verdict": "🔴 NO-GO",
+      "score": 42,
+      "confidence": "LOW",
+      "drivers": [
+        "current 0.40 kt",
+        "SSH/ADT 0.07 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded"
+      ],
+      "values": {
+        "sst_f": 75.5,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.251,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2861,
+        "current_kt": 0.4,
+        "current_dir_deg": 79.0,
+        "adt_m": 0.073,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 1
+    },
+    {
+      "departure_port": "Wrightsville Beach NC",
+      "zone": "Same Ole / Steeples lane",
+      "lat": 33.75,
+      "lon": -77.15,
+      "note": "Wrightsville offshore structure lane",
+      "verdict": "🔴 NO-GO",
+      "score": 28,
+      "confidence": "LOW",
+      "drivers": [
+        "SSH/ADT 0.11 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded",
+        "current 0.19 kt weak/strong"
+      ],
+      "values": {
+        "sst_f": 74.4,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.011,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2890,
+        "current_kt": 0.19,
+        "current_dir_deg": 71.0,
+        "adt_m": 0.112,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 2
+    },
+    {
+      "departure_port": "Wrightsville Beach NC",
+      "zone": "Frying Pan Tower edge",
+      "lat": 33.55,
+      "lon": -77.65,
+      "note": "inside/shelf option",
+      "verdict": "🔴 NO-GO",
+      "score": 28,
+      "confidence": "LOW",
+      "drivers": [
+        "SSH/ADT 0.14 m"
+      ],
+      "cautions": [
+        "SST stale/unavailable",
+        "CHL stale/clouded",
+        "current 0.16 kt weak/strong"
+      ],
+      "values": {
+        "sst_f": 71.0,
+        "sst_quality": "unavailable",
+        "sst_age_min": 3238,
+        "chl_mgm3": 0.123,
+        "chl_quality": "unavailable",
+        "chl_age_min": 2890,
+        "current_kt": 0.16,
+        "current_dir_deg": 346.0,
+        "adt_m": 0.139,
+        "uv_quality": "good",
+        "uv_age_min": 1078
+      },
+      "rank_within_port": 3
     }
   ],
   "health": {
     "region": "usec_south",
     "root": "/home/gzheng/data/prod/usec_south",
-    "checked_at": "2026-05-06T17:39:02.996319Z",
+    "checked_at": "2026-05-13T17:58:22.555887+00:00",
     "products": {
       "sst": {
-        "ok": false,
+        "ok": true,
         "kind": "sst",
-        "age_min": null,
-        "path": null,
-        "mtime": null
+        "path": "/home/gzheng/data/prod/usec_south/sst/images/json/sst_usec_south_2026131_20260511_21_g19.json",
+        "age_min": 2698,
+        "mtime": "2026-05-12T16:23:47.657475+00:00"
       },
       "chl": {
         "ok": true,
         "kind": "chl",
-        "age_min": 297,
-        "path": "/home/gzheng/data/prod/usec_south/chl/images/json/usec_south_2026125.1800_chl_VJ2.json",
-        "mtime": "2026-05-06T12:41:25.767136"
+        "path": "/home/gzheng/data/prod/usec_south/chl/images/composites/json/usec_south_20260513_2026133.1507_chl_S3B.json",
+        "age_min": 171,
+        "mtime": "2026-05-13T17:28:44.647934+00:00"
       },
       "uv": {
-        "ok": false,
+        "ok": true,
         "kind": "uv",
-        "age_min": null,
-        "path": null,
-        "mtime": null
+        "path": "/home/gzheng/data/prod/usec_south/uv/images/json/uv_usec_south_2026133_20260513_cmems-duacs.json",
+        "age_min": 1078,
+        "mtime": "2026-05-13T11:03:37.314572+00:00"
       }
-    }
+    },
+    "samples": [
+      {
+        "name": "Oregon Inlet offshore edge",
+        "lat": 35.45,
+        "lon": -74.75,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3118,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "degraded",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 1420,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Hatteras shelf break",
+        "lat": 35.2,
+        "lon": -74.55,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3178,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "degraded",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 1420,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Oregon-to-Hatteras inside option",
+        "lat": 35.35,
+        "lon": -75.05,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3178,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "degraded",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 1420,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Big Rock / Swansboro Hole",
+        "lat": 34.35,
+        "lon": -76.05,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2890,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Onslow Bay offshore edge",
+        "lat": 34.05,
+        "lon": -76.35,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2890,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Cape Lookout east break",
+        "lat": 34.55,
+        "lon": -75.95,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2890,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Same Ole / Steeples lane",
+        "lat": 33.75,
+        "lon": -77.15,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2890,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Frying Pan Tower edge",
+        "lat": 33.55,
+        "lon": -77.65,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2890,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Wilmington offshore edge",
+        "lat": 33.95,
+        "lon": -76.85,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2860,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Long Bay offshore edge",
+        "lat": 33.4,
+        "lon": -78.15,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2860,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Winyah Scarp north",
+        "lat": 33.2,
+        "lon": -78.55,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2860,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Frying Pan west edge",
+        "lat": 33.65,
+        "lon": -77.95,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "degraded",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 1372,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Winyah Scarp",
+        "lat": 32.85,
+        "lon": -78.8,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "degraded",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 1372,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Georgetown deep edge",
+        "lat": 32.65,
+        "lon": -79.05,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "degraded",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 1372,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Charleston Bump north edge",
+        "lat": 32.25,
+        "lon": -79.0,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2842,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      },
+      {
+        "name": "Charleston Shelf / 226 area",
+        "lat": 32.05,
+        "lon": -79.45,
+        "sst": {
+          "quality": "unavailable",
+          "source": "GOES-19/NRT",
+          "age_min": 3238,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "chl": {
+          "quality": "unavailable",
+          "source": "VIIRS-SNPP/NN-NRT",
+          "age_min": 2842,
+          "has_value": true,
+          "usable": false,
+          "reason": null
+        },
+        "uv": {
+          "quality": "good",
+          "source": "CMEMS/DUACS-NRT",
+          "age_min": 1078,
+          "has_value": true,
+          "usable": true,
+          "reason": null
+        }
+      }
+    ],
+    "ok": true
   },
-  "ranking_summary": "Best: Ocean City MD \ud83d\udd34 NO-GO (score 20/120)",
-  "briefing_text": "DEPARTURE WINDOW: Wednesday, May 6 & Thursday, May 7\n==========================================\n\nDATA STATUS:\n  SST: unavailable | CHL: 297m ago | Currents: unavailable\n\nTOP ZONES FOR YOUR PORT:",
-  "demo_status": "active"
+  "ranking_summary": "Best: Georgetown SC → Winyah Scarp 🟡 WATCH (70/120)",
+  "briefing_text": "DEPARTURE WINDOW: Thursday, May 14 dawn / first light\n==========================================\n\nDATA STATUS:\n  SST: 45.0h ago | CHL: 2.9h ago | Currents/SSH: 18.0h ago\n\nTOP PORT PLANS (real gridded data samples):\n\nOregon Inlet:\n  1. Oregon-to-Hatteras inside option — 🟡 WATCH 70/120 MED — CHL 0.298 mg/m³, current 1.53 kt, SST 73.1°F — CHL 0.30 mg/m³ fishable; current 1.53 kt; SSH/ADT -0.03 m\n  2. Hatteras shelf break — 🟡 WATCH 56/120 MED — CHL 0.206 mg/m³, current 2.07 kt, SST 78.0°F — CHL 0.21 mg/m³ fishable; SSH/ADT 0.50 m\n  3. Oregon Inlet offshore edge — 🔴 NO-GO 28/120 MED — CHL 0.052 mg/m³, current 2.59 kt, SST 76.7°F — SSH/ADT 0.12 m\n\nMorehead City NC:\n  1. Big Rock / Swansboro Hole — 🔴 NO-GO 42/120 LOW — CHL 0.01 mg/m³, current 1.36 kt, SST 74.8°F — current 1.36 kt; SSH/ADT 0.05 m\n  2. Onslow Bay offshore edge — 🔴 NO-GO 42/120 LOW — CHL 0.01 mg/m³, current 0.9 kt, SST 75.6°F — current 0.90 kt; SSH/ADT 0.05 m\n  3. Cape Lookout east break — 🔴 NO-GO 42/120 LOW — CHL 0.01 mg/m³, current 1.23 kt, SST 74.2°F — current 1.23 kt; SSH/ADT 0.01 m\n\nWrightsville Beach NC:\n  1. Wilmington offshore edge — 🔴 NO-GO 42/120 LOW — CHL 0.251 mg/m³, current 0.4 kt, SST 75.5°F — current 0.40 kt; SSH/ADT 0.07 m\n  2. Same Ole / Steeples lane — 🔴 NO-GO 28/120 LOW — CHL 0.011 mg/m³, current 0.19 kt, SST 74.4°F — SSH/ADT 0.11 m\n  3. Frying Pan Tower edge — 🔴 NO-GO 28/120 LOW — CHL 0.123 mg/m³, current 0.16 kt, SST 71.0°F — SSH/ADT 0.14 m\n\nLittle River SC:\n  1. Frying Pan west edge — 🟡 WATCH 70/120 MED — CHL 0.562 mg/m³, current 0.36 kt, SST 69.7°F — CHL 0.56 mg/m³ fishable; current 0.36 kt; SSH/ADT 0.12 m\n  2. Long Bay offshore edge — 🔴 NO-GO 28/120 LOW — CHL 0.331 mg/m³, current 0.16 kt, SST 70.7°F — SSH/ADT 0.09 m\n  3. Winyah Scarp north — 🔴 NO-GO 28/120 LOW — CHL 0.3 mg/m³, current 0.12 kt, SST 72.6°F — SSH/ADT 0.08 m\n\nGeorgetown SC:\n  1. Winyah Scarp — 🟡 WATCH 70/120 MED — CHL 0.1 mg/m³, current 0.25 kt, SST 73.6°F — CHL 0.10 mg/m³ fishable; current 0.25 kt; SSH/ADT 0.06 m\n  2. Georgetown deep edge — 🔴 NO-GO 28/120 MED — CHL 0.023 mg/m³, current 0.19 kt, SST 73.9°F — SSH/ADT 0.06 m\n\nCharleston SC:\n  1. Charleston Bump north edge — 🔴 NO-GO 42/120 LOW — CHL 0.105 mg/m³, current 0.66 kt, SST 76.3°F — current 0.66 kt; SSH/ADT 0.12 m\n  2. Charleston Shelf / 226 area — 🔴 NO-GO 42/120 LOW — CHL 0.132 mg/m³, current 0.42 kt, SST 75.0°F — current 0.42 kt; SSH/ADT 0.10 m",
+  "demo_status": "active-real-data"
 }

@@ -1,28 +1,495 @@
 {
   "region": "usec_south",
   "root": "/home/gzheng/data/prod/usec_south",
-  "checked_at": "2026-05-06T17:39:02.996319Z",
+  "checked_at": "2026-05-13T17:58:22.555887+00:00",
   "products": {
     "sst": {
-      "ok": false,
+      "ok": true,
       "kind": "sst",
-      "age_min": null,
-      "path": null,
-      "mtime": null
+      "path": "/home/gzheng/data/prod/usec_south/sst/images/json/sst_usec_south_2026131_20260511_21_g19.json",
+      "age_min": 2698,
+      "mtime": "2026-05-12T16:23:47.657475+00:00"
     },
     "chl": {
       "ok": true,
       "kind": "chl",
-      "age_min": 297,
-      "path": "/home/gzheng/data/prod/usec_south/chl/images/json/usec_south_2026125.1800_chl_VJ2.json",
-      "mtime": "2026-05-06T12:41:25.767136"
+      "path": "/home/gzheng/data/prod/usec_south/chl/images/composites/json/usec_south_20260513_2026133.1507_chl_S3B.json",
+      "age_min": 171,
+      "mtime": "2026-05-13T17:28:44.647934+00:00"
     },
     "uv": {
-      "ok": false,
+      "ok": true,
       "kind": "uv",
-      "age_min": null,
-      "path": null,
-      "mtime": null
+      "path": "/home/gzheng/data/prod/usec_south/uv/images/json/uv_usec_south_2026133_20260513_cmems-duacs.json",
+      "age_min": 1078,
+      "mtime": "2026-05-13T11:03:37.314572+00:00"
     }
-  }
+  },
+  "samples": [
+    {
+      "name": "Oregon Inlet offshore edge",
+      "lat": 35.45,
+      "lon": -74.75,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3118,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "degraded",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 1420,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Hatteras shelf break",
+      "lat": 35.2,
+      "lon": -74.55,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3178,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "degraded",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 1420,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Oregon-to-Hatteras inside option",
+      "lat": 35.35,
+      "lon": -75.05,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3178,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "degraded",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 1420,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Big Rock / Swansboro Hole",
+      "lat": 34.35,
+      "lon": -76.05,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2890,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Onslow Bay offshore edge",
+      "lat": 34.05,
+      "lon": -76.35,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2890,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Cape Lookout east break",
+      "lat": 34.55,
+      "lon": -75.95,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2890,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Same Ole / Steeples lane",
+      "lat": 33.75,
+      "lon": -77.15,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2890,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Frying Pan Tower edge",
+      "lat": 33.55,
+      "lon": -77.65,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2890,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Wilmington offshore edge",
+      "lat": 33.95,
+      "lon": -76.85,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2860,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Long Bay offshore edge",
+      "lat": 33.4,
+      "lon": -78.15,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2860,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Winyah Scarp north",
+      "lat": 33.2,
+      "lon": -78.55,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2860,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Frying Pan west edge",
+      "lat": 33.65,
+      "lon": -77.95,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "degraded",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 1372,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Winyah Scarp",
+      "lat": 32.85,
+      "lon": -78.8,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "degraded",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 1372,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Georgetown deep edge",
+      "lat": 32.65,
+      "lon": -79.05,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "degraded",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 1372,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Charleston Bump north edge",
+      "lat": 32.25,
+      "lon": -79.0,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2842,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    },
+    {
+      "name": "Charleston Shelf / 226 area",
+      "lat": 32.05,
+      "lon": -79.45,
+      "sst": {
+        "quality": "unavailable",
+        "source": "GOES-19/NRT",
+        "age_min": 3238,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "chl": {
+        "quality": "unavailable",
+        "source": "VIIRS-SNPP/NN-NRT",
+        "age_min": 2842,
+        "has_value": true,
+        "usable": false,
+        "reason": null
+      },
+      "uv": {
+        "quality": "good",
+        "source": "CMEMS/DUACS-NRT",
+        "age_min": 1078,
+        "has_value": true,
+        "usable": true,
+        "reason": null
+      }
+    }
+  ],
+  "ok": true
 }

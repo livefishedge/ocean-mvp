@@ -2161,18 +2161,25 @@ async function loadCaptainBriefing() {
       if (!portGroups[port]) portGroups[port] = [];
       portGroups[port].push(p);
     });
-    plansDiv.innerHTML = Object.entries(portGroups).slice(0, 4).map(([port, plans]) => `
+    plansDiv.innerHTML = Object.entries(portGroups).map(([port, plans]) => `
       <div class="briefing-port-group">
         <div class="muted" style="font-size:11px;margin-bottom:4px;">DEPARTURE PORT</div>
         <strong style="font-size:14px;">${port}</strong>
         <div class="briefing-port-plans">
-          ${(plans || []).slice(0, 3).map((p, i) => `
-            <div class="briefing-plan" style="margin-left:0;padding-left:8px;border-left:2px solid ${i===0?'#2d7d46':i===1?'#d4a017':'#8b4513'}">
-              <div class="muted">PLAN ${"ABC"[i]}</div>
-              <strong>${p.zone || "Unknown"}</strong><br>
-              <span>${p.verdict || ""}</span> • Score ${p.score ?? "?"}/120 • ${p.confidence || "?"}
-            </div>
-          `).join("")}
+          ${(plans || []).slice(0, 3).map((p, i) => {
+            const vals = p.values || {};
+            const valueLine = `CHL ${vals.chl_mgm3 ?? "?"} mg/m³ • Current ${vals.current_kt ?? "?"} kt • SST ${vals.sst_f ?? "?"}°F`;
+            const reason = ((p.drivers || [])[0] || (p.cautions || [])[0] || p.note || "real-data sample");
+            return `
+              <div class="briefing-plan" style="margin-left:0;padding-left:8px;border-left:2px solid ${i===0?'#2d7d46':i===1?'#d4a017':'#8b4513'}">
+                <div class="muted">PLAN ${"ABC"[i] || i+1}</div>
+                <strong>${p.zone || "Unknown"}</strong><br>
+                <span>${p.verdict || ""}</span> • Score ${p.score ?? "?"}/120 • ${p.confidence || "?"}<br>
+                <span class="muted">${valueLine}</span><br>
+                <span class="muted">${reason}</span>
+              </div>
+            `;
+          }).join("")}
         </div>
       </div>
     `).join("");
@@ -2180,7 +2187,8 @@ async function loadCaptainBriefing() {
     const products = (briefing.health && briefing.health.products) || {};
     healthDiv.innerHTML = ["sst", "chl", "uv"].map(k => {
       const h = products[k] || {};
-      return `<div><strong>${k.toUpperCase()}</strong><br>ok=${h.ok === true}<br>age=${h.age_min ?? "?"}m</div>`;
+      const label = k === "uv" ? "Curr/SSH" : k.toUpperCase();
+      return `<div><strong>${label}</strong><br>ok=${h.ok === true}<br>age=${h.age_min ?? "?"}m</div>`;
     }).join("");
 
     fullDiv.textContent = briefing.briefing_text || briefing.ranking_summary || "No briefing text available.";
