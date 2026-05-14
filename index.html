@@ -237,6 +237,28 @@
     #mobile-map .ol-control{
       display:none;
     }
+    #mobile-time-badge{
+      display:none;
+      position:fixed;
+      top:10px;
+      left:10px;
+      z-index:140;
+      max-width:calc(100vw - 70px);
+      padding:5px 8px;
+      border:1px solid rgba(255,255,255,0.28);
+      border-radius:8px;
+      background:rgba(5,11,16,0.68);
+      color:#fff;
+      font-size:13px;
+      font-weight:800;
+      font-variant-numeric:tabular-nums;
+      line-height:1.1;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      pointer-events:none;
+      text-shadow:0 1px 2px rgba(0,0,0,0.75);
+    }
 
     /* Floating readout: Updated Top position */
     #readout{
@@ -541,6 +563,8 @@
       #plot{ height: 100dvh; min-height: 200px; }
       body.mobile-map-ready #plot{ display:none; }
       body.mobile-map-ready #mobile-map{ display:block; }
+      body.mobile-map-ready #mobile-time-badge{ display:block; }
+      body.mobile-map-ready #controls.open ~ #mobile-time-badge{ display:none; }
       #modebar-host{ display:none !important; }
 
       /* Ranges bar hidden on portrait */
@@ -612,6 +636,10 @@
     body.portrait-mode.mobile-map-ready #plot{ display:none; }
     body.mobile-device.mobile-map-ready #mobile-map,
     body.portrait-mode.mobile-map-ready #mobile-map{ display:block; }
+    body.mobile-device.mobile-map-ready #mobile-time-badge,
+    body.portrait-mode.mobile-map-ready #mobile-time-badge{ display:block; }
+    body.mobile-device.mobile-map-ready #controls.open ~ #mobile-time-badge,
+    body.portrait-mode.mobile-map-ready #controls.open ~ #mobile-time-badge{ display:none; }
     body.mobile-device #ranges,
     body.mobile-device #modebar-host,
     body.portrait-mode #ranges,
@@ -753,6 +781,7 @@
     </div>
   </div>
 
+  <div id="mobile-time-badge"></div>
   <div id="readout"></div>
   <div id="feedback-float">
     <button id="feedback-toggle" title="Send feedback">&#9993;</button>
@@ -950,6 +979,7 @@ const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").mat
 function isPortrait() { return window.innerHeight > window.innerWidth; }
 function isMobileDevice() { return IS_TOUCH || Math.min(window.innerWidth, window.innerHeight) <= 760; }
 function isMobileMapMode() { return isMobileDevice() && !mobileMapState.disabled && !!window.ol?.Map; }
+let lastViewportPortrait = isPortrait();
 function syncViewportClasses() {
   if (!document.body) return;
   document.body.classList.toggle("mobile-device", isMobileDevice());
@@ -960,11 +990,23 @@ syncViewportClasses();
 // Re-measure dynamic heights on orientation change (mobile keyboard pop, browser chrome)
 window.addEventListener('orientationchange', () => {
   setTimeout(() => {
+    lastViewportPortrait = isPortrait();
     syncControlsHeight();
     updateReadoutPosition();
     try { Plotly.Plots.resize(plotDiv); } catch(_){}
   }, 150);
 });
+
+function resetViewportToWidthFit() {
+  viewState.hasRange = false;
+  viewState.xRange = null;
+  viewState.yRange = null;
+  if (mobileMapState.map) {
+    const extent = mobileMapState.currentGridInfo ? frameExtentFromGrid(mobileMapState.currentGridInfo) : BBOX;
+    mobileMapState.map.updateSize();
+    fitMobileMapWidth(mobileMapState.map, extent);
+  }
+}
 
 
 
@@ -992,11 +1034,13 @@ updateControlsHamburgerVisibility();
 
 window.addEventListener("orientationchange", () => {
   setTimeout(() => {
+    lastViewportPortrait = isPortrait();
     syncViewportClasses();
     updateControlsHamburgerVisibility();
     if (!isMobileDevice() && controlsPanel) {
       controlsPanel.classList.remove("open");
     }
+    resetViewportToWidthFit();
     showFrame();
   }, 150);
 });
@@ -1487,6 +1531,15 @@ function timeOnlyLabel(varKey, frameMeta) {
   if (varKey === "sst") { const dt = parseSstUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
   if (varKey === "uv")  { const dt = parseUvDateFromName(filename);  return dt ? fmtLocalDate(dt) : ""; }
   return "";
+}
+
+function updateMobileTimeBadge() {
+  const badge = document.getElementById("mobile-time-badge");
+  if (!badge) return;
+  const frames = framesByVar[currentVar] || [];
+  const label = frames.length ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
+  badge.textContent = label;
+  badge.style.display = label ? "" : "none";
 }
 
 function epochMsForFrame(varKey, frameMeta) {
@@ -2261,14 +2314,12 @@ function initMobileMapIfNeeded() {
   return mobileMapState.map;
 }
 
-function fitMobileMapCover(map, extent) {
+function fitMobileMapWidth(map, extent) {
   const size = map.getSize();
   if (!size || size[0] <= 0 || size[1] <= 0) return;
   const widthRes = Math.abs(extent[2] - extent[0]) / size[0];
-  const heightRes = Math.abs(extent[3] - extent[1]) / size[1];
-  const coverResolution = Math.min(widthRes, heightRes);
   map.getView().setCenter([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
-  map.getView().setResolution(coverResolution);
+  map.getView().setResolution(widthRes);
 }
 
 async function renderMobileFrame(frameMeta) {
@@ -2320,7 +2371,7 @@ async function renderMobileFrame(frameMeta) {
 
   const regionKey = `${REGION_ID}:${currentVar}`;
   if (mobileMapState.fittedRegion !== regionKey) {
-    fitMobileMapCover(map, BBOX);
+    fitMobileMapWidth(map, extent);
     mobileMapState.fittedRegion = regionKey;
   }
 
@@ -2503,6 +2554,7 @@ function updateSliderUI() {
   playBtn.disabled = n <= 1;
 
   frameLbl.textContent = n ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
+  updateMobileTimeBadge();
 }
 
 function syncTimeControls() {
@@ -2988,9 +3040,12 @@ resetBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
+  const orientationChanged = isPortrait() !== lastViewportPortrait;
+  lastViewportPortrait = isPortrait();
   syncViewportClasses();
   updateReadoutPosition();
   syncControlsHeight();
+  if (orientationChanged) resetViewportToWidthFit();
   try { Plotly.Plots.resize(plotDiv); } catch(_){}
   showFrame();
 });
