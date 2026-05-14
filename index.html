@@ -530,10 +530,11 @@
       #readout{
         right: 8px;
         top: auto;
-        bottom: calc(var(--ranges-h) + 4px);
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
         font-size: 11px;
         min-width: 80px;
         padding: 3px 5px;
+        z-index: 130;
       }
 
       /* Plot: full viewport; controls/date strip are hidden until the hamburger opens. */
