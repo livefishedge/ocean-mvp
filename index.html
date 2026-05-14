@@ -398,7 +398,7 @@
 
     /* ======= Portrait mobile layout (width < height) ======= */
     @media (orientation: portrait) {
-      #controls{ align-items:stretch; gap:8px; }
+      #controls{ align-items:stretch; gap:6px; padding:6px 8px; }
       #row-region,
       #row-var{ flex: 0 0 100%; justify-content:space-between; }
       /* row-play/row-slider display handled in JS for bathy */
@@ -406,72 +406,82 @@
       #row-slider{ flex: 0 0 100%; }
 
       #region-select,
-      #var-select{ width:100%; max-width:none; font-size:18px; }
+      #var-select{ width:100%; max-width:none; font-size:15px; padding:7px 10px; min-height:38px; }
       #frame-label{
         width:100%;
         min-width:0;
         text-align:left;
-        font-size:18px;
+        font-size:16px;
+        padding:4px 0;
       }
       #frame-slider{ width:100%; min-width:0; }
+      #controls .row{ gap:6px; }
 
-      /* modebar full row (only needed if inside controls) - keeping this for mobile safety */
+      /* modebar: place it INSIDE the plot area, below the map, not floating over controls */
+      #modebar-host{
+        position: absolute !important;
+        top: auto !important;
+        bottom: var(--ranges-h, 72px) !important;
+        left: 4px !important;
+        right: auto !important;
+      }
       #modebar-host .modebar{
-        width:auto !important; /* Auto width for modebar */
+        background: rgba(5,11,16,0.7) !important;
+        border-radius: 8px !important;
+        padding: 4px 6px !important;
         display:flex !important;
         flex-wrap:nowrap !important;
         justify-content:flex-start !important;
       }
-      /* Bigger spacing between modebar symbols */
-      #modebar-host .modebar-btn{
-        margin-left:10px !important;
-        margin-right:10px !important;
-      }
-      #modebar-host{
-        top: 168px; /* Adjusted for larger portrait controls */
-        left: 20px;
-      }
-      #modebar-host .modebar-group{
-        display:flex !important;
-        flex-wrap:nowrap !important;
-        gap: 14px !important;            /* space between buttons */
-      }
-
-
+      #modebar-host .modebar-btn{ margin-left:6px !important; margin-right:6px !important; }
+      #modebar-host .modebar-group{ gap:8px !important; }
 
       /* smaller readout */
       #readout{
-        right:10px;
-        top: 168px; /* Adjusted to be next to modebar in portrait */
-        font-size:12px;
-        min-width:96px;
-        padding:5px 7px;
+        right:8px;
+        top: auto;
+        bottom: calc(var(--ranges-h, 72px) + 4px);
+        font-size:11px;
+        min-width:80px;
+        padding:3px 5px;
       }
 
-      /* plot height: 100dvh minus sticky controls + sticky ranges (both auto-height) */
-      #plot{ height: calc(100dvh - var(--controls-h, 60px) - var(--ranges-h, 72px)); min-height:280px; }
+      /* plot height: 100dvh minus controls + ranges, with safe-area bottom */
+      #plot{ height: calc(100dvh - var(--controls-h, 60px) - var(--ranges-h, 72px) - env(safe-area-inset-bottom, 0px)); min-height:240px; }
 
-      /* ===== Fix: keep "Temperature min max" on ONE row ===== */
+      /* ===== Ranges: fix bottom cutoff and add safe-area padding ===== */
+      #ranges{
+        bottom: 0;
+        padding: 4px 10px calc(4px + env(safe-area-inset-bottom, 0px));
+        gap:6px;
+      }
+      #ranges-left{ gap:6px; }
+
+      /* ===== Fix: keep Chlorophyll min/max on ONE row, compact ===== */
       .range-block{
         width:100%;
-        gap:6px;
-        padding:4px 6px; /* FURTHER REDUCED PADDING */
+        gap:4px;
+        padding:3px 6px;
       }
-      .range-name{ font-size:12px; margin-right:2px; }
-      .mini-label{ font-size:12px; }
+      .range-name{ font-size:11px; margin-right:2px; }
+      .mini-label{ font-size:11px; display:none; }
       input[type="number"]{
-        width:72px;
+        width:64px;
         font-size:12px;
-        padding:4px 6px; /* FURTHER REDUCED PADDING */
-        min-height:32px; /* FURTHER REDUCED MIN HEIGHT */
+        padding:3px 5px;
+        min-height:28px;
       }
 
       /* actions go to next row */
       .range-actions{ flex: 0 0 100%; }
-      .range-actions button{ font-size:12px; min-height:20 px; padding:2px 8px; }
+      .range-actions button{ font-size:11px; min-height:26px; padding:2px 6px; }
       /* footer colorbar wraps nicely on portrait */
       #ranges-right{ flex: 0 0 100%; }
       #cbar{ width:100%; }
+
+      /* ===== Feedback button: raise above browser nav bar ===== */
+      #feedback-float{ bottom: calc(16px + env(safe-area-inset-bottom, 0px)); right: 16px; }
+      #feedback-toggle{ width:40px; height:40px; font-size:18px; }
 
     }
     
