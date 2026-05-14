@@ -399,24 +399,25 @@
 
     /* ======= Portrait mobile layout (width < height) ======= */
     @media (orientation: portrait) {
-      #controls{ align-items:stretch; gap:6px; padding:6px 8px; }
+      /* Portrait: tighter controls to maximize plot */
+      #controls{ align-items:center; gap:4px; padding:4px 6px; }
       #row-region,
-      #row-var{ flex: 0 0 100%; justify-content:space-between; }
-      /* row-play/row-slider display handled in JS for bathy */
-      #row-play{ flex: 0 0 100%; justify-content:flex-start; }
+      #row-var,
+      #row-play{ flex: 0 0 auto; }
       #row-slider{ flex: 0 0 100%; }
+      .row{ gap:4px; }
+      .control-group{ gap:4px; min-height:0; }
 
       #region-select,
-      #var-select{ width:100%; max-width:none; font-size:15px; padding:7px 10px; min-height:38px; }
+      #var-select{ width:100%; max-width:none; font-size:13px; padding:5px 8px; min-height:32px; }
       #frame-label{
         width:100%;
         min-width:0;
         text-align:left;
-        font-size:16px;
-        padding:4px 0;
+        font-size:14px;
+        padding:2px 0;
       }
       #frame-slider{ width:100%; min-width:0; }
-      #controls .row{ gap:6px; }
 
       /* modebar: place it BELOW the map, at bottom of plot area — not floating over controls */
       #modebar-host{
@@ -450,39 +451,47 @@
       /* plot height: 100dvh minus controls + ranges, with safe-area bottom */
       #plot{ height: calc(100dvh - var(--controls-h) - var(--ranges-h) - env(safe-area-inset-bottom,0px)); min-height:240px; }
 
-      /* ===== Ranges: fix bottom cutoff and add safe-area padding ===== */
+      /* ===== Ranges: compact single-row layout ===== */
       #ranges{
         bottom: 0;
-        padding: 4px 10px calc(4px + env(safe-area-inset-bottom, 0px));
-        gap:6px;
-      }
-      #ranges-left{ gap:6px; }
-
-      /* ===== Fix: keep Chlorophyll min/max on ONE row, compact ===== */
-      .range-block{
-        width:100%;
+        padding: 3px 6px calc(3px + env(safe-area-inset-bottom, 0px));
         gap:4px;
-        padding:3px 6px;
-      }
-      .range-name{ font-size:11px; margin-right:2px; }
-      .mini-label{ font-size:11px; display:none; }
-      input[type="number"]{
-        width:64px;
         font-size:12px;
-        padding:3px 5px;
-        min-height:28px;
       }
+      #ranges-left{
+        display:flex;
+        align-items:center;
+        gap:4px;
+        flex-wrap:nowrap;
+        overflow-x:auto;
+      }
+      #ranges-left::-webkit-scrollbar{ display:none; }
 
-      /* actions go to next row */
-      .range-actions{ flex: 0 0 100%; }
-      .range-actions button{ font-size:11px; min-height:26px; padding:2px 6px; }
-      /* footer colorbar wraps nicely on portrait */
+      .range-block{
+        width:auto;
+        flex:0 0 auto;
+        gap:3px;
+        padding:2px 5px;
+        flex-wrap:nowrap;
+        white-space:nowrap;
+      }
+      .range-name{ font-size:11px; margin-right:1px; }
+      .mini-label{ font-size:10px; display:none; }
+      input[type="number"]{
+        width:52px;
+        font-size:11px;
+        padding:2px 4px;
+        min-height:24px;
+      }
+      .range-actions{ flex:0 0 auto; gap:3px; }
+      .range-actions button{ font-size:11px; min-height:24px; padding:1px 5px; }
+      /* hide arrow-legend on portrait (colorbar suffices) */
+      #arrow-legend{ display:none !important; }
       #ranges-right{ flex: 0 0 100%; }
       #cbar{ width:100%; }
 
-      /* ===== Feedback button: raise above browser nav bar ===== */
-      #feedback-float{ bottom: calc(16px + env(safe-area-inset-bottom, 0px)); right: 16px; }
-      #feedback-toggle{ width:40px; height:40px; font-size:18px; }
+      #feedback-float{ bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: 12px; }
+      #feedback-toggle{ width:36px; height:36px; font-size:16px; }
 
     }
     
