@@ -1630,6 +1630,9 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
 }
 
 // Keep original signature as a convenience wrapper
+async function renderFooterColorbar(varKey) {
+  await renderFooterColorbarToDiv(cbarDiv, varKey);
+}
 
 
 function stableLayout() {
