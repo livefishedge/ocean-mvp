@@ -418,17 +418,17 @@
       #frame-slider{ width:100%; min-width:0; }
       #controls .row{ gap:6px; }
 
-      /* modebar: place it INSIDE the plot area, below the map, not floating over controls */
+      /* modebar: place it BELOW the map, at bottom of plot area — not floating over controls */
       #modebar-host{
         position: absolute !important;
         top: auto !important;
-        bottom: var(--ranges-h, 72px) !important;
         left: 4px !important;
         right: auto !important;
+        bottom: 0 !important;
       }
       #modebar-host .modebar{
-        background: rgba(5,11,16,0.7) !important;
-        border-radius: 8px !important;
+        background: rgba(5,11,16,0.75) !important;
+        border-radius: 0 8px 8px 0 !important;
         padding: 4px 6px !important;
         display:flex !important;
         flex-wrap:nowrap !important;
