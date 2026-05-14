@@ -2054,6 +2054,14 @@ function mobileZForVar(varKey, dataObj) {
   return null;
 }
 
+function isMobileMissingValue(varKey, rawValue, numericValue) {
+  if (rawValue === null || rawValue === undefined || rawValue === "") return true;
+  if (!Number.isFinite(numericValue)) return true;
+  if (Math.abs(numericValue) >= 1e20) return true;
+  if ((varKey === "chl" || varKey === "sst") && numericValue <= 0) return true;
+  return false;
+}
+
 function frameExtentFromGrid(gridInfo) {
   const xs = gridInfo.xAxis || [];
   const ys = gridInfo.yAxis || [];
@@ -2306,7 +2314,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
       const value = z[srcJ]?.[srcI];
       const k = (row * nx + col) * 4;
       const numericValue = Number(value);
-      if (value === null || value === undefined || value === "" || !Number.isFinite(numericValue)) {
+      if (isMobileMissingValue(varKey, value, numericValue)) {
         img.data[k] = 255;
         img.data[k + 1] = 255;
         img.data[k + 2] = 255;
