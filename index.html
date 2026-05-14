@@ -587,6 +587,28 @@
       #feedback-toggle{ width:36px; height:36px; font-size:16px; }
 
     }
+
+    /* JS-driven portrait class mirrors the media query for mobile browsers and headless smoke tests. */
+    body.portrait-mode #controls-hamburger-toggle-btn{ display:flex !important; }
+    body.portrait-mode #controls{
+      display:none;
+      position:fixed;
+      top:0; left:0; right:0; bottom:0;
+      z-index:150;
+      background:rgba(5,11,16,0.92);
+      backdrop-filter:blur(8px);
+      flex-direction:column;
+      align-items:stretch;
+      padding:16px;
+      gap:12px;
+      overflow-y:auto;
+    }
+    body.portrait-mode #controls.open{ display:flex; }
+    body.portrait-mode.mobile-map-ready #plot{ display:none; }
+    body.portrait-mode.mobile-map-ready #mobile-map{ display:block; }
+    body.portrait-mode #ranges,
+    body.portrait-mode #modebar-host{ display:none !important; }
+    body.portrait-mode #mobile-range-controls{ display:flex; flex-direction:column; gap:10px; width:100%; }
     
     /* Gate Styles */
 	#login-gate {
@@ -913,6 +935,10 @@ let mobileMapState = {
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 function isPortrait() { return window.innerHeight > window.innerWidth; }
 function isMobileMapMode() { return isPortrait() && !!window.ol; }
+function syncPortraitClass() {
+  if (document.body) document.body.classList.toggle("portrait-mode", isPortrait());
+}
+syncPortraitClass();
 
 // Re-measure dynamic heights on orientation change (mobile keyboard pop, browser chrome)
 window.addEventListener('orientationchange', () => {
@@ -929,6 +955,7 @@ window.addEventListener('orientationchange', () => {
 const controlsPanel = document.getElementById("controls");
 
 function updateControlsHamburgerVisibility() {
+  syncPortraitClass();
   const isP = isPortrait();
   const btn = document.getElementById("controls-hamburger-toggle-btn");
   if (!btn) return;
@@ -948,6 +975,7 @@ updateControlsHamburgerVisibility();
 
 window.addEventListener("orientationchange", () => {
   setTimeout(() => {
+    syncPortraitClass();
     updateControlsHamburgerVisibility();
     if (!isPortrait() && controlsPanel) {
       controlsPanel.classList.remove("open");
@@ -2775,6 +2803,7 @@ resetBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
+  syncPortraitClass();
   updateReadoutPosition();
   syncControlsHeight();
   try { Plotly.Plots.resize(plotDiv); } catch(_){}
