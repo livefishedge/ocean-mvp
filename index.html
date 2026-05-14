@@ -632,11 +632,11 @@
     </div>
 
     <div class="ch-row">
-      <select id="region-select" class="control-select" title="Region">
+      <select id="region-select-hb" class="control-select" title="Region">
         <option value="usec_md">US East Coast — Mid-Atlantic</option>
         <option value="usec_south">US East Coast — South-Atlantic</option>
       </select>
-      <select id="var-select" class="control-select" title="Product">
+      <select id="var-select-hb" class="control-select" title="Product">
         <option value="chl">Chlorophyll</option>
         <option value="sst">Temperature</option>
         <option value="uv">Currents/SSH</option>
@@ -645,19 +645,19 @@
     </div>
 
     <div class="ch-play-row">
-      <span id="frame-label" style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums; flex:1 1 auto;"></span>
+      <span id="frame-label-hb" style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums; flex:1 1 auto;"></span>
       <div id="row-play">
-        <button id="prev-btn" title="Previous frame">&#9664;</button>
-        <button id="play-btn">Play</button>
-        <button id="next-btn" title="Next frame">&#9654;</button>
+        <button id="prev-btn-hb" title="Previous frame">&#9664;</button>
+        <button id="play-btn-hb">Play</button>
+        <button id="next-btn-hb" title="Next frame">&#9654;</button>
       </div>
     </div>
 
     <div class="ch-slider-row">
-      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" style="width:100%;" />
+      <input id="frame-slider-hb" type="range" min="0" max="0" step="1" value="0" style="width:100%;" />
       <div class="ch-speed-row">
         <label id="speed-wrap">
-          <select id="speed-select" title="Animation speed">
+          <select id="speed-select-hb" title="Animation speed">
             <option value="0.25">¼×</option>
             <option value="0.5">½×</option>
             <option value="1" selected>1×</option>
@@ -665,7 +665,7 @@
             <option value="4">4×</option>
           </select>
         </label>
-        <button id="fs-btn" title="Fullscreen">⛶</button>
+        <button id="fs-btn-hb" title="Fullscreen">⛶</button>
       </div>
     </div>
   </div>
@@ -1192,6 +1192,16 @@ const fsBtn    = document.getElementById("fs-btn");
 const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
+
+// Portrait hamburger panel elements
+const varSelectHb = document.getElementById("var-select-hb");
+const sliderHb    = document.getElementById("frame-slider-hb");
+const frameLblHb  = document.getElementById("frame-label-hb");
+const speedSelHb = document.getElementById("speed-select-hb");
+const fsBtnHb    = document.getElementById("fs-btn-hb");
+const playBtnHb   = document.getElementById("play-btn-hb");
+const prevBtnHb   = document.getElementById("prev-btn-hb");
+const nextBtnHb   = document.getElementById("next-btn-hb");
 const readoutDiv = document.getElementById("readout");
 const modebarHost = document.getElementById("modebar-host");
 const cbarDiv = document.getElementById("cbar");
@@ -2486,14 +2496,24 @@ varSelect.addEventListener("change", () => {
   // in the newly selected product. This is the actual product-switch path.
   setCurrentVar(varSelect.value, true);
 });
+varSelectHb.addEventListener("change", () => {
+  setPlaying(false);
+  setCurrentVar(varSelectHb.value, true);
+});
 
 slider.addEventListener("input", () => {
   currentFrameIdx = Number(slider.value) || 0;
   showFrame();
 });
+sliderHb.addEventListener("input", () => {
+  currentFrameIdx = Number(sliderHb.value) || 0;
+  showFrame();
+});
 
 playBtn.addEventListener("click", () => setPlaying(!playing));
+playBtnHb.addEventListener("click", () => setPlaying(!playing));
 speedSel.addEventListener("change", () => setPlaySpeed(speedSel.value));
+speedSelHb.addEventListener("change", () => setPlaySpeed(speedSelHb.value));
 setPlaySpeed(speedSel.value);
 
 // Fullscreen toggle (plot stays responsive)
@@ -2508,12 +2528,17 @@ function toggleFullscreen() {
 if (fsBtn) {
   fsBtn.addEventListener("click", () => toggleFullscreen());
 }
+if (fsBtnHb) {
+  fsBtnHb.addEventListener("click", () => toggleFullscreen());
+}
 document.addEventListener("fullscreenchange", () => {
   try { Plotly.Plots.resize(plotDiv); } catch(e) {}
 });
 
 prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
+prevBtnHb.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
 nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
+nextBtnHb.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
 
 applyBtn.addEventListener("click", () => {
   const vmin = Number(vminInput.value);
