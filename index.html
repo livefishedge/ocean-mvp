@@ -397,7 +397,28 @@
     }
     #briefing-full.open{ display:block; }
 
+    /* Controls hamburger toggle button: visible in portrait only */
+    #controls-hamburger-toggle-btn{
+      display: none;
+      position: fixed;
+      top: 6px;
+      right: 6px;
+      z-index: 160;
+      width: 36px;
+      height: 36px;
+      background: rgba(5,11,16,0.85);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: #e0e6ee;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0;
+      align-items: center;
+      justify-content: center;
+    }
+
     @media (orientation: portrait) {
+      #controls-hamburger-toggle-btn{ display: flex !important; }
       /* In portrait, ALL controls go into #controls-hamburger (fullscreen overlay). #controls bar hidden. */
       #controls{ display: none; }
 
