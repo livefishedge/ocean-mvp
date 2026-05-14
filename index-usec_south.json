@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-14T01:09:13.739793Z",
+  "last_updated": "2026-05-14T01:12:40.587688Z",
   "vars": [
     "chl",
     "sst",
@@ -542,6 +542,14 @@
         "label": "2026-05-13 15:07 UTC | S3B",
         "time_iso": "2026-05-13T15:07:00Z",
         "json_path": "data/usec_south/chl/usec_south_20260513_2026133.1507_chl_S3B.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_2026133.1706_chl_VJ2",
+        "label": "2026-05-13 17:06 UTC | VJ2",
+        "time_iso": "2026-05-13T17:06:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026133.1706_chl_VJ2.json",
         "grid_file": "frame_bbox"
       },
       {
@@ -2287,33 +2295,6 @@
     ]
   },
   "region_meta": {
-    "id": "usec_south",
-    "label": "US East Coast \u2014 South-Atlantic",
-    "bbox": [
-      "-81",
-      "31",
-      "-73",
-      "36"
-    ],
-    "polygon": [
-      [
-        -81,
-        32
-      ],
-      [
-        -76,
-        36
-      ],
-      [
-        -73,
-        35
-      ],
-      [
-        -79,
-        31
-      ]
-    ],
-    "bathy_path": "gebco_bath_latest/gebco_bathy.json",
     "online_retention_days": 31
   }
 }
