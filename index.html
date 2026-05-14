@@ -2036,6 +2036,153 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   ctx.restore();
 }
 
+function makeMobileLandCanvas(bathy) {
+  const z = bathy.depth;
+  if (!is2D(z)) return null;
+  const ny = z.length;
+  const nx = z[0].length;
+  const canvas = document.createElement("canvas");
+  canvas.width = nx;
+  canvas.height = ny;
+  const ctx = canvas.getContext("2d", { willReadFrequently: false });
+  const img = ctx.createImageData(nx, ny);
+  const xAxis = bathy.xAxis || [];
+  const yAxis = bathy.yAxis || [];
+  const xAscending = xAxis.length < 2 || xAxis[0] <= xAxis[xAxis.length - 1];
+  const yAscending = yAxis.length < 2 || yAxis[0] <= yAxis[yAxis.length - 1];
+  for (let row = 0; row < ny; row++) {
+    const srcJ = yAscending ? (ny - 1 - row) : row;
+    for (let col = 0; col < nx; col++) {
+      const srcI = xAscending ? col : (nx - 1 - col);
+      const value = z[srcJ]?.[srcI];
+      const k = (row * nx + col) * 4;
+      if (value !== null && isFinite(value) && value <= 0) {
+        img.data[k] = 185;
+        img.data[k + 1] = 185;
+        img.data[k + 2] = 178;
+        img.data[k + 3] = 245;
+      } else {
+        img.data[k + 3] = 0;
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+async function ensureMobileLandLayer(map) {
+  if (mobileMapState.landLayer || currentVar === "bathy") return;
+  const bathy = await loadBathymetryJson(BATHY_JSON_URL);
+  const canvas = makeMobileLandCanvas(bathy);
+  if (!canvas) return;
+  const extent = frameExtentFromGrid({ xAxis: bathy.xAxis, yAxis: bathy.yAxis });
+  const source = new ol.source.ImageStatic({
+    url: canvas.toDataURL("image/png"),
+    imageExtent: extent,
+    projection: "EPSG:4326",
+    interpolate: false
+  });
+  mobileMapState.landLayer = new ol.layer.Image({ source, zIndex: 20 });
+  map.addLayer(mobileMapState.landLayer);
+}
+
+function mobilePlaceStyle(feature) {
+  const type = feature.get("type");
+  const isPort = type === "port";
+  const isSpot = type === "spot";
+  const fill = isSpot ? "#ffb000" : isPort ? "#ffe066" : "#ffffff";
+  const image = new ol.style.RegularShape({
+    points: isSpot ? 5 : isPort ? 4 : 20,
+    radius: isSpot ? 6 : isPort ? 5 : 4,
+    radius2: isSpot ? 3 : undefined,
+    angle: isPort ? Math.PI / 4 : 0,
+    fill: new ol.style.Fill({ color: isSpot ? "#ff6b35" : isPort ? "#ffb000" : "#7bdff2" }),
+    stroke: new ol.style.Stroke({ color: "#000", width: 2 })
+  });
+  return new ol.style.Style({
+    image,
+    text: new ol.style.Text({
+      text: feature.get("name"),
+      offsetY: isPort ? 16 : -14,
+      font: "700 12px system-ui, -apple-system, Segoe UI, sans-serif",
+      fill: new ol.style.Fill({ color: fill }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.9)", width: 3 })
+    })
+  });
+}
+
+function ensureMobilePlaceLayer(map) {
+  const features = PLACE_LABELS
+    .filter(placeInRegion)
+    .map(p => new ol.Feature({
+      geometry: new ol.geom.Point([p.lon, p.lat]),
+      name: p.name,
+      type: p.type
+    }));
+  const source = new ol.source.Vector({ features });
+  const layer = new ol.layer.Vector({
+    source,
+    style: mobilePlaceStyle,
+    zIndex: 30,
+    declutter: true
+  });
+  if (mobileMapState.placeLayer) map.removeLayer(mobileMapState.placeLayer);
+  mobileMapState.placeLayer = layer;
+  map.addLayer(layer);
+}
+
+function sampleMobileValueAt(lon, lat) {
+  const gridInfo = mobileMapState.currentGridInfo;
+  const dataObj = mobileMapState.currentDataObj;
+  if (!gridInfo || !dataObj) return null;
+  const z = mobileZForVar(currentVar, dataObj);
+  if (!is2D(z)) return null;
+  const xAxis = gridInfo.xAxis || [];
+  const yAxis = gridInfo.yAxis || [];
+  if (xAxis.length < 2 || yAxis.length < 2) return null;
+  const nx = xAxis.length;
+  const ny = yAxis.length;
+  const xAsc = xAxis[0] <= xAxis[nx - 1];
+  const yAsc = yAxis[0] <= yAxis[ny - 1];
+  const xMin = Math.min(xAxis[0], xAxis[nx - 1]);
+  const xMax = Math.max(xAxis[0], xAxis[nx - 1]);
+  const yMin = Math.min(yAxis[0], yAxis[ny - 1]);
+  const yMax = Math.max(yAxis[0], yAxis[ny - 1]);
+  if (lon < xMin || lon > xMax || lat < yMin || lat > yMax) return null;
+  const iFrac = xAsc ? (lon - xAxis[0]) / (xAxis[nx - 1] - xAxis[0]) : (xAxis[0] - lon) / (xAxis[0] - xAxis[nx - 1]);
+  const jFrac = yAsc ? (lat - yAxis[0]) / (yAxis[ny - 1] - yAxis[0]) : (yAxis[0] - lat) / (yAxis[0] - yAxis[ny - 1]);
+  const i = Math.max(0, Math.min(nx - 1, Math.round(iFrac * (nx - 1))));
+  const j = Math.max(0, Math.min(ny - 1, Math.round(jFrac * (ny - 1))));
+  const value = z[j]?.[i];
+  return isFinite(value) ? Number(value) : null;
+}
+
+function renderMobileReadout(lon, lat) {
+  if (!isFinite(lon) || !isFinite(lat)) return;
+  const base = `${toDDM(lon)} ${toDDM(lat)}`;
+  const val = sampleMobileValueAt(lon, lat);
+  if (val === null) {
+    setReadout(base);
+    return;
+  }
+  const unit = DEFAULT_RANGES[currentVar]?.unit || "";
+  if (currentVar === "sst") setReadout(`${base}, ${val.toFixed(2)}${unit}`);
+  else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
+  else setReadout(`${base} ${val.toFixed(3)}${unit}`);
+}
+
+function installMobileReadoutOnce(map) {
+  if (map.__mobileReadoutInstalled) return;
+  map.__mobileReadoutInstalled = true;
+  map.on("pointermove", (ev) => {
+    if (ev.dragging) return;
+    renderMobileReadout(ev.coordinate[0], ev.coordinate[1]);
+  });
+  map.on("click", (ev) => {
+    renderMobileReadout(ev.coordinate[0], ev.coordinate[1]);
+  });
+}
+
 function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   const z = mobileZForVar(varKey, dataObj);
   if (!is2D(z)) throw new Error(`Mobile renderer missing 2-D data for ${varKey}`);
@@ -2123,6 +2270,8 @@ async function renderMobileFrame(frameMeta) {
     dataObj = await fetchFrameData(currentVar, frameMeta);
     gridInfo = await loadGridForVar(currentVar, dataObj);
   }
+  mobileMapState.currentGridInfo = gridInfo;
+  mobileMapState.currentDataObj = dataObj;
 
   const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
   // iOS Safari is more reliable with data URLs than Blob image URLs for
@@ -2151,6 +2300,9 @@ async function renderMobileFrame(frameMeta) {
   mobileMapState.imageLayer = layer;
   mobileMapState.imageUrl = url;
   map.addLayer(layer);
+  await ensureMobileLandLayer(map);
+  ensureMobilePlaceLayer(map);
+  installMobileReadoutOnce(map);
   map.updateSize();
 
   const regionKey = `${REGION_ID}:${currentVar}`;
