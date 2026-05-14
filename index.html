@@ -451,46 +451,50 @@
       /* plot height: 100dvh minus controls + ranges, with safe-area bottom */
       #plot{ height: calc(100dvh - var(--controls-h) - var(--ranges-h) - env(safe-area-inset-bottom,0px)); min-height:240px; }
 
-      /* ===== Ranges: compact single-row layout ===== */
-      #ranges{
-        bottom: 0;
-        padding: 3px 6px calc(3px + env(safe-area-inset-bottom, 0px));
-        gap:4px;
-        font-size:12px;
-      }
-      #ranges-left{
-        display:flex;
-        align-items:center;
-        gap:4px;
-        flex-wrap:nowrap;
-        overflow-x:auto;
-      }
-      #ranges-left::-webkit-scrollbar{ display:none; }
+      /* ====== Ranges bar: hidden on portrait ====== */
+      #ranges{ display: none; }
 
-      .range-block{
-        width:auto;
-        flex:0 0 auto;
-        gap:3px;
-        padding:2px 5px;
-        flex-wrap:nowrap;
-        white-space:nowrap;
+      /* ====== Hamburger: floating toggle + collapsible panel ====== */
+      #ranges-hamburger{
+        display:none;
+        position:fixed;
+        bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+        left:12px;
+        z-index:200;
+        flex-direction:column;
+        align-items:flex-start;
+        gap:0;
       }
-      .range-name{ font-size:11px; margin-right:1px; }
-      .mini-label{ font-size:10px; display:none; }
-      input[type="number"]{
-        width:52px;
-        font-size:11px;
-        padding:2px 4px;
-        min-height:24px;
+      /* Show hamburger only in portrait, hide in landscape */
+      @media (orientation: portrait) {
+        #ranges-hamburger{ display: flex; }
       }
-      .range-actions{ flex:0 0 auto; gap:3px; }
-      .range-actions button{ font-size:11px; min-height:24px; padding:1px 5px; }
-      /* hide arrow-legend on portrait (colorbar suffices) */
-      #arrow-legend{ display:none !important; }
-      #ranges-right{ flex: 0 0 100%; }
-      #cbar{ width:100%; }
+      @media (orientation: landscape) {
+        #ranges-hamburger{ display: none !important; }
+      }
+      #ranges-hamburger-toggle{
+        width:36px; height:36px;
+        background:var(--panel); border:1px solid var(--border);
+        border-radius:8px; color:var(--fg); font-size:18px;
+        cursor:pointer; display:flex; align-items:center; justify-content:center;
+        padding:0;
+      }
+      #ranges-hamburger-panel{
+        display:none; position:absolute; bottom:44px; left:0;
+        background:var(--panel); border:1px solid var(--border);
+        border-radius:10px; padding:8px 10px;
+        flex-direction:column; min-width:200px; max-width:calc(100vw - 24px);
+        backdrop-filter:blur(8px); gap:6px;
+      }
+      #ranges-hamburger-panel.open{ display:flex; }
+      .hamburger-range-block{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+      .hamburger-range-block .range-name{ font-size:12px; font-weight:700; }
+      .hamburger-range-block input[type="number"]{ width:64px; font-size:12px; padding:3px 6px; min-height:28px; }
+      .hamburger-range-block .range-actions{ flex:0 0 auto; gap:4px; }
+      .hamburger-range-block button{ font-size:11px; min-height:26px; padding:2px 7px; }
+      #ranges-hamburger #cbar{ width:100%; }
 
-      #feedback-float{ bottom: calc(12px + env(safe-area-inset-bottom, 0px)); right: 12px; }
+      #feedback-float{ bottom:calc(12px + env(safe-area-inset-bottom, 0px)); right:12px; }
       #feedback-toggle{ width:36px; height:36px; font-size:16px; }
 
     }
@@ -636,6 +640,22 @@
     <div id="briefing-full"></div>
   </div>
 
+  <div id="ranges-hamburger">
+    <button id="ranges-hamburger-toggle" aria-label="Open settings">&#9776;</button>
+    <div id="ranges-hamburger-panel">
+      <div class="hamburger-range-block">
+        <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
+        <input id="hamburger-vmin" type="number" step="any" inputmode="decimal" />
+        <input id="hamburger-vmax" type="number" step="any" inputmode="decimal" />
+        <div class="range-actions">
+          <button id="hamburger-apply">Apply</button>
+          <button id="hamburger-reset">Reset</button>
+        </div>
+      </div>
+      <div id="hamburger-cbar"></div>
+    </div>
+  </div>
+
   <div id="ranges">
     <div id="ranges-left">
     <div class="range-block">
@@ -775,6 +795,54 @@ window.addEventListener('orientationchange', () => {
   }, 150);
 });
 
+
+// ===== Hamburger panel toggle + actions (portrait) =====
+const hamburgerToggle = document.getElementById("ranges-hamburger-toggle");
+const hamburgerPanel = document.getElementById("ranges-hamburger-panel");
+const hVmin = document.getElementById("hamburger-vmin");
+const hVmax = document.getElementById("hamburger-vmax");
+const hApply = document.getElementById("hamburger-apply");
+const hReset = document.getElementById("hamburger-reset");
+
+if (hamburgerToggle && hamburgerPanel) {
+  hamburgerToggle.addEventListener("click", (e) => {
+    e.stopPropagation();
+    hamburgerPanel.classList.toggle("open");
+  });
+  // Close when tapping outside
+  document.addEventListener("click", (e) => {
+    if (!hamburgerPanel.contains(e.target) && !hamburgerToggle.contains(e.target)) {
+      hamburgerPanel.classList.remove("open");
+    }
+  });
+}
+
+if (hApply) {
+  hApply.addEventListener("click", () => {
+    const vmin = Number(hVmin?.value);
+    const vmax = Number(hVmax?.value);
+    if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+    userRanges[currentVar].vmin = vmin;
+    userRanges[currentVar].vmax = vmax;
+    // Also update the ranges-bar inputs for landscape so they stay in sync
+    if (vminInput) vminInput.value = vmin;
+    if (vmaxInput) vmaxInput.value = vmax;
+    showFrame();
+    hamburgerPanel?.classList.remove("open");
+  });
+}
+if (hReset) {
+  hReset.addEventListener("click", () => {
+    userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
+    const def = DEFAULT_RANGES[currentVar];
+    if (hVmin) hVmin.value = def.vmin;
+    if (hVmax) hVmax.value = def.vmax;
+    if (vminInput) vminInput.value = def.vmin;
+    if (vmaxInput) vmaxInput.value = def.vmax;
+    showFrame();
+    hamburgerPanel?.classList.remove("open");
+  });
+}
 /* Marker state */
 let markers = [];
 let markerMode = "off"; // "off" | "add" | "remove"
@@ -1207,8 +1275,85 @@ function colorbarFor(varKey) {
 
 
 /* ========================= FOOTER COLORBAR ========================= */
+async function renderFooterColorbarToDiv(targetDiv, varKey) {
+  if (!targetDiv) return;
+
+  const unit = DEFAULT_RANGES[varKey]?.unit || "";
+  let cmin = userRanges[varKey]?.vmin;
+  let cmax = userRanges[varKey]?.vmax;
+
+  let chosenScale = "Viridis";
+  let tickmode = undefined;
+  let tickvals = undefined;
+  let ticktext = undefined;
+  let xValues = [0, 1];
+  let cValues = [cmin, cmax];
+
+  // --- SPECIAL CONFIG FOR CHL (Log10) ---
+  if (varKey === "chl") {
+    cmin = Math.log10(cmin > 0 ? cmin : 0.01);
+    cmax = Math.log10(cmax > 0 ? cmax : 100);
+    chosenScale = CHL_ALGAE;
+    tickmode = "array";
+    tickvals = CHL_TICKS_LINEAR.map(v => Math.log10(v));
+    ticktext = CHL_TICKS_LINEAR.map(v => String(v));
+    xValues = [];
+    cValues = [];
+    for (let i = 0; i <= 100; i++) {
+        xValues.push(i / 100);
+        cValues.push(cmin + (cmax - cmin) * (i / 100));
+    }
+  } else if (varKey === "sst") {
+    chosenScale = "RdBu";
+    cValues = [cmin, cmax];
+  } else if (varKey === "bathy") {
+    chosenScale = BATHY_SCALE;
+    cValues = [cmin, cmax];
+  }
+
+  const trace = {
+    type: "scatter",
+    mode: "markers",
+    x: xValues,
+    y: new Array(xValues.length).fill(0),
+    hoverinfo: "none",
+    marker: {
+      size: 1,
+      opacity: 0.001,
+      color: cValues,
+      cmin: cmin,
+      cmax: cmax,
+      colorscale: chosenScale,
+      showscale: true,
+      colorbar: {
+        title: { text: unit, side: "top" },
+        orientation: "h",
+        x: 0.5, xanchor: "center",
+        y: 0.5, yanchor: "middle",
+        len: 1.0, thickness: 14,
+        tickmode, tickvals, ticktext,
+        ticks: "outside", ticklen: 4, tickwidth: 1,
+        tickfont: { color: "#e0e6ee", size: 11 },
+        titlefont: { color: "#e0e6ee", size: 11 }
+      }
+    }
+  };
+
+  const layout = {
+    margin: { l: 0, r: 0, t: 0, b: 0 },
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    xaxis: { visible: false },
+    yaxis: { visible: false }
+  };
+
+  await Plotly.newPlot(targetDiv, [trace], layout, { displayModeBar: false, responsive: true });
+}
+
+// Keep original signature as a convenience wrapper
 async function renderFooterColorbar(varKey) {
-  if (!cbarDiv) return;
+  await renderFooterColorbarToDiv(cbarDiv, varKey);
+}
   
   const unit = DEFAULT_RANGES[varKey]?.unit || "";
   let cmin = userRanges[varKey]?.vmin;
@@ -1698,6 +1843,13 @@ function syncRangeInputsToVar() {
   rangeTitle.textContent = VAR_LABELS[currentVar];
   vminInput.value = userRanges[currentVar].vmin;
   vmaxInput.value = userRanges[currentVar].vmax;
+  // Keep hamburger inputs in sync
+  const hVmin = document.getElementById("hamburger-vmin");
+  const hVmax = document.getElementById("hamburger-vmax");
+  const hTitle = document.getElementById("hamburger-range-title");
+  if (hVmin) hVmin.value = userRanges[currentVar].vmin;
+  if (hVmax) hVmax.value = userRanges[currentVar].vmax;
+  if (hTitle) hTitle.textContent = VAR_LABELS[currentVar];
 }
 
 function updateSliderUI() {
@@ -2117,6 +2269,9 @@ async function showFrame() {
 
   await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
   await renderFooterColorbar(currentVar);
+  // Also render colorbar inside the portrait hamburger panel
+  const hCbar = document.getElementById("hamburger-cbar");
+  if (hCbar) await renderFooterColorbarToDiv(hCbar, currentVar);
   
   const modebar = plotDiv.querySelector('.modebar');
   if (modebar && !modebarHost.querySelector('.modebar')) {
