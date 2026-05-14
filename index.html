@@ -552,7 +552,7 @@
       #readout{
         right: 8px;
         top: auto;
-        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(58px + env(safe-area-inset-bottom, 0px));
         font-size: 11px;
         min-width: 80px;
         padding: 3px 5px;
@@ -563,7 +563,7 @@
       #plot{ height: 100dvh; min-height: 200px; }
       body.mobile-map-ready #plot{ display:none; }
       body.mobile-map-ready #mobile-map{ display:block; }
-      body.mobile-map-ready #mobile-time-badge{ display:block; }
+      body.mobile-map-ready #mobile-time-badge.has-time{ display:block; }
       body.mobile-map-ready #controls.open ~ #mobile-time-badge{ display:none; }
       #modebar-host{ display:none !important; }
 
@@ -608,7 +608,7 @@
       .hamburger-range-block button{ font-size:11px; min-height:26px; padding:2px 7px; }
       #ranges-hamburger #cbar{ width:100%; }
 
-      #feedback-float{ bottom:calc(12px + env(safe-area-inset-bottom, 0px)); right:12px; }
+      #feedback-float{ bottom:calc(12px + env(safe-area-inset-bottom, 0px)); left:12px; right:auto; }
       #feedback-toggle{ width:36px; height:36px; font-size:16px; }
 
     }
@@ -636,8 +636,8 @@
     body.portrait-mode.mobile-map-ready #plot{ display:none; }
     body.mobile-device.mobile-map-ready #mobile-map,
     body.portrait-mode.mobile-map-ready #mobile-map{ display:block; }
-    body.mobile-device.mobile-map-ready #mobile-time-badge,
-    body.portrait-mode.mobile-map-ready #mobile-time-badge{ display:block; }
+    body.mobile-device.mobile-map-ready #mobile-time-badge.has-time,
+    body.portrait-mode.mobile-map-ready #mobile-time-badge.has-time{ display:block; }
     body.mobile-device.mobile-map-ready #controls.open ~ #mobile-time-badge,
     body.portrait-mode.mobile-map-ready #controls.open ~ #mobile-time-badge{ display:none; }
     body.mobile-device #ranges,
@@ -1539,7 +1539,7 @@ function updateMobileTimeBadge() {
   const frames = framesByVar[currentVar] || [];
   const label = frames.length ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
   badge.textContent = label;
-  badge.style.display = label ? "" : "none";
+  badge.classList.toggle("has-time", !!label);
 }
 
 function epochMsForFrame(varKey, frameMeta) {
@@ -2302,13 +2302,21 @@ function initMobileMapIfNeeded() {
     center: [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2],
     zoom: 6,
     minZoom: 4,
-    maxZoom: 13
+    maxZoom: 13,
+    enableRotation: false
   });
+  view.on("change:rotation", () => {
+    if (view.getRotation()) view.setRotation(0);
+  });
+  const mobileInteractions = (ol.interaction && typeof ol.interaction.defaults === "function")
+    ? ol.interaction.defaults({ altShiftDragRotate: false, pinchRotate: false })
+    : undefined;
   mobileMapState.map = new ol.Map({
     target,
     layers: [],
     view,
-    controls: []
+    controls: [],
+    interactions: mobileInteractions
   });
   document.body.classList.add("mobile-map-ready");
   return mobileMapState.map;
@@ -2319,6 +2327,7 @@ function fitMobileMapWidth(map, extent) {
   if (!size || size[0] <= 0 || size[1] <= 0) return;
   const widthRes = Math.abs(extent[2] - extent[0]) / size[0];
   map.getView().setCenter([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
+  map.getView().setRotation(0);
   map.getView().setResolution(widthRes);
 }
 
