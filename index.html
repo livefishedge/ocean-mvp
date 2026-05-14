@@ -397,31 +397,56 @@
     }
     #briefing-full.open{ display:block; }
 
-    /* ======= Portrait mobile layout (width < height) ======= */
     @media (orientation: portrait) {
-      /* Portrait: controls on two rows max — region+var on ONE line, slider below */
-      #controls{ align-items:center; flex-wrap:wrap; gap:4px; padding:4px 6px; }
-      #row-region-and-var{ display:flex; flex-wrap:nowrap; gap:4px; flex: 0 0 100%; }
-      #row-slider-and-play{ display:flex; flex-wrap:wrap; gap:4px; flex: 0 0 100%; align-items:center; }
-      #row-play{ flex: 0 0 auto; }
-      .row{ gap:4px; }
-      .control-group{ gap:4px; min-height:0; }
+      /* In portrait, ALL controls go into #controls-hamburger (fullscreen overlay). #controls bar hidden. */
+      #controls{ display: none; }
 
-      #region-select{ width:60%; min-width:0; font-size:12px; padding:4px 6px; min-height:28px; }
-      #var-select{ width:40%; min-width:0; font-size:12px; padding:4px 6px; min-height:28px; }
-      #frame-label{
-        width:auto;
-        flex:1 1 auto;
-        min-width:0;
-        text-align:left;
-        font-size:13px;
-        padding:2px 0;
-        white-space:nowrap;
+      /* ====== Controls hamburger panel (fullscreen overlay) ====== */
+      #controls-hamburger{
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 150;
+        background: rgba(5,11,16,0.92);
+        backdrop-filter: blur(8px);
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+        gap: 12px;
+        overflow-y: auto;
       }
-      #frame-slider{ width:100%; min-width:0; flex: 0 0 100%; }
+      #controls-hamburger.open{ display: flex; }
+
+      /* Controls hamburger header row */
+      .ch-header{
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex: 0 0 auto;
+      }
+      .ch-header-title{ font-size: 15px; font-weight: 700; flex: 1 1 auto; }
+      .ch-close-btn{
+        background: #1b2836; border: 1px solid #273649; border-radius: 8px;
+        color: #e0e6ee; font-size: 16px; cursor: pointer; padding: 6px 10px; min-width: 40px; min-height: 36px;
+      }
+
+      /* Region + var selects: side by side */
+      .ch-row{ display: flex; gap: 8px; }
+      .ch-row select{ flex: 1 1 50%; font-size: 14px; padding: 8px 10px; min-height: 40px; border-radius: 8px; }
+
+      /* Play controls row */
+      .ch-play-row{ display: flex; align-items: center; gap: 8px; }
+      .ch-play-row #frame-label{ flex: 1 1 auto; font-size: 14px; font-weight: 700; white-space: nowrap; }
+      .ch-play-row #row-play{ display: flex; gap: 6px; flex: 0 0 auto; }
+      .ch-play-row #row-play button{ min-width: 36px; min-height: 36px; font-size: 14px; }
+
+      /* Slider + speed row */
+      .ch-slider-row{ display: flex; flex-direction: column; gap: 4px; }
+      #frame-slider{ width: 100%; }
+      .ch-speed-row{ display: flex; align-items: center; gap: 8px; justify-content: space-between; }
       #speed-wrap{ flex: 0 0 auto; }
 
-      /* modebar: place it BELOW the map, at bottom of plot area — not floating over controls */
+      /* Modebar below map */
       #modebar-host{
         position: absolute !important;
         top: auto !important;
@@ -433,25 +458,28 @@
         background: rgba(5,11,16,0.75) !important;
         border-radius: 0 8px 8px 0 !important;
         padding: 4px 6px !important;
-        display:flex !important;
-        flex-wrap:nowrap !important;
-        justify-content:flex-start !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        justify-content: flex-start !important;
       }
-      #modebar-host .modebar-btn{ margin-left:6px !important; margin-right:6px !important; }
-      #modebar-host .modebar-group{ gap:8px !important; }
+      #modebar-host .modebar-btn{ margin-left: 6px !important; margin-right: 6px !important; }
+      #modebar-host .modebar-group{ gap: 8px !important; }
 
-      /* smaller readout */
+      /* Readout just above ranges */
       #readout{
-        right:8px;
+        right: 8px;
         top: auto;
-        bottom: calc(var(--ranges-h, 72px) + 4px);
-        font-size:11px;
-        min-width:80px;
-        padding:3px 5px;
+        bottom: calc(var(--ranges-h) + 4px);
+        font-size: 11px;
+        min-width: 80px;
+        padding: 3px 5px;
       }
 
-      /* plot height: 100dvh minus controls + ranges, with safe-area bottom */
-      #plot{ height: calc(100dvh - var(--controls-h) - var(--ranges-h) - env(safe-area-inset-bottom,0px)); min-height:240px; }
+      /* Plot: full viewport minus ranges + safe-area */
+      #plot{ height: calc(100dvh - var(--ranges-h) - env(safe-area-inset-bottom, 0px)); min-height: 200px; }
+
+      /* Ranges bar hidden on portrait */
+      #ranges{ display: none; }
 
       /* ====== Ranges bar: hidden on portrait ====== */
       #ranges{ display: none; }
@@ -467,13 +495,8 @@
         align-items:flex-start;
         gap:0;
       }
-      /* Show hamburger only in portrait, hide in landscape */
-      @media (orientation: portrait) {
-        #ranges-hamburger{ display: flex; }
-      }
-      @media (orientation: landscape) {
-        #ranges-hamburger{ display: none !important; }
-      }
+      /* ranges-hamburger is always hidden — settings panel is inside #controls-hamburger */
+      #ranges-hamburger{ display: none !important; }
       #ranges-hamburger-toggle{
         width:36px; height:36px;
         background:var(--panel); border:1px solid var(--border);
@@ -581,6 +604,51 @@
 
     
 
+  <div id="controls-hamburger">
+    <div class="ch-header">
+      <span class="ch-header-title">Controls</span>
+      <button class="ch-close-btn" id="controls-hamburger-close">✕ Close</button>
+    </div>
+
+    <div class="ch-row">
+      <select id="region-select" class="control-select" title="Region">
+        <option value="usec_md">US East Coast — Mid-Atlantic</option>
+        <option value="usec_south">US East Coast — South-Atlantic</option>
+      </select>
+      <select id="var-select" class="control-select" title="Product">
+        <option value="chl">Chlorophyll</option>
+        <option value="sst">Temperature</option>
+        <option value="uv">Currents/SSH</option>
+        <option value="bathy">Bathymetry</option>
+      </select>
+    </div>
+
+    <div class="ch-play-row">
+      <span id="frame-label" style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums; flex:1 1 auto;"></span>
+      <div id="row-play">
+        <button id="prev-btn" title="Previous frame">&#9664;</button>
+        <button id="play-btn">Play</button>
+        <button id="next-btn" title="Next frame">&#9654;</button>
+      </div>
+    </div>
+
+    <div class="ch-slider-row">
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" style="width:100%;" />
+      <div class="ch-speed-row">
+        <label id="speed-wrap">
+          <select id="speed-select" title="Animation speed">
+            <option value="0.25">¼×</option>
+            <option value="0.5">½×</option>
+            <option value="1" selected>1×</option>
+            <option value="2">2×</option>
+            <option value="4">4×</option>
+          </select>
+        </label>
+        <button id="fs-btn" title="Fullscreen">⛶</button>
+      </div>
+    </div>
+  </div>
+
   <div id="controls">
     <div id="row-region-and-var">
     <div class="row control-group" id="row-region">
@@ -635,6 +703,7 @@
     <div id="modebar-tip" style="display:none;"></div>
   </div>
   <div id="plot"></div>
+  <button id="controls-hamburger-toggle-btn" aria-label="Open controls" style="display:none; position:fixed; top:6px; right:6px; z-index:160; width:36px; height:36px; background:rgba(5,11,16,0.85); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#e0e6ee; font-size:18px; cursor:pointer; padding:0; align-items:center; justify-content:center;">&#9776;</button>
 
   <div id="briefing-panel" aria-live="polite" style="display:none">
     <h2>Captain Briefing</h2>
@@ -800,6 +869,41 @@ window.addEventListener('orientationchange', () => {
   }, 150);
 });
 
+
+
+// ===== Controls hamburger panel toggle (portrait) =====
+const controlsHamburgerPanel = document.getElementById("controls-hamburger");
+const controlsHamburgerClose = document.getElementById("controls-hamburger-close");
+
+// Show hamburger toggle button only in portrait
+function updateControlsHamburgerVisibility() {
+  const isP = isPortrait();
+  const btn = document.getElementById("controls-hamburger-toggle-btn");
+  if (!btn) return;
+  btn.style.display = isP ? "flex" : "none";
+}
+
+if (controlsHamburgerClose) {
+  controlsHamburgerClose.addEventListener("click", () => {
+    if (controlsHamburgerPanel) controlsHamburgerPanel.classList.remove("open");
+  });
+}
+const controlsHamburgerToggleBtn = document.getElementById("controls-hamburger-toggle-btn");
+if (controlsHamburgerToggleBtn) {
+  controlsHamburgerToggleBtn.addEventListener("click", () => {
+    if (controlsHamburgerPanel) controlsHamburgerPanel.classList.add("open");
+  });
+}
+updateControlsHamburgerVisibility();
+
+window.addEventListener("orientationchange", () => {
+  setTimeout(() => {
+    updateControlsHamburgerVisibility();
+    if (!isPortrait() && controlsHamburgerPanel) {
+      controlsHamburgerPanel.classList.remove("open");
+    }
+  }, 150);
+});
 
 // ===== Hamburger panel toggle + actions (portrait) =====
 const hamburgerToggle = document.getElementById("ranges-hamburger-toggle");
