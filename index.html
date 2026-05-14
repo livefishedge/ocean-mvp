@@ -229,6 +229,9 @@
       touch-action:none;
       z-index:20;
     }
+    #mobile-map .ol-viewport{
+      background:#ffffff;
+    }
     #mobile-map .ol-viewport,
     #mobile-map .ol-unselectable,
     #mobile-map canvas{
@@ -2207,9 +2210,9 @@ function ensureMobileCursorLayer(map) {
   });
   mobileMapState.cursorFeature.setStyle(new ol.style.Style({
     image: new ol.style.Circle({
-      radius: 5,
-      fill: new ol.style.Fill({ color: "#ffffff" }),
-      stroke: new ol.style.Stroke({ color: "#000000", width: 2 })
+      radius: 3,
+      fill: new ol.style.Fill({ color: "rgba(255,255,255,0.45)" }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.55)", width: 1 })
     })
   }));
   mobileMapState.cursorLayer = new ol.layer.Vector({
@@ -2286,6 +2289,8 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   canvas.width = nx;
   canvas.height = ny;
   const ctx = canvas.getContext("2d", { willReadFrequently: false });
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, nx, ny);
   const img = ctx.createImageData(nx, ny);
   const xAxis = gridInfo.xAxis || [];
   const yAxis = gridInfo.yAxis || [];
@@ -2300,14 +2305,15 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
       const srcI = xAscending ? col : (nx - 1 - col);
       const value = z[srcJ]?.[srcI];
       const k = (row * nx + col) * 4;
-      if (!isFinite(value)) {
+      const numericValue = Number(value);
+      if (value === null || value === undefined || value === "" || !Number.isFinite(numericValue)) {
         img.data[k] = 255;
         img.data[k + 1] = 255;
         img.data[k + 2] = 255;
         img.data[k + 3] = 255;
         continue;
       }
-      const t = (cfg.transform(value) - cfg.lo) / denom;
+      const t = (cfg.transform(numericValue) - cfg.lo) / denom;
       const rgb = interpolateScale(cfg.scale, t);
       img.data[k] = rgb[0];
       img.data[k + 1] = rgb[1];
