@@ -1287,27 +1287,43 @@ function installTouchGestureHandler() {
     const dy = my - _pinch.startY;
     const distRatio = dist / _pinch.startDist;
 
+    // Decide mode on first meaningful move: pinch (spread) vs pan (translate)
     if (!_pinch.mode) {
-      // Decide mode on first move: pinch vs pan
-      if (Math.abs(distRatio - 1) > 0.05) {
+      const spreadAmt = Math.abs(distRatio - 1);
+      if (spreadAmt > 0.03) {
         _pinch.mode = "pinch";
+        _pinch.startDist = dist; // Reset baseline from current
         _pinch.startX = mx;
         _pinch.startY = my;
+      } else if (Math.hypot(dx, dy) > 8) {
+        _pinch.mode = "pan";
+        _pinch.startX = mx;
+        _pinch.startY = my;
+        // Snapshot ranges now for panning
+        if (_pinch.startXRange) {
+          _pinch.startXRange = _pinch.startXRange.slice();
+          _pinch.startYRange = _pinch.startYRange.slice();
+        }
       }
+      // If neither threshold met, keep collecting moves (no-op so far)
+      return;
     }
 
     if (_pinch.mode === "pinch") {
+      // Pinch-to-zoom: scale the view around the initial pinch center
       if (!_pinch.startXRange || !_pinch.startYRange) return;
       const [fx, fy] = _pinch.startFrac;
       const x0 = _pinch.startXRange[0], x1 = _pinch.startXRange[1];
       const y0 = _pinch.startYRange[0], y1 = _pinch.startYRange[1];
       const xSpan = x1 - x0, ySpan = y1 - y0;
       if (xSpan <= 0 || ySpan <= 0) return;
-      const zx = xSpan / distRatio;
-      const zy = ySpan / distRatio;
-      const nx0 = x0 + (x1 - x0) * fx * (1 - 1 / distRatio);
+      // Use current dist vs adjusted startDist to avoid drift on successive moves
+      const curRatio = dist / _pinch.startDist;
+      const zx = xSpan / curRatio;
+      const zy = ySpan / curRatio;
+      const nx0 = x0 + xSpan * fx * (1 - 1 / curRatio);
       const nx1 = nx0 + zx;
-      const ny0 = y0 + (y1 - y0) * fy * (1 - 1 / distRatio);
+      const ny0 = y0 + ySpan * fy * (1 - 1 / curRatio);
       const ny1 = ny0 + zy;
       Plotly.relayout(plotDiv, {
         "xaxis.range[0]": nx0,
@@ -1317,6 +1333,30 @@ function installTouchGestureHandler() {
         "xaxis.autorange": false,
         "yaxis.autorange": false
       });
+      // Update startDist so next pinch delta is relative to current position
+      _pinch.startDist = dist;
+    }
+
+    if (_pinch.mode === "pan") {
+      // Two-finger drag: translate the view by pixel delta
+      if (!_pinch.startXRange || !_pinch.startYRange) return;
+      const x0 = _pinch.startXRange[0], x1 = _pinch.startXRange[1];
+      const y0 = _pinch.startYRange[0], y1 = _pinch.startYRange[1];
+      const xSpan = x1 - x0, ySpan = y1 - y0;
+      const lr = plotDiv.getBoundingClientRect();
+      // Convert pixel delta to data coords, subtract to pan
+      const dxData = (dx / lr.width) * xSpan;
+      const dyData = -(dy / lr.height) * ySpan;
+      Plotly.relayout(plotDiv, {
+        "xaxis.range[0]": x0 - dxData,
+        "xaxis.range[1]": x1 - dxData,
+        "yaxis.range[0]": y0 - dyData,
+        "yaxis.range[1]": y1 - dyData,
+        "xaxis.autorange": false,
+        "yaxis.autorange": false
+      });
+      _pinch.startX = mx;
+      _pinch.startY = my;
     }
     // Two-finger pan removed: one-finger drag handles panning via Plotly dragmode:pan
   }, { passive: false });
