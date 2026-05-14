@@ -589,8 +589,10 @@
 
     }
 
-    /* JS-driven portrait class mirrors the media query for mobile browsers and headless smoke tests. */
+    /* JS-driven mobile classes mirror the media query for mobile browsers and headless smoke tests. */
+    body.mobile-device #controls-hamburger-toggle-btn,
     body.portrait-mode #controls-hamburger-toggle-btn{ display:flex !important; }
+    body.mobile-device #controls,
     body.portrait-mode #controls{
       display:none;
       position:fixed;
@@ -604,11 +606,17 @@
       gap:12px;
       overflow-y:auto;
     }
+    body.mobile-device #controls.open,
     body.portrait-mode #controls.open{ display:flex; }
+    body.mobile-device.mobile-map-ready #plot,
     body.portrait-mode.mobile-map-ready #plot{ display:none; }
+    body.mobile-device.mobile-map-ready #mobile-map,
     body.portrait-mode.mobile-map-ready #mobile-map{ display:block; }
+    body.mobile-device #ranges,
+    body.mobile-device #modebar-host,
     body.portrait-mode #ranges,
     body.portrait-mode #modebar-host{ display:none !important; }
+    body.mobile-device #mobile-range-controls,
     body.portrait-mode #mobile-range-controls{ display:flex; flex-direction:column; gap:10px; width:100%; }
     
     /* Gate Styles */
@@ -940,11 +948,14 @@ let mobileMapState = {
 /* Touch / portrait detection */
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 function isPortrait() { return window.innerHeight > window.innerWidth; }
-function isMobileMapMode() { return isPortrait() && !mobileMapState.disabled && !!window.ol?.Map; }
-function syncPortraitClass() {
+function isMobileDevice() { return IS_TOUCH || Math.min(window.innerWidth, window.innerHeight) <= 760; }
+function isMobileMapMode() { return isMobileDevice() && !mobileMapState.disabled && !!window.ol?.Map; }
+function syncViewportClasses() {
+  if (!document.body) return;
+  document.body.classList.toggle("mobile-device", isMobileDevice());
   if (document.body) document.body.classList.toggle("portrait-mode", isPortrait());
 }
-syncPortraitClass();
+syncViewportClasses();
 
 // Re-measure dynamic heights on orientation change (mobile keyboard pop, browser chrome)
 window.addEventListener('orientationchange', () => {
@@ -961,11 +972,11 @@ window.addEventListener('orientationchange', () => {
 const controlsPanel = document.getElementById("controls");
 
 function updateControlsHamburgerVisibility() {
-  syncPortraitClass();
-  const isP = isPortrait();
+  syncViewportClasses();
+  const isMobile = isMobileDevice();
   const btn = document.getElementById("controls-hamburger-toggle-btn");
   if (!btn) return;
-  btn.style.display = isP ? "flex" : "none";
+  btn.style.display = isMobile ? "flex" : "none";
   btn.textContent = controlsPanel?.classList.contains("open") ? "×" : "☰";
 }
 
@@ -981,11 +992,12 @@ updateControlsHamburgerVisibility();
 
 window.addEventListener("orientationchange", () => {
   setTimeout(() => {
-    syncPortraitClass();
+    syncViewportClasses();
     updateControlsHamburgerVisibility();
-    if (!isPortrait() && controlsPanel) {
+    if (!isMobileDevice() && controlsPanel) {
       controlsPanel.classList.remove("open");
     }
+    showFrame();
   }, 150);
 });
 
@@ -2976,7 +2988,7 @@ resetBtn.addEventListener("click", () => {
 });
 
 window.addEventListener("resize", () => {
-  syncPortraitClass();
+  syncViewportClasses();
   updateReadoutPosition();
   syncControlsHeight();
   try { Plotly.Plots.resize(plotDiv); } catch(_){}
