@@ -5,8 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>LiveMaps</title>
   <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.4.0/ol.css">
 
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
   
 
   <style>
@@ -217,6 +219,24 @@
       /* Key: allow 1-finger vertical page scrolling */
       touch-action: pan-y;
     }
+    #mobile-map{
+      display:none;
+      position:fixed;
+      inset:0;
+      width:100vw;
+      height:100dvh;
+      background:#050b10;
+      touch-action:none;
+      z-index:20;
+    }
+    #mobile-map .ol-viewport,
+    #mobile-map .ol-unselectable,
+    #mobile-map canvas{
+      touch-action:none;
+    }
+    #mobile-map .ol-control{
+      display:none;
+    }
 
     /* Floating readout: Updated Top position */
     #readout{
@@ -404,19 +424,21 @@
       top: 6px;
       right: 6px;
       z-index: 160;
-      width: 36px;
-      height: 36px;
-      background: rgba(5,11,16,0.85);
-      border: 1px solid rgba(255,255,255,0.2);
+      width: 44px;
+      height: 44px;
+      background: rgba(5,11,16,0.94);
+      border: 1px solid rgba(255,255,255,0.42);
       border-radius: 8px;
-      color: #e0e6ee;
-      font-size: 18px;
+      color: #ffffff;
+      font-size: 22px;
       cursor: pointer;
       padding: 0;
       align-items: center;
       justify-content: center;
+      box-shadow:0 3px 12px rgba(0,0,0,0.5);
     }
     #ranges-hamburger{ display: none; }
+    #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
       #controls-hamburger-toggle-btn{ display: flex !important; }
@@ -452,6 +474,38 @@
       #row-play button{ min-width:36px; min-height:36px; font-size:14px; }
       #frame-slider{ width:100%; min-width:0 !important; flex:1 1 100% !important; }
       #speed-wrap{ flex: 0 0 auto; }
+      #mobile-range-controls{
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+        width:100%;
+        padding-top:8px;
+        border-top:1px solid rgba(255,255,255,0.12);
+      }
+      #mobile-range-row{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        flex-wrap:wrap;
+      }
+      #mobile-range-title{
+        flex:1 1 100%;
+        font-size:13px;
+        font-weight:800;
+        color:#9fb0c3;
+      }
+      #mobile-range-row input{
+        flex:1 1 72px;
+        min-width:0;
+        min-height:38px;
+        font-size:14px;
+      }
+      #mobile-range-row button{
+        min-height:38px;
+        font-size:13px;
+        padding:7px 10px;
+      }
+      #mobile-cbar{ width:100%; height:64px; }
 
       /* Modebar below map */
       #modebar-host{
@@ -484,6 +538,9 @@
 
       /* Plot: full viewport; controls/date strip are hidden until the hamburger opens. */
       #plot{ height: 100dvh; min-height: 200px; }
+      body.mobile-map-ready #plot{ display:none; }
+      body.mobile-map-ready #mobile-map{ display:block; }
+      #modebar-host{ display:none !important; }
 
       /* Ranges bar hidden on portrait */
       #ranges{ display: none; }
@@ -653,6 +710,18 @@
     </div>
   </div>
 
+    <div id="mobile-range-controls">
+      <div id="mobile-range-row">
+        <span id="mobile-range-title">Chlorophyll</span>
+        <input id="mobile-vmin" type="number" step="any" inputmode="decimal" aria-label="Color scale minimum" />
+        <input id="mobile-vmax" type="number" step="any" inputmode="decimal" aria-label="Color scale maximum" />
+        <button id="mobile-apply">Apply</button>
+        <button id="mobile-reset">Reset</button>
+      </div>
+      <div id="mobile-cbar"></div>
+    </div>
+  </div>
+
   <div id="readout"></div>
   <div id="feedback-float">
     <button id="feedback-toggle" title="Send feedback">&#9993;</button>
@@ -665,7 +734,8 @@
     <div id="modebar-tip" style="display:none;"></div>
   </div>
   <div id="plot"></div>
-  <button id="controls-hamburger-toggle-btn" aria-label="Open controls" style="display:none; position:fixed; top:6px; right:6px; z-index:160; width:36px; height:36px; background:rgba(5,11,16,0.85); border:1px solid rgba(255,255,255,0.2); border-radius:8px; color:#e0e6ee; font-size:18px; cursor:pointer; padding:0; align-items:center; justify-content:center;">&#9776;</button>
+  <div id="mobile-map"></div>
+  <button id="controls-hamburger-toggle-btn" aria-label="Open controls" style="position:fixed;top:6px;right:6px;z-index:5000;width:44px;height:44px;background:rgba(5,11,16,0.94);border:1px solid rgba(255,255,255,0.42);border-radius:8px;color:#fff;font-size:22px;cursor:pointer;padding:0;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,0.5);">&#9776;</button>
 
   <div id="briefing-panel" aria-live="polite" style="display:none">
     <h2>Captain Briefing</h2>
@@ -794,6 +864,21 @@ const BATHY_SCALE = [
   [1.0, "#000033"]  // Midnight Blue (Deepest Trenches)
 ];
 
+const SST_SCALE = [
+  [0.00, "#2166ac"],
+  [0.45, "#d1e5f0"],
+  [0.55, "#fddbc7"],
+  [1.00, "#b2182b"]
+];
+
+const UV_SCALE = [
+  [0.00, "#440154"],
+  [0.25, "#31688e"],
+  [0.50, "#35b779"],
+  [0.75, "#fde725"],
+  [1.00, "#fff7bc"]
+];
+
 /* show 0.01, 0.1, 1, 10 on CHL colorbar */
 const CHL_TICKS_LINEAR = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60];
 const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
@@ -817,10 +902,17 @@ let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null };
 let landTrace = null;
+let mobileMapState = {
+  map: null,
+  imageLayer: null,
+  imageUrl: null,
+  fittedRegion: null
+};
 
 /* Touch / portrait detection */
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 function isPortrait() { return window.innerHeight > window.innerWidth; }
+function isMobileMapMode() { return isPortrait() && !!window.ol; }
 
 // Re-measure dynamic heights on orientation change (mobile keyboard pop, browser chrome)
 window.addEventListener('orientationchange', () => {
@@ -870,6 +962,11 @@ const hVmin = document.getElementById("hamburger-vmin");
 const hVmax = document.getElementById("hamburger-vmax");
 const hApply = document.getElementById("hamburger-apply");
 const hReset = document.getElementById("hamburger-reset");
+const mobileVmin = document.getElementById("mobile-vmin");
+const mobileVmax = document.getElementById("mobile-vmax");
+const mobileApply = document.getElementById("mobile-apply");
+const mobileReset = document.getElementById("mobile-reset");
+const mobileRangeTitle = document.getElementById("mobile-range-title");
 
 if (hamburgerToggle && hamburgerPanel) {
   hamburgerToggle.addEventListener("click", (e) => {
@@ -908,6 +1005,25 @@ if (hReset) {
     if (vmaxInput) vmaxInput.value = def.vmax;
     showFrame();
     hamburgerPanel?.classList.remove("open");
+  });
+}
+
+if (mobileApply) {
+  mobileApply.addEventListener("click", () => {
+    const vmin = Number(mobileVmin?.value);
+    const vmax = Number(mobileVmax?.value);
+    if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+    userRanges[currentVar].vmin = vmin;
+    userRanges[currentVar].vmax = vmax;
+    syncRangeInputsToVar();
+    showFrame();
+  });
+}
+if (mobileReset) {
+  mobileReset.addEventListener("click", () => {
+    userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
+    syncRangeInputsToVar();
+    showFrame();
   });
 }
 /* Marker state */
@@ -1771,6 +1887,242 @@ function buildForVar(varKey, gridInfo, dataObj) {
   throw new Error(`Unsupported varKey=${varKey}`);
 }
 
+/* ========================= MOBILE MAP RENDERER ========================= */
+function hexToRgb(hex) {
+  const h = String(hex || "").replace("#", "").trim();
+  if (h.length === 3) {
+    return [
+      parseInt(h[0] + h[0], 16),
+      parseInt(h[1] + h[1], 16),
+      parseInt(h[2] + h[2], 16)
+    ];
+  }
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16)
+  ];
+}
+
+function rgbToCss(rgb) {
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+function interpolateScale(scale, t) {
+  const x = Math.max(0, Math.min(1, Number(t)));
+  for (let i = 1; i < scale.length; i++) {
+    const [p1, c1] = scale[i];
+    if (x <= p1) {
+      const [p0, c0] = scale[i - 1];
+      const local = p1 === p0 ? 0 : (x - p0) / (p1 - p0);
+      const a = hexToRgb(c0);
+      const b = hexToRgb(c1);
+      return [
+        Math.round(a[0] + (b[0] - a[0]) * local),
+        Math.round(a[1] + (b[1] - a[1]) * local),
+        Math.round(a[2] + (b[2] - a[2]) * local)
+      ];
+    }
+  }
+  return hexToRgb(scale[scale.length - 1][1]);
+}
+
+function mobileValueConfig(varKey) {
+  if (varKey === "chl") {
+    const lo = Math.log10(Math.max(0.001, userRanges.chl.vmin));
+    const hi = Math.log10(Math.max(0.001, userRanges.chl.vmax));
+    return { scale: CHL_ALGAE, lo, hi, transform: v => Math.log10(Math.max(0.001, v)) };
+  }
+  if (varKey === "sst") return { scale: SST_SCALE, lo: userRanges.sst.vmin, hi: userRanges.sst.vmax, transform: v => v };
+  if (varKey === "uv") return { scale: UV_SCALE, lo: userRanges.uv.vmin, hi: userRanges.uv.vmax, transform: v => v };
+  return { scale: BATHY_SCALE, lo: userRanges.bathy.vmin, hi: userRanges.bathy.vmax, transform: v => v };
+}
+
+function mobileZForVar(varKey, dataObj) {
+  if (varKey === "chl") return dataObj.z || dataObj.chl || dataObj.data;
+  if (varKey === "sst") return dataObj.sst || dataObj.z || dataObj.data;
+  if (varKey === "uv") {
+    const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+    return d?.adt || dataObj?.meta?.grid?.adt || d?.z;
+  }
+  if (varKey === "bathy") return dataObj.depth;
+  return null;
+}
+
+function frameExtentFromGrid(gridInfo) {
+  const xs = gridInfo.xAxis || [];
+  const ys = gridInfo.yAxis || [];
+  const x0 = Math.min(xs[0], xs[xs.length - 1]);
+  const x1 = Math.max(xs[0], xs[xs.length - 1]);
+  const y0 = Math.min(ys[0], ys[ys.length - 1]);
+  const y1 = Math.max(ys[0], ys[ys.length - 1]);
+  return [x0, y0, x1, y1];
+}
+
+function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending) {
+  const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+  const u = d?.u || dataObj?.meta?.grid?.u;
+  const v = d?.v || dataObj?.meta?.grid?.v;
+  if (!is2D(u) || !is2D(v)) return;
+  const ny = z.length;
+  const nx = z[0].length;
+  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 18));
+  const sx = ctx.canvas.width / Math.max(1, nx - 1);
+  const sy = ctx.canvas.height / Math.max(1, ny - 1);
+  ctx.save();
+  ctx.strokeStyle = "rgba(0,0,0,0.82)";
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = "round";
+  for (let row = 0; row < ny; row += step) {
+    const srcJ = yAscending ? (ny - 1 - row) : row;
+    for (let col = 0; col < nx; col += step) {
+      const srcI = xAscending ? col : (nx - 1 - col);
+      const uu = u[srcJ]?.[srcI];
+      const vv = v[srcJ]?.[srcI];
+      if (!isFinite(uu) || !isFinite(vv)) continue;
+      const x = col * sx;
+      const y = row * sy;
+      const dx = uu * 18;
+      const dy = -vv * 18;
+      const len = Math.hypot(dx, dy);
+      if (!(len > 1)) continue;
+      const ex = x + dx;
+      const ey = y + dy;
+      const a = Math.atan2(dy, dx);
+      const head = Math.min(6, Math.max(3, len * 0.35));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(ex, ey);
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - head * Math.cos(a - Math.PI / 6), ey - head * Math.sin(a - Math.PI / 6));
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - head * Math.cos(a + Math.PI / 6), ey - head * Math.sin(a + Math.PI / 6));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
+  const z = mobileZForVar(varKey, dataObj);
+  if (!is2D(z)) throw new Error(`Mobile renderer missing 2-D data for ${varKey}`);
+  const ny = z.length;
+  const nx = z[0].length;
+  const canvas = document.createElement("canvas");
+  canvas.width = nx;
+  canvas.height = ny;
+  const ctx = canvas.getContext("2d", { willReadFrequently: false });
+  const img = ctx.createImageData(nx, ny);
+  const xAxis = gridInfo.xAxis || [];
+  const yAxis = gridInfo.yAxis || [];
+  const xAscending = xAxis.length < 2 || xAxis[0] <= xAxis[xAxis.length - 1];
+  const yAscending = yAxis.length < 2 || yAxis[0] <= yAxis[yAxis.length - 1];
+  const cfg = mobileValueConfig(varKey);
+  const denom = cfg.hi === cfg.lo ? 1 : (cfg.hi - cfg.lo);
+
+  for (let row = 0; row < ny; row++) {
+    const srcJ = yAscending ? (ny - 1 - row) : row;
+    for (let col = 0; col < nx; col++) {
+      const srcI = xAscending ? col : (nx - 1 - col);
+      const value = z[srcJ]?.[srcI];
+      const k = (row * nx + col) * 4;
+      if (!isFinite(value)) {
+        img.data[k + 3] = 0;
+        continue;
+      }
+      const t = (cfg.transform(value) - cfg.lo) / denom;
+      const rgb = interpolateScale(cfg.scale, t);
+      img.data[k] = rgb[0];
+      img.data[k + 1] = rgb[1];
+      img.data[k + 2] = rgb[2];
+      img.data[k + 3] = 235;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending);
+  return canvas;
+}
+
+function initMobileMapIfNeeded() {
+  const target = document.getElementById("mobile-map");
+  if (!target || !window.ol) return null;
+  if (mobileMapState.map) {
+    document.body.classList.add("mobile-map-ready");
+    mobileMapState.map.updateSize();
+    return mobileMapState.map;
+  }
+  const view = new ol.View({
+    projection: "EPSG:4326",
+    center: [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2],
+    zoom: 6,
+    minZoom: 4,
+    maxZoom: 13
+  });
+  mobileMapState.map = new ol.Map({
+    target,
+    layers: [],
+    view,
+    controls: []
+  });
+  document.body.classList.add("mobile-map-ready");
+  return mobileMapState.map;
+}
+
+function fitMobileMapCover(map, extent) {
+  const size = map.getSize();
+  if (!size || size[0] <= 0 || size[1] <= 0) return;
+  const widthRes = Math.abs(extent[2] - extent[0]) / size[0];
+  const heightRes = Math.abs(extent[3] - extent[1]) / size[1];
+  const coverResolution = Math.min(widthRes, heightRes);
+  map.getView().setCenter([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
+  map.getView().setResolution(coverResolution);
+}
+
+async function renderMobileFrame(frameMeta) {
+  const map = initMobileMapIfNeeded();
+  if (!map) return false;
+
+  let dataObj, gridInfo;
+  if (currentVar === "bathy") {
+    dataObj = await loadBathymetryJson(BATHY_JSON_URL);
+    gridInfo = { xAxis: dataObj.xAxis, yAxis: dataObj.yAxis, nx: dataObj.xAxis.length, ny: dataObj.yAxis.length };
+  } else {
+    dataObj = await fetchFrameData(currentVar, frameMeta);
+    gridInfo = await loadGridForVar(currentVar, dataObj);
+  }
+
+  const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("Could not encode mobile raster");
+  const url = URL.createObjectURL(blob);
+  const extent = frameExtentFromGrid(gridInfo);
+  const source = new ol.source.ImageStatic({
+    url,
+    imageExtent: extent,
+    projection: "EPSG:4326",
+    interpolate: false
+  });
+  const layer = new ol.layer.Image({ source });
+
+  if (mobileMapState.imageLayer) map.removeLayer(mobileMapState.imageLayer);
+  if (mobileMapState.imageUrl) URL.revokeObjectURL(mobileMapState.imageUrl);
+  mobileMapState.imageLayer = layer;
+  mobileMapState.imageUrl = url;
+  map.addLayer(layer);
+  map.updateSize();
+
+  const regionKey = `${REGION_ID}:${currentVar}`;
+  if (mobileMapState.fittedRegion !== regionKey) {
+    fitMobileMapCover(map, BBOX);
+    mobileMapState.fittedRegion = regionKey;
+  }
+
+  await renderFooterColorbarToDiv(document.getElementById("hamburger-cbar"), currentVar);
+  await renderFooterColorbarToDiv(document.getElementById("mobile-cbar"), currentVar);
+  updateSliderUI();
+  return true;
+}
+
 /* ========================= READOUT (hover + tap) ========================= */
 function setupReadoutHandlersOnce() {
   if (_readoutHooked) return;
@@ -1926,6 +2278,9 @@ function syncRangeInputsToVar() {
   if (hVmin) hVmin.value = userRanges[currentVar].vmin;
   if (hVmax) hVmax.value = userRanges[currentVar].vmax;
   if (hTitle) hTitle.textContent = VAR_LABELS[currentVar];
+  if (mobileVmin) mobileVmin.value = userRanges[currentVar].vmin;
+  if (mobileVmax) mobileVmax.value = userRanges[currentVar].vmax;
+  if (mobileRangeTitle) mobileRangeTitle.textContent = VAR_LABELS[currentVar];
 }
 
 function updateSliderUI() {
@@ -2324,6 +2679,11 @@ async function showFrame() {
   if (!frames.length) return;
 
   const frameMeta = frames[currentFrameIdx];
+
+  if (isMobileMapMode()) {
+    await renderMobileFrame(frameMeta);
+    return;
+  }
 
   let fig = null;
 
