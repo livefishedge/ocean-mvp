@@ -239,13 +239,14 @@
 
     /* ======= Bottom ranges (sticky): Reduced Padding ======= */
     #ranges{
-      position:sticky;
-      bottom:-50;
+      position: sticky;
+      bottom: 0;
       z-index:70;
       background:var(--panel);
       border-top:1px solid var(--border);
       backdrop-filter: blur(6px);
-      padding:4px 10px 0;
+      padding:4px 10px;
+      padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
       display:flex;
       flex-wrap:wrap;
       gap:10px;
