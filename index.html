@@ -1079,18 +1079,129 @@ const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
 function setReadout(txt) { readoutDiv.textContent = txt || ""; }
 
 /* ========================= TOUCH POLICY ========================= */
-function installTouchPolicyOnce() {
+/* ========================= TOUCH GESTURES: PINCH + PAN ========================= */
+// Pinch state
+let _pinch = {
+  active: false,
+  mode: null,         // "pinch" | "pan"
+  startDist: null,    // px distance between two touches at gesture start
+  startX: null,       // midpoint x at gesture start
+  startY: null,       // midpoint y at gesture start
+  startXRange: null,   // [l,r] at gesture start
+  startYRange: null,
+};
+
+function _touchDist(e) {
+  const dx = e.touches[0].clientX - e.touches[1].clientX;
+  const dy = e.touches[0].clientY - e.touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+function _touchMid(e) {
+  return [(e.touches[0].clientX + e.touches[1].clientX) / 2,
+          (e.touches[0].clientY + e.touches[1].clientY) / 2];
+}
+
+function installTouchGestureHandler() {
   if (!IS_TOUCH) return;
-  if (plotDiv.__touchPolicyInstalled) return;
-  plotDiv.__touchPolicyInstalled = true;
+  if (plotDiv.__touchGestureInstalled) return;
+  plotDiv.__touchGestureInstalled = true;
 
-  plotDiv.style.touchAction = "pan-y";
+  // Allow one-finger pan to bubble to Plotly (via dragmode:pan), block nothing
+  plotDiv.style.touchAction = "none";
 
-  const handler = (e) => {
-    if (e.touches && e.touches.length >= 2) e.preventDefault();
-  };
-  plotDiv.addEventListener("touchstart", handler, { passive:false });
-  plotDiv.addEventListener("touchmove", handler, { passive:false });
+  plotDiv.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      _pinch.active = true;
+      _pinch.mode = null;
+      _pinch.startDist = _touchDist(e);
+      const [mx, my] = _touchMid(e);
+      _pinch.startX = mx;
+      _pinch.startY = my;
+      const lr = plotDiv.getBoundingClientRect();
+      _pinch.startFrac = [(mx - lr.left) / lr.width, (my - lr.top) / lr.height];
+      // Snapshot current view range
+      const xRange = Plotly.relayout(plotDiv, "xaxis.range") || [];
+      const yRange = Plotly.relayout(plotDiv, "yaxis.range") || [];
+      _pinch.startXRange = [xRange[0], xRange[1]];
+      _pinch.startYRange = [yRange[0], yRange[1]];
+    }
+  }, { passive: false });
+
+  plotDiv.addEventListener("touchmove", (e) => {
+    if (!_pinch.active || e.touches.length !== 2) return;
+    e.preventDefault();
+
+    const dist = _touchDist(e);
+    const [mx, my] = _touchMid(e);
+    const dx = mx - _pinch.startX;
+    const dy = my - _pinch.startY;
+    const distRatio = dist / _pinch.startDist;
+
+    if (!_pinch.mode) {
+      // Decide mode on first move: pinch vs pan
+      if (Math.abs(distRatio - 1) > 0.05) {
+        _pinch.mode = "pinch";
+      } else if (Math.hypot(dx, dy) > 8) {
+        _pinch.mode = "pan";
+      } else {
+        return; // wait for more movement
+      }
+      _pinch.startX = mx;
+      _pinch.startY = my;
+    }
+
+    if (_pinch.mode === "pinch") {
+      // Zoom: scale range around the center point in screen fractional coords
+      const [fx, fy] = _pinch.startFrac;
+      const x0 = _pinch.startXRange[0], x1 = _pinch.startXRange[1];
+      const y0 = _pinch.startYRange[0], y1 = _pinch.startYRange[1];
+      const xSpan = x1 - x0, ySpan = y1 - y0;
+      // Zoom: pinch-in = scale down (fewer data units visible)
+      const zx = xSpan / distRatio;
+      const zy = ySpan / distRatio;
+      const nx0 = x0 + (x1 - x0) * fx * (1 - 1 / distRatio);
+      const nx1 = nx0 + zx;
+      const ny0 = y0 + (y1 - y0) * fy * (1 - 1 / distRatio);
+      const ny1 = ny0 + zy;
+      Plotly.relayout(plotDiv, {
+        "xaxis.range[0]": nx0,
+        "xaxis.range[1]": nx1,
+        "yaxis.range[0]": ny0,
+        "yaxis.range[1]": ny1,
+        "xaxis.autorange": false,
+        "yaxis.autorange": false
+      });
+    } else if (_pinch.mode === "pan") {
+      // Two-finger pan: shift view by fraction of range proportional to finger movement
+      const lr = plotDiv.getBoundingClientRect();
+      const fx = dx / lr.width;
+      const fy = dy / lr.height;
+      const x0 = _pinch.startXRange[0], x1 = _pinch.startXRange[1];
+      const y0 = _pinch.startYRange[0], y1 = _pinch.startYRange[1];
+      const xSpan = x1 - x0, ySpan = y1 - y0;
+      Plotly.relayout(plotDiv, {
+        "xaxis.range[0]": x0 - fx * xSpan,
+        "xaxis.range[1]": x1 - fx * xSpan,
+        "yaxis.range[0]": y0 + fy * ySpan,   // screen Y is inverted from data Y
+        "yaxis.range[1]": y1 + fy * ySpan,
+        "xaxis.autorange": false,
+        "yaxis.autorange": false
+      });
+    }
+  }, { passive: false });
+
+  plotDiv.addEventListener("touchend", (e) => {
+    if (e.touches.length < 2) {
+      _pinch.active = false;
+      _pinch.mode = null;
+    }
+  }, { passive: false });
+}
+
+// Keep old name as alias for callers that don't check return value
+function installTouchPolicyOnce() {
+  installTouchGestureHandler();
 }
 
 /* ========================= TIME PARSERS ========================= */
