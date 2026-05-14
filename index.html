@@ -416,6 +416,7 @@
       align-items: center;
       justify-content: center;
     }
+    #ranges-hamburger{ display: none; }
 
     @media (orientation: portrait) {
       #controls-hamburger-toggle-btn{ display: flex !important; }
@@ -501,7 +502,7 @@
         align-items:flex-start;
         gap:0;
       }
-      /* ranges-hamburger is always hidden — settings panel is inside #controls-hamburger */
+      /* ranges-hamburger is always hidden; mobile controls live behind the top-right toggle. */
       #ranges-hamburger{ display: none !important; }
       #ranges-hamburger-toggle{
         width:36px; height:36px;
@@ -1522,7 +1523,7 @@ function stableLayout() {
   const portrait = isPortrait();
   const layout = {
     uirevision: "sync_fov_mobile_v4",
-    margin: portrait ? { l: 52, r: 16, t: 8, b: 84 } : { l: 0, r: 0, t: 0, b: 0 },
+    margin: { l: 0, r: 0, t: 0, b: 0 },
     paper_bgcolor: "#050b10",
     plot_bgcolor: "#ffffff",
     font: { color:"#e0e6ee" },
