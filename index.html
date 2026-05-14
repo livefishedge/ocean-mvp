@@ -13,6 +13,8 @@
     :root{
       --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.92); --border:#1b2836;
       --pad:10px;
+      --controls-h: 60px;
+      --ranges-h: 72px;
     }
     html, body {
       height:100%;
@@ -211,9 +213,7 @@
     /*#plot-wrap{ position:relative; width:100%; }*/
     #plot{
       width:100%;
-      height: calc(200dvh);
-      min-height:520px;
-
+      height: 100dvh;
       /* Key: allow 1-finger vertical page scrolling */
       touch-action: pan-y;
     }
@@ -448,8 +448,8 @@
         padding:5px 7px;
       }
 
-      /* plot height */
-      #plot{ height: calc(100dvh - 220px - 96px); min-height:420px; }
+      /* plot height: 100dvh minus sticky controls + sticky ranges (both auto-height) */
+      #plot{ height: calc(100dvh - var(--controls-h, 60px) - var(--ranges-h, 72px)); min-height:280px; }
 
       /* ===== Fix: keep "Temperature min max" on ONE row ===== */
       .range-block{
@@ -745,6 +745,15 @@ let landTrace = null;
 /* Touch / portrait detection */
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 function isPortrait() { return window.innerHeight > window.innerWidth; }
+
+// Re-measure dynamic heights on orientation change (mobile keyboard pop, browser chrome)
+window.addEventListener('orientationchange', () => {
+  setTimeout(() => {
+    syncControlsHeight();
+    updateReadoutPosition();
+    try { Plotly.Plots.resize(plotDiv); } catch(_){}
+  }, 150);
+});
 
 /* Marker state */
 let markers = [];
@@ -2156,9 +2165,17 @@ resetBtn.addEventListener("click", () => {
 
 window.addEventListener("resize", () => {
   updateReadoutPosition();
+  syncControlsHeight();
   try { Plotly.Plots.resize(plotDiv); } catch(_){}
   showFrame();
 });
+
+function syncControlsHeight() {
+  const controls = document.getElementById('controls');
+  const ranges = document.getElementById('ranges');
+  if (controls) document.documentElement.style.setProperty('--controls-h', controls.offsetHeight + 'px');
+  if (ranges) document.documentElement.style.setProperty('--ranges-h', ranges.offsetHeight + 'px');
+}
 
 
 /* ========================= CAPTAIN BRIEFING PANEL ========================= */
@@ -2259,6 +2276,7 @@ async function loadCaptainBriefing() {
     updateSliderUI();
     syncTimeControls();
     syncArrowLegend();
+    syncControlsHeight();
     if (framesByVar[currentVar]?.length) await showFrame();
     else Plotly.purge(plotDiv);
   } catch (e) {
