@@ -2067,6 +2067,12 @@ function updateSliderUI() {
   playBtn.disabled = n <= 1;
 
   frameLbl.textContent = n ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
+  frameLblHb.textContent = frameLbl.textContent;
+
+  if (sliderHb) { sliderHb.min = slider.min; sliderHb.max = slider.max; sliderHb.value = slider.value; }
+  if (prevBtnHb) prevBtnHb.disabled = n <= 1;
+  if (nextBtnHb) nextBtnHb.disabled = n <= 1;
+  if (playBtnHb) playBtnHb.disabled = n <= 1;
 }
 
 function syncTimeControls() {
