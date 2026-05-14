@@ -448,7 +448,7 @@
       }
 
       /* plot height: 100dvh minus controls + ranges, with safe-area bottom */
-      #plot{ height: calc(100dvh - var(--controls-h, 60px) - var(--ranges-h, 72px) - env(safe-area-inset-bottom, 0px)); min-height:240px; }
+      #plot{ height: calc(100dvh - var(--controls-h) - var(--ranges-h) - env(safe-area-inset-bottom,0px)); min-height:240px; }
 
       /* ===== Ranges: fix bottom cutoff and add safe-area padding ===== */
       #ranges{
