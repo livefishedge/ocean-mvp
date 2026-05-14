@@ -3264,10 +3264,78 @@ async function loadCaptainBriefing() {
 
 /* ================= FEEDBACK TOGGLE ================= */
 (function() {
+  const floatEl = document.getElementById('feedback-float');
   const toggleBtn = document.getElementById('feedback-toggle');
   const panel = document.getElementById('feedback-panel');
+  let dragState = null;
+  let suppressNextClick = false;
+
+  function applyFeedbackPosition(pos) {
+    if (!floatEl || !pos) return;
+    const x = Math.max(8, Math.min(window.innerWidth - 48, Number(pos.x)));
+    const y = Math.max(8, Math.min(window.innerHeight - 48, Number(pos.y)));
+    floatEl.style.left = x + 'px';
+    floatEl.style.top = y + 'px';
+    floatEl.style.right = 'auto';
+    floatEl.style.bottom = 'auto';
+    floatEl.style.alignItems = 'flex-start';
+  }
+
+  function loadFeedbackPosition() {
+    try { return JSON.parse(localStorage.getItem('mobile_feedback_pos') || 'null'); }
+    catch (_) { return null; }
+  }
+
+  function saveFeedbackPosition() {
+    if (!floatEl) return;
+    const rect = floatEl.getBoundingClientRect();
+    localStorage.setItem('mobile_feedback_pos', JSON.stringify({ x: rect.left, y: rect.top }));
+  }
+
+  applyFeedbackPosition(loadFeedbackPosition());
+
+  if (toggleBtn && floatEl) {
+    toggleBtn.addEventListener('pointerdown', (e) => {
+      if (!isMobileDevice()) return;
+      const rect = floatEl.getBoundingClientRect();
+      dragState = {
+        pointerId: e.pointerId,
+        startX: e.clientX,
+        startY: e.clientY,
+        left: rect.left,
+        top: rect.top,
+        moved: false
+      };
+      toggleBtn.setPointerCapture?.(e.pointerId);
+    });
+
+    toggleBtn.addEventListener('pointermove', (e) => {
+      if (!dragState || dragState.pointerId !== e.pointerId) return;
+      const dx = e.clientX - dragState.startX;
+      const dy = e.clientY - dragState.startY;
+      if (Math.hypot(dx, dy) > 4) dragState.moved = true;
+      if (!dragState.moved) return;
+      e.preventDefault();
+      applyFeedbackPosition({ x: dragState.left + dx, y: dragState.top + dy });
+    });
+
+    function finishDrag(e) {
+      if (!dragState || dragState.pointerId !== e.pointerId) return;
+      suppressNextClick = dragState.moved;
+      if (dragState.moved) saveFeedbackPosition();
+      dragState = null;
+    }
+    toggleBtn.addEventListener('pointerup', finishDrag);
+    toggleBtn.addEventListener('pointercancel', finishDrag);
+  }
+
   if (toggleBtn && panel) {
-    toggleBtn.addEventListener('click', () => {
+    toggleBtn.addEventListener('click', (e) => {
+      if (suppressNextClick) {
+        suppressNextClick = false;
+        e.preventDefault();
+        return;
+      }
       panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     });
   }
