@@ -1167,14 +1167,27 @@ function _touchMid(e) {
   return [(e.touches[0].clientX + e.touches[1].clientX) / 2,
           (e.touches[0].clientY + e.touches[1].clientY) / 2];
 }
+function getCurrentPlotRanges() {
+  const xa = plotDiv?._fullLayout?.xaxis;
+  const ya = plotDiv?._fullLayout?.yaxis;
+  const xr = xa?.range;
+  const yr = ya?.range;
+  if (Array.isArray(xr) && Array.isArray(yr) && xr.length >= 2 && yr.length >= 2) {
+    return { x: [Number(xr[0]), Number(xr[1])], y: [Number(yr[0]), Number(yr[1])] };
+  }
+  if (Array.isArray(BBOX) && BBOX.length >= 4) {
+    return { x: [BBOX[0], BBOX[2]], y: [BBOX[1], BBOX[3]] };
+  }
+  return null;
+}
 
 function installTouchGestureHandler() {
   if (!IS_TOUCH) return;
   if (plotDiv.__touchGestureInstalled) return;
   plotDiv.__touchGestureInstalled = true;
 
-  // Allow one-finger pan to bubble to Plotly (via dragmode:pan), block nothing
-  plotDiv.style.touchAction = "pan-y";
+  // Keep browser page gestures from swallowing map pinch/pan gestures.
+  plotDiv.style.touchAction = "none";
 
   plotDiv.addEventListener("touchstart", (e) => {
     if (e.touches.length === 2) {
@@ -1187,30 +1200,9 @@ function installTouchGestureHandler() {
       _pinch.startY = my;
       const lr = plotDiv.getBoundingClientRect();
       _pinch.startFrac = [(mx - lr.left) / lr.width, (my - lr.top) / lr.height];
-      // Snapshot current view range from Plotly relayout (avoids null on cold start)
-      try {
-        const xRange = Plotly.relayout(plotDiv, "xaxis.range") || Plotly.relayout(plotDiv, "xaxis.autorange") === true ? null : null;
-        const yRange = Plotly.relayout(plotDiv, "yaxis.range") || [];
-        const xAutorange = Plotly.relayout(plotDiv, "xaxis.autorange");
-        const yAutorange = Plotly.relayout(plotDiv, "yaxis.autorange");
-        if (xAutorange !== true && yAutorange !== true) {
-          const xr = Plotly.relayout(plotDiv, "xaxis.range");
-          const yr = Plotly.relayout(plotDiv, "yaxis.range");
-          if (xr && yr && xr.length >= 2 && yr.length >= 2) {
-            _pinch.startXRange = [xr[0], xr[1]];
-            _pinch.startYRange = [yr[0], yr[1]];
-          } else {
-            _pinch.startXRange = null;
-            _pinch.startYRange = null;
-          }
-        } else {
-          _pinch.startXRange = null;
-          _pinch.startYRange = null;
-        }
-      } catch(err) {
-        _pinch.startXRange = null;
-        _pinch.startYRange = null;
-      }
+      const ranges = getCurrentPlotRanges();
+      _pinch.startXRange = ranges?.x || null;
+      _pinch.startYRange = ranges?.y || null;
     }
   }, { passive: false });
 
@@ -1222,80 +1214,34 @@ function installTouchGestureHandler() {
     const [mx, my] = _touchMid(e);
     const dx = mx - _pinch.startX;
     const dy = my - _pinch.startY;
-    const distRatio = dist / _pinch.startDist;
+    if (!_pinch.startXRange || !_pinch.startYRange || !_pinch.startDist) return;
+    const ratio = Math.max(0.2, Math.min(8, dist / _pinch.startDist));
+    const [fx, fy] = _pinch.startFrac;
+    const [x0, x1] = _pinch.startXRange;
+    const [y0, y1] = _pinch.startYRange;
+    const xSpan = x1 - x0;
+    const ySpan = y1 - y0;
+    const lr = plotDiv.getBoundingClientRect();
+    if (xSpan <= 0 || ySpan <= 0 || lr.width <= 0 || lr.height <= 0) return;
 
-    // Decide mode on first meaningful move: pinch (spread) vs pan (translate)
-    if (!_pinch.mode) {
-      const spreadAmt = Math.abs(distRatio - 1);
-      if (spreadAmt > 0.03) {
-        _pinch.mode = "pinch";
-        _pinch.startDist = dist; // Reset baseline from current
-        _pinch.startX = mx;
-        _pinch.startY = my;
-      } else if (Math.hypot(dx, dy) > 8) {
-        _pinch.mode = "pan";
-        _pinch.startX = mx;
-        _pinch.startY = my;
-        // Snapshot ranges now for panning
-        if (_pinch.startXRange) {
-          _pinch.startXRange = _pinch.startXRange.slice();
-          _pinch.startYRange = _pinch.startYRange.slice();
-        }
-      }
-      // If neither threshold met, keep collecting moves (no-op so far)
-      return;
-    }
-
-    if (_pinch.mode === "pinch") {
-      // Pinch-to-zoom: scale the view around the initial pinch center
-      if (!_pinch.startXRange || !_pinch.startYRange) return;
-      const [fx, fy] = _pinch.startFrac;
-      const x0 = _pinch.startXRange[0], x1 = _pinch.startXRange[1];
-      const y0 = _pinch.startYRange[0], y1 = _pinch.startYRange[1];
-      const xSpan = x1 - x0, ySpan = y1 - y0;
-      if (xSpan <= 0 || ySpan <= 0) return;
-      // Use current dist vs adjusted startDist to avoid drift on successive moves
-      const curRatio = dist / _pinch.startDist;
-      const zx = xSpan / curRatio;
-      const zy = ySpan / curRatio;
-      const nx0 = x0 + xSpan * fx * (1 - 1 / curRatio);
-      const nx1 = nx0 + zx;
-      const ny0 = y0 + ySpan * fy * (1 - 1 / curRatio);
-      const ny1 = ny0 + zy;
-      Plotly.relayout(plotDiv, {
-        "xaxis.range[0]": nx0,
-        "xaxis.range[1]": nx1,
-        "yaxis.range[0]": ny0,
-        "yaxis.range[1]": ny1,
-        "xaxis.autorange": false,
-        "yaxis.autorange": false
-      });
-      // Update startDist so next pinch delta is relative to current position
-      _pinch.startDist = dist;
-    }
-
-    if (_pinch.mode === "pan") {
-      // Two-finger drag: translate the view by pixel delta
-      if (!_pinch.startXRange || !_pinch.startYRange) return;
-      const x0 = _pinch.startXRange[0], x1 = _pinch.startXRange[1];
-      const y0 = _pinch.startYRange[0], y1 = _pinch.startYRange[1];
-      const xSpan = x1 - x0, ySpan = y1 - y0;
-      const lr = plotDiv.getBoundingClientRect();
-      // Convert pixel delta to data coords, subtract to pan
-      const dxData = (dx / lr.width) * xSpan;
-      const dyData = -(dy / lr.height) * ySpan;
-      Plotly.relayout(plotDiv, {
-        "xaxis.range[0]": x0 - dxData,
-        "xaxis.range[1]": x1 - dxData,
-        "yaxis.range[0]": y0 - dyData,
-        "yaxis.range[1]": y1 - dyData,
-        "xaxis.autorange": false,
-        "yaxis.autorange": false
-      });
-      _pinch.startX = mx;
-      _pinch.startY = my;
-    }
-    // Two-finger pan removed: one-finger drag handles panning via Plotly dragmode:pan
+    const newXSpan = xSpan / ratio;
+    const newYSpan = ySpan / ratio;
+    const anchorX = x0 + xSpan * fx;
+    const anchorY = y1 - ySpan * fy;
+    const panX = (dx / lr.width) * newXSpan;
+    const panY = (dy / lr.height) * newYSpan;
+    const nx0 = anchorX - newXSpan * fx - panX;
+    const nx1 = nx0 + newXSpan;
+    const ny0 = anchorY - newYSpan * (1 - fy) + panY;
+    const ny1 = ny0 + newYSpan;
+    Plotly.relayout(plotDiv, {
+      "xaxis.range[0]": nx0,
+      "xaxis.range[1]": nx1,
+      "yaxis.range[0]": ny0,
+      "yaxis.range[1]": ny1,
+      "xaxis.autorange": false,
+      "yaxis.autorange": false
+    });
   }, { passive: false });
 
   plotDiv.addEventListener("touchend", (e) => {
