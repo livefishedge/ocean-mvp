@@ -622,7 +622,7 @@
         left: auto !important;
         right: 8px;
         top: auto;
-        bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
         font-size: 11px;
         min-width: 80px;
         padding: 3px 5px;
@@ -2774,7 +2774,7 @@ function updateReadoutPosition() {
   readoutDiv.style.right = isPortrait() ? "8px" : "12px";
   readoutDiv.style.bottom = isPortrait()
     ? "calc(58px + env(safe-area-inset-bottom, 0px))"
-    : "76px";
+    : "calc(12px + env(safe-area-inset-bottom, 0px))";
   readoutDiv.style.maxWidth = isPortrait() ? "140px" : "200px";
 }
 
