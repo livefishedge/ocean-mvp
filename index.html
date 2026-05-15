@@ -246,17 +246,17 @@
       top:10px;
       left:10px;
       z-index:140;
-      max-width:calc(100vw - 70px);
-      padding:5px 8px;
+      max-width:calc(100vw - 76px);
+      padding:4px 6px;
       border:1px solid rgba(255,255,255,0.28);
       border-radius:8px;
       background:rgba(5,11,16,0.68);
       color:#fff;
-      font-size:13px;
+      font-size:11px;
       font-weight:800;
       font-variant-numeric:tabular-nums;
       line-height:1.1;
-      min-height:28px;
+      min-height:24px;
       box-sizing:border-box;
       white-space:nowrap;
       overflow:hidden;
@@ -270,17 +270,17 @@
     #mobile-time-badge.has-time::after{
       display:inline-block;
       color:rgba(255,255,255,0.72);
-      font-size:12px;
+      font-size:10px;
       line-height:1;
       vertical-align:1px;
     }
     #mobile-time-badge.has-time::before{
       content:"‹";
-      margin-right:6px;
+      margin-right:4px;
     }
     #mobile-time-badge.has-time::after{
       content:"›";
-      margin-left:6px;
+      margin-left:4px;
     }
 
     /* Floating readout: Updated Top position */
@@ -632,7 +632,7 @@
       #ranges-hamburger #cbar{ width:100%; }
 
       #feedback-float{ bottom:calc(12px + env(safe-area-inset-bottom, 0px)); left:12px; right:auto; }
-      #feedback-toggle{ width:36px; height:36px; font-size:16px; }
+      #feedback-toggle{ width:30px; height:30px; font-size:13px; }
       #feedback-toggle{ touch-action:none; }
 
     }
@@ -1055,13 +1055,13 @@ function syncFloatingViewportUi() {
   }
   const badge = document.getElementById("mobile-time-badge");
   if (badge && badge.classList.contains("has-time")) {
-    badge.style.fontSize = "13px";
+    badge.style.fontSize = "11px";
     badge.style.transform = "none";
     clampRectToVisualViewport(badge, {
       x: box.left + 10,
       y: box.top + 10,
-      width: Math.min(250, box.width - 70),
-      height: 30,
+      width: Math.min(220, box.width - 76),
+      height: 26,
       margin: 8
     });
   }
