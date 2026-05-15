@@ -1048,13 +1048,10 @@ function syncFloatingViewportUi() {
   const box = visualViewportBox();
   const hamburger = document.getElementById("controls-hamburger-toggle-btn");
   if (hamburger && isMobileDevice()) {
-    clampRectToVisualViewport(hamburger, {
-      x: box.left + box.width - 52,
-      y: box.top + 6,
-      width: 44,
-      height: 44,
-      margin: 6
-    });
+    hamburger.style.left = "auto";
+    hamburger.style.right = "calc(6px + env(safe-area-inset-right, 0px))";
+    hamburger.style.top = "calc(6px + env(safe-area-inset-top, 0px))";
+    hamburger.style.bottom = "auto";
   }
   const badge = document.getElementById("mobile-time-badge");
   if (badge && badge.classList.contains("has-time")) {
