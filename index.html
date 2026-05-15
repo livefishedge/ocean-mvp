@@ -2126,7 +2126,7 @@ function buildUv(gridInfo, dataObj) {
     mode:"lines",
     x:lineX, y:lineY,
     hoverinfo:"none",
-    line:{ color:"#ffffff", width:3 }, /* White arrows for visibility on dark Viridis background */
+    line:{ color:"#00FFFF", width:4 }, /* Bright cyan arrows for maximum visibility on dark Viridis */
     showlegend:false
   };
 
@@ -2280,7 +2280,7 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   const sx = ctx.canvas.width / Math.max(1, nx - 1);
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
   ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.95)";
+  ctx.strokeStyle = "rgba(0,255,255,0.95)";
   ctx.lineWidth = 3.0;
   ctx.lineCap = "round";
   for (let row = 0; row < ny; row += step) {
