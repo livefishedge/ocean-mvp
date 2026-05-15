@@ -2788,10 +2788,10 @@ function updateReadoutPosition() {
   readoutDiv.dataset.dragged = "0";
   readoutDiv.style.position = "fixed";
   readoutDiv.style.left = "auto";
-  readoutDiv.style.top = "calc(6px + env(safe-area-inset-top, 0px))";
-  readoutDiv.style.bottom = "auto";
-  readoutDiv.style.right = isPortrait() ? "58px" : "60px";
-  readoutDiv.style.maxWidth = isPortrait() ? "140px" : "200px";
+  readoutDiv.style.top = "auto";
+  readoutDiv.style.bottom = "12px";
+  readoutDiv.style.right = "72px";
+  readoutDiv.style.maxWidth = "160px";
 }
 
 /* ========================= UI ========================= */
