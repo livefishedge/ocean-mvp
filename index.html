@@ -180,6 +180,20 @@
     }
     #feedback-toggle:hover{ background:#3a9d5c; }
     #feedback-toggle:hover::after{ background:#3a9d5c; }
+    #temp-unit-toggle{
+      display:none;
+      min-width:44px;
+      min-height:32px;
+      padding:4px 10px;
+      border:1px solid var(--border);
+      border-radius:8px;
+      background:#111a24;
+      color:var(--fg);
+      font-weight:800;
+      font-size:13px;
+      cursor:pointer;
+    }
+    body.show-temp-unit #temp-unit-toggle{ display:inline-flex; align-items:center; justify-content:center; }
     #feedback-panel{
       background:var(--panel);
       border:1px solid var(--border);
@@ -226,7 +240,7 @@
     #modebar-tip{
       position:absolute;
       z-index:1100;
-      pointer-events:none;
+      pointer-events:auto;
       transform: translateX(-50%);
       background-color: rgba(0,0,0,0.5) !important;
       color: #e0e6ee;
@@ -329,6 +343,9 @@
       font-size:14px;
       min-width:120px;
       text-align:middle;
+      touch-action:none;
+      user-select:none;
+      cursor:move;
     }
 
     /* ======= Bottom ranges (sticky): Reduced Padding ======= */
@@ -610,6 +627,7 @@
         padding: 3px 5px;
         z-index: 130;
       }
+      #temp-unit-toggle{ min-width:38px; min-height:32px; padding:3px 8px; font-size:12px; }
 
       /* Plot: full viewport; controls/date strip are hidden until the hamburger opens. */
       #plot{ height: 100dvh; min-height: 200px; }
@@ -798,6 +816,7 @@
         <option value="uv">Currents/SSH</option>
         <option value="bathy">Bathymetry</option>
       </select>
+      <button id="temp-unit-toggle" type="button" title="Temperature unit">°C</button>
     </div>
     </div>
 
