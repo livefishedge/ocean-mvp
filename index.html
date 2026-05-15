@@ -620,17 +620,17 @@
       #modebar-host .modebar-btn{ margin-left: 6px !important; margin-right: 6px !important; }
       #modebar-host .modebar-group{ gap: 8px !important; }
 
-      /* Readout: top-right in portrait (avoids bottom ambiguity) */
+      /* Readout: always bottom-right, regardless of orientation */
       #readout{
         left: auto !important;
-        right: 58px;
-        top: calc(6px + env(safe-area-inset-top, 0px));
-        bottom: auto;
+        right: 72px;
+        top: auto;
+        bottom: 12px;
         font-size: 11px;
-        min-width: 140px;
-        padding: 4px 6px;
+        min-width: 160px;
+        padding: 4px 8px;
         z-index: 130;
-        line-height: 1.4;
+        line-height: 1.5;
         display: inline-block;
         pointer-events:none;
       }
@@ -2281,7 +2281,7 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
   ctx.save();
   ctx.strokeStyle = "rgba(0,0,0,0.82)";
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 3.0;
   ctx.lineCap = "round";
   for (let row = 0; row < ny; row += step) {
     const srcJ = yAscending ? (ny - 1 - row) : row;
