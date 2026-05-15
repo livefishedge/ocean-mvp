@@ -967,6 +967,17 @@ let userRanges = {
   bathy: { ...DEFAULT_RANGES.bathy }
 };
 
+let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
+function cToF(c) { return c * 9 / 5 + 32; }
+function tempUnitLabel() { return tempUnit === "F" ? "°F" : "°C"; }
+function formatSstValue(celsius) {
+  const value = tempUnit === "F" ? cToF(celsius) : celsius;
+  return `${value.toFixed(2)}${tempUnitLabel()}`;
+}
+function sstTickText(values) {
+  return values.map(v => tempUnit === "F" ? String(Math.round(cToF(v))) : String(v));
+}
+
 /* CHL colorscale (algae-ish) */
 const CHL_ALGAE = [
   [0.00, "#001f3f"], // Dark Navy Blue (Oligotrophic - very low CHL)
@@ -1117,6 +1128,8 @@ function syncFloatingViewportUi() {
   }
   const feedback = document.getElementById("feedback-float");
   if (feedback) clampRectToVisualViewport(feedback, { margin: 8 });
+  const readout = document.getElementById("readout");
+  if (readout?.dataset.dragged === "1") clampRectToVisualViewport(readout, { margin: 8 });
 }
 
 if (window.visualViewport) {
@@ -1475,6 +1488,7 @@ const fsBtn    = document.getElementById("fs-btn");
 const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
+const tempUnitToggle = document.getElementById("temp-unit-toggle");
 
 const readoutDiv = document.getElementById("readout");
 const modebarHost = document.getElementById("modebar-host");
@@ -1809,7 +1823,7 @@ function attachRelayoutListenerOnce() {
 
 /* ========================= COLORBAR PLACEMENT ========================= */
 function colorbarFor(varKey) {
-  const unit = DEFAULT_RANGES[varKey]?.unit || "";
+  const unit = varKey === "sst" ? tempUnitLabel() : (DEFAULT_RANGES[varKey]?.unit || "");
   const portrait = isPortrait();
 
   if (portrait) {
@@ -1835,7 +1849,7 @@ function colorbarFor(varKey) {
 async function renderFooterColorbarToDiv(targetDiv, varKey) {
   if (!targetDiv) return;
 
-  const unit = DEFAULT_RANGES[varKey]?.unit || "";
+  const unit = varKey === "sst" ? tempUnitLabel() : (DEFAULT_RANGES[varKey]?.unit || "");
   let cmin = userRanges[varKey]?.vmin;
   let cmax = userRanges[varKey]?.vmax;
 
@@ -1863,6 +1877,11 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
   } else if (varKey === "sst") {
     chosenScale = "RdBu";
     cValues = [cmin, cmax];
+    tickmode = "array";
+    tickvals = [];
+    const step = (cmax - cmin) / 4;
+    for (let i = 0; i <= 4; i++) tickvals.push(Number((cmin + step * i).toFixed(2)));
+    ticktext = sstTickText(tickvals);
   } else if (varKey === "bathy") {
     chosenScale = BATHY_SCALE;
     cValues = [cmin, cmax];
@@ -2444,7 +2463,7 @@ function renderMobileReadout(lon, lat) {
     return;
   }
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
-  if (currentVar === "sst") setReadout(`${base}, ${val.toFixed(2)}${unit}`);
+  if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
   else setReadout(`${base} ${val.toFixed(3)}${unit}`);
 }
@@ -2738,7 +2757,7 @@ function renderReadoutFromPoint(p) {
   const val = Number(cd);
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
   
-  if (currentVar === "sst") setReadout(`${base}, ${val.toFixed(2)}${unit}`);
+  if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
   else setReadout(`${base} ${val.toFixed(3)}${unit}`);
 }
@@ -2747,11 +2766,76 @@ function renderReadoutFromPoint(p) {
 
 /* adjust readout to avoid colorbar overlap when landscape */
 function updateReadoutPosition() {
+  if (readoutDiv?.dataset.dragged === "1") return;
   if (isPortrait()) readoutDiv.style.right = "5px";
   else readoutDiv.style.right = "50px";
 }
 
+function applyReadoutPosition(pos) {
+  if (!readoutDiv || !pos) return;
+  readoutDiv.dataset.dragged = "1";
+  readoutDiv.style.position = "fixed";
+  readoutDiv.style.right = "auto";
+  readoutDiv.style.bottom = "auto";
+  clampRectToVisualViewport(readoutDiv, {
+    x: Number(pos.x),
+    y: Number(pos.y),
+    margin: 8
+  });
+}
+
+function installReadoutDrag() {
+  if (!readoutDiv || readoutDiv.__dragInstalled) return;
+  readoutDiv.__dragInstalled = true;
+  let dragState = null;
+  try {
+    const saved = JSON.parse(localStorage.getItem("readout_pos") || "null");
+    if (saved) requestAnimationFrame(() => applyReadoutPosition(saved));
+  } catch (_) {}
+
+  readoutDiv.addEventListener("pointerdown", (e) => {
+    const rect = readoutDiv.getBoundingClientRect();
+    dragState = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      left: rect.left,
+      top: rect.top,
+      moved: false
+    };
+    readoutDiv.setPointerCapture?.(e.pointerId);
+  });
+  readoutDiv.addEventListener("pointermove", (e) => {
+    if (!dragState || dragState.pointerId !== e.pointerId) return;
+    const dx = e.clientX - dragState.startX;
+    const dy = e.clientY - dragState.startY;
+    if (Math.hypot(dx, dy) > 4) dragState.moved = true;
+    if (!dragState.moved) return;
+    e.preventDefault();
+    applyReadoutPosition({ x: dragState.left + dx, y: dragState.top + dy });
+  });
+  const finish = () => {
+    if (!dragState) return;
+    if (dragState.moved) {
+      const rect = readoutDiv.getBoundingClientRect();
+      localStorage.setItem("readout_pos", JSON.stringify({ x: rect.left, y: rect.top }));
+    }
+    dragState = null;
+  };
+  readoutDiv.addEventListener("pointerup", finish);
+  readoutDiv.addEventListener("pointercancel", finish);
+}
+installReadoutDrag();
+
 /* ========================= UI ========================= */
+function updateTempUnitUI() {
+  document.body.classList.toggle("show-temp-unit", currentVar === "sst");
+  if (tempUnitToggle) tempUnitToggle.textContent = tempUnitLabel();
+  if (mobileRangeTitle) {
+    mobileRangeTitle.textContent = currentVar === "sst" ? `${VAR_LABELS[currentVar]} (${tempUnitLabel()})` : VAR_LABELS[currentVar];
+  }
+}
+
 function syncRangeInputsToVar() {
   rangeTitle.textContent = VAR_LABELS[currentVar];
   vminInput.value = userRanges[currentVar].vmin;
@@ -2766,6 +2850,7 @@ function syncRangeInputsToVar() {
   if (mobileVmin) mobileVmin.value = userRanges[currentVar].vmin;
   if (mobileVmax) mobileVmax.value = userRanges[currentVar].vmax;
   if (mobileRangeTitle) mobileRangeTitle.textContent = VAR_LABELS[currentVar];
+  updateTempUnitUI();
 }
 
 function updateSliderUI() {
@@ -3222,6 +3307,15 @@ varSelect.addEventListener("change", () => {
   // in the newly selected product. This is the actual product-switch path.
   setCurrentVar(varSelect.value, true);
 });
+
+if (tempUnitToggle) {
+  tempUnitToggle.addEventListener("click", () => {
+    tempUnit = tempUnit === "F" ? "C" : "F";
+    localStorage.setItem("sst_temp_unit", tempUnit);
+    updateTempUnitUI();
+    if (currentVar === "sst") showFrame();
+  });
+}
 
 slider.addEventListener("input", () => {
   currentFrameIdx = Number(slider.value) || 0;
