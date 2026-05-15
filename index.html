@@ -2292,14 +2292,17 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
       if (!isFinite(uu) || !isFinite(vv)) continue;
       const x = col * sx;
       const y = row * sy;
-      const dx = uu * 18;
-      const dy = -vv * 18;
+      // Scale arrows by the actual rendered cell size so they look right at any screen resolution.
+      // A "natural" arrow spans 1 grid cell; scale it to 35% of the cell so it doesn't overwhelm the pixel.
+      const SCALE = 0.35;
+      const dx = uu * sx * SCALE;
+      const dy = -vv * sy * SCALE;
       const len = Math.hypot(dx, dy);
-      if (!(len > 1)) continue;
+      if (!(len > 0.5)) continue;
       const ex = x + dx;
       const ey = y + dy;
       const a = Math.atan2(dy, dx);
-      const head = Math.min(6, Math.max(3, len * 0.35));
+      const head = Math.min(4, Math.max(2, len * 0.35));
       ctx.beginPath();
       ctx.moveTo(x, y);
       ctx.lineTo(ex, ey);
