@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>LiveMaps</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.4.0/ol.css">
@@ -256,6 +256,8 @@
       font-weight:800;
       font-variant-numeric:tabular-nums;
       line-height:1.1;
+      min-height:28px;
+      box-sizing:border-box;
       white-space:nowrap;
       overflow:hidden;
       text-overflow:ellipsis;
@@ -263,6 +265,22 @@
       touch-action:none;
       user-select:none;
       text-shadow:0 1px 2px rgba(0,0,0,0.75);
+    }
+    #mobile-time-badge.has-time::before,
+    #mobile-time-badge.has-time::after{
+      display:inline-block;
+      color:rgba(255,255,255,0.72);
+      font-size:12px;
+      line-height:1;
+      vertical-align:1px;
+    }
+    #mobile-time-badge.has-time::before{
+      content:"‹";
+      margin-right:6px;
+    }
+    #mobile-time-badge.has-time::after{
+      content:"›";
+      margin-left:6px;
     }
 
     /* Floating readout: Updated Top position */
@@ -995,12 +1013,77 @@ function syncViewportClasses() {
 }
 syncViewportClasses();
 
+function visualViewportBox() {
+  const vv = window.visualViewport;
+  const width = Math.min(vv ? vv.width : window.innerWidth, window.innerWidth);
+  const height = Math.min(vv ? vv.height : window.innerHeight, window.innerHeight);
+  return {
+    left: vv ? vv.offsetLeft : 0,
+    top: vv ? vv.offsetTop : 0,
+    width,
+    height
+  };
+}
+
+function clampRectToVisualViewport(el, fallback) {
+  if (!el) return;
+  const box = visualViewportBox();
+  const rect = el.getBoundingClientRect();
+  const width = rect.width || fallback?.width || 44;
+  const height = rect.height || fallback?.height || 44;
+  const margin = fallback?.margin ?? 8;
+  const minX = box.left + margin;
+  const minY = box.top + margin;
+  const maxX = box.left + Math.max(margin, box.width - width - margin);
+  const maxY = box.top + Math.max(margin, box.height - height - margin);
+  const desiredX = fallback?.x ?? rect.left;
+  const desiredY = fallback?.y ?? rect.top;
+  el.style.left = Math.max(minX, Math.min(maxX, desiredX)) + "px";
+  el.style.top = Math.max(minY, Math.min(maxY, desiredY)) + "px";
+  el.style.right = "auto";
+  el.style.bottom = "auto";
+}
+
+function syncFloatingViewportUi() {
+  const box = visualViewportBox();
+  const hamburger = document.getElementById("controls-hamburger-toggle-btn");
+  if (hamburger && isMobileDevice()) {
+    clampRectToVisualViewport(hamburger, {
+      x: box.left + box.width - 52,
+      y: box.top + 6,
+      width: 44,
+      height: 44,
+      margin: 6
+    });
+  }
+  const badge = document.getElementById("mobile-time-badge");
+  if (badge && badge.classList.contains("has-time")) {
+    badge.style.fontSize = "13px";
+    badge.style.transform = "none";
+    clampRectToVisualViewport(badge, {
+      x: box.left + 10,
+      y: box.top + 10,
+      width: Math.min(250, box.width - 70),
+      height: 30,
+      margin: 8
+    });
+  }
+  const feedback = document.getElementById("feedback-float");
+  if (feedback) clampRectToVisualViewport(feedback, { margin: 8 });
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncFloatingViewportUi);
+  window.visualViewport.addEventListener("scroll", syncFloatingViewportUi);
+}
+
 // Re-measure dynamic heights on orientation change (mobile keyboard pop, browser chrome)
 window.addEventListener('orientationchange', () => {
   setTimeout(() => {
     lastViewportPortrait = isPortrait();
     syncControlsHeight();
     updateReadoutPosition();
+    syncFloatingViewportUi();
     try { Plotly.Plots.resize(plotDiv); } catch(_){}
   }, 150);
 });
@@ -1028,6 +1111,7 @@ function updateControlsHamburgerVisibility() {
   if (!btn) return;
   btn.style.display = isMobile ? "flex" : "none";
   btn.textContent = controlsPanel?.classList.contains("open") ? "×" : "☰";
+  syncFloatingViewportUi();
 }
 
 const controlsHamburgerToggleBtn = document.getElementById("controls-hamburger-toggle-btn");
@@ -1049,6 +1133,7 @@ window.addEventListener("orientationchange", () => {
       controlsPanel.classList.remove("open");
     }
     resetViewportToWidthFit();
+    syncFloatingViewportUi();
     showFrame();
   }, 150);
 });
@@ -1548,6 +1633,7 @@ function updateMobileTimeBadge() {
   const label = frames.length ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
   badge.textContent = label;
   badge.classList.toggle("has-time", !!label);
+  syncFloatingViewportUi();
 }
 
 function installMobileTimeBadgeSwipeOnce() {
@@ -3140,6 +3226,7 @@ window.addEventListener("resize", () => {
   updateReadoutPosition();
   syncControlsHeight();
   if (orientationChanged) resetViewportToWidthFit();
+  syncFloatingViewportUi();
   try { Plotly.Plots.resize(plotDiv); } catch(_){}
   showFrame();
 });
@@ -3326,8 +3413,12 @@ async function loadCaptainBriefing() {
 
   function applyFeedbackPosition(pos) {
     if (!floatEl || !pos) return;
-    const x = Math.max(8, Math.min(window.innerWidth - 48, Number(pos.x)));
-    const y = Math.max(8, Math.min(window.innerHeight - 48, Number(pos.y)));
+    const box = visualViewportBox();
+    const rect = floatEl.getBoundingClientRect();
+    const width = rect.width || 48;
+    const height = rect.height || 48;
+    const x = Math.max(box.left + 8, Math.min(box.left + box.width - width - 8, Number(pos.x)));
+    const y = Math.max(box.top + 8, Math.min(box.top + box.height - height - 8, Number(pos.y)));
     floatEl.style.left = x + 'px';
     floatEl.style.top = y + 'px';
     floatEl.style.right = 'auto';
@@ -3346,7 +3437,9 @@ async function loadCaptainBriefing() {
     localStorage.setItem('mobile_feedback_pos', JSON.stringify({ x: rect.left, y: rect.top }));
   }
 
-  applyFeedbackPosition(loadFeedbackPosition());
+  const savedFeedbackPosition = loadFeedbackPosition();
+  if (savedFeedbackPosition) applyFeedbackPosition(savedFeedbackPosition);
+  requestAnimationFrame(syncFloatingViewportUi);
 
   if (toggleBtn && floatEl) {
     toggleBtn.addEventListener('pointerdown', (e) => {
@@ -3377,6 +3470,7 @@ async function loadCaptainBriefing() {
       if (!dragState || dragState.pointerId !== e.pointerId) return;
       suppressNextClick = dragState.moved;
       if (dragState.moved) saveFeedbackPosition();
+      syncFloatingViewportUi();
       dragState = null;
     }
     toggleBtn.addEventListener('pointerup', finishDrag);
