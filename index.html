@@ -2292,9 +2292,9 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
       if (!isFinite(uu) || !isFinite(vv)) continue;
       const x = col * sx;
       const y = row * sy;
-      // Scale arrows by the actual rendered cell size so they look right at any screen resolution.
-      // A "natural" arrow spans 1 grid cell; scale it to 35% of the cell so it doesn't overwhelm the pixel.
-      const SCALE = 0.35;
+      // Arrow length = SCALE × rendered grid cell × speed(m/s) / 0.5(m/s reference)
+      // This makes 0.5 m/s currents show as ~45% of a grid cell at any resolution.
+      const SCALE = 10;
       const dx = uu * sx * SCALE;
       const dy = -vv * sy * SCALE;
       const len = Math.hypot(dx, dy);
