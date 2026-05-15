@@ -963,7 +963,7 @@ let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.02, vmax: 60.0, unit: "mg/m³" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
-  uv:    { vmin: 0.6, vmax: 0.9,  unit: "m" }, /* CHANGED: Now represents ADT/SSH range */
+  uv:    { vmin: 0.0,  vmax: 1.6,  unit: "m" }, /* ADT/SSH range: actual data 0.005–1.625m */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" }
 };
 
@@ -2126,7 +2126,7 @@ function buildUv(gridInfo, dataObj) {
     mode:"lines",
     x:lineX, y:lineY,
     hoverinfo:"none",
-    line:{ color:"#00FFFF", width:4 }, /* Bright cyan arrows for maximum visibility on dark Viridis */
+    line:{ color:"#ffffff", width:4 }, /* White arrows — maximum contrast on any ocean background */
     showlegend:false
   };
 
@@ -2280,7 +2280,7 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   const sx = ctx.canvas.width / Math.max(1, nx - 1);
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
   ctx.save();
-  ctx.strokeStyle = "rgba(0,255,255,0.95)";
+  ctx.strokeStyle = "rgba(255,255,255,0.95)";
   ctx.lineWidth = 3.0;
   ctx.lineCap = "round";
   for (let row = 0; row < ny; row += step) {
