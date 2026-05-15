@@ -326,11 +326,12 @@
       margin-left:4px;
     }
 
-    /* Floating readout: Updated Top position */
+    /* Floating readout: fixed lower-right so it stays visible during map gestures. */
     #readout{
-      position:absolute;
-      top:75px; /* Adjusted to be consistent with modebar host */
+      position:fixed;
+      top:auto;
       right:10px;
+      bottom:76px;
       z-index:120;
       padding:5px 5px;
       background: rgba(255,255,255,0.50);
@@ -343,9 +344,8 @@
       font-size:14px;
       min-width:120px;
       text-align:middle;
-      touch-action:none;
       user-select:none;
-      cursor:move;
+      cursor:default;
     }
 
     /* ======= Bottom ranges (sticky): Reduced Padding ======= */
@@ -626,6 +626,7 @@
         min-width: 80px;
         padding: 3px 5px;
         z-index: 130;
+        pointer-events:none;
       }
       #temp-unit-toggle{ min-width:38px; min-height:32px; padding:3px 8px; font-size:12px; }
 
@@ -1128,8 +1129,6 @@ function syncFloatingViewportUi() {
   }
   const feedback = document.getElementById("feedback-float");
   if (feedback) clampRectToVisualViewport(feedback, { margin: 8 });
-  const readout = document.getElementById("readout");
-  if (readout?.dataset.dragged === "1") clampRectToVisualViewport(readout, { margin: 8 });
 }
 
 if (window.visualViewport) {
@@ -2766,66 +2765,16 @@ function renderReadoutFromPoint(p) {
 
 /* adjust readout to avoid colorbar overlap when landscape */
 function updateReadoutPosition() {
-  if (readoutDiv?.dataset.dragged === "1") return;
-  if (isPortrait()) readoutDiv.style.right = "5px";
-  else readoutDiv.style.right = "50px";
-}
-
-function applyReadoutPosition(pos) {
-  if (!readoutDiv || !pos) return;
-  readoutDiv.dataset.dragged = "1";
+  if (!readoutDiv) return;
+  readoutDiv.dataset.dragged = "0";
   readoutDiv.style.position = "fixed";
-  readoutDiv.style.right = "auto";
-  readoutDiv.style.bottom = "auto";
-  clampRectToVisualViewport(readoutDiv, {
-    x: Number(pos.x),
-    y: Number(pos.y),
-    margin: 8
-  });
+  readoutDiv.style.left = "auto";
+  readoutDiv.style.top = "auto";
+  readoutDiv.style.right = isPortrait() ? "8px" : "12px";
+  readoutDiv.style.bottom = isPortrait()
+    ? "calc(58px + env(safe-area-inset-bottom, 0px))"
+    : "76px";
 }
-
-function installReadoutDrag() {
-  if (!readoutDiv || readoutDiv.__dragInstalled) return;
-  readoutDiv.__dragInstalled = true;
-  let dragState = null;
-  try {
-    const saved = JSON.parse(localStorage.getItem("readout_pos") || "null");
-    if (saved) requestAnimationFrame(() => applyReadoutPosition(saved));
-  } catch (_) {}
-
-  readoutDiv.addEventListener("pointerdown", (e) => {
-    const rect = readoutDiv.getBoundingClientRect();
-    dragState = {
-      pointerId: e.pointerId,
-      startX: e.clientX,
-      startY: e.clientY,
-      left: rect.left,
-      top: rect.top,
-      moved: false
-    };
-    readoutDiv.setPointerCapture?.(e.pointerId);
-  });
-  readoutDiv.addEventListener("pointermove", (e) => {
-    if (!dragState || dragState.pointerId !== e.pointerId) return;
-    const dx = e.clientX - dragState.startX;
-    const dy = e.clientY - dragState.startY;
-    if (Math.hypot(dx, dy) > 4) dragState.moved = true;
-    if (!dragState.moved) return;
-    e.preventDefault();
-    applyReadoutPosition({ x: dragState.left + dx, y: dragState.top + dy });
-  });
-  const finish = () => {
-    if (!dragState) return;
-    if (dragState.moved) {
-      const rect = readoutDiv.getBoundingClientRect();
-      localStorage.setItem("readout_pos", JSON.stringify({ x: rect.left, y: rect.top }));
-    }
-    dragState = null;
-  };
-  readoutDiv.addEventListener("pointerup", finish);
-  readoutDiv.addEventListener("pointercancel", finish);
-}
-installReadoutDrag();
 
 /* ========================= UI ========================= */
 function updateTempUnitUI() {
