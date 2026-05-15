@@ -334,7 +334,7 @@
       right:10px;
       bottom:auto;
       z-index:120;
-      padding:5px 5px;
+      padding:4px 6px;
       background: rgba(255,255,255,0.50);
       color:#000;
       border:1px solid rgba(0,0,0,0.12);
@@ -343,10 +343,12 @@
       pointer-events:none;
       white-space:nowrap;
       font-size:14px;
-      min-width:120px;
-      text-align:middle;
+      min-width:140px;
+      text-align:left;
       user-select:none;
       cursor:default;
+      line-height: 1.4;
+      display: inline-block;
     }
 
     /* ======= Bottom ranges (sticky): Reduced Padding ======= */
@@ -625,9 +627,11 @@
         top: calc(6px + env(safe-area-inset-top, 0px));
         bottom: auto;
         font-size: 11px;
-        min-width: 80px;
-        padding: 3px 5px;
+        min-width: 140px;
+        padding: 4px 6px;
         z-index: 130;
+        line-height: 1.4;
+        display: inline-block;
         pointer-events:none;
       }
       #temp-unit-toggle{ min-width:38px; min-height:32px; padding:3px 8px; font-size:12px; }
@@ -2459,7 +2463,7 @@ function renderMobileReadout(lon, lat) {
   updateMobileCursor(lon, lat);
   const base = `${toDDM(lon)} ${toDDM(lat)}`;
   const val = sampleMobileValueAt(lon, lat);
-  if (val === null) {
+  if (val === null || !isFinite(val) || isNaN(val)) {
     setReadout(base);
     return;
   }
@@ -2750,12 +2754,11 @@ function renderReadoutFromPoint(p) {
   const base = `${toDDM(lon)} ${toDDM(lat)}`;
   
   const cd = p.customdata;
-  if (cd === null || cd === undefined || !isFinite(cd)) { 
-    setReadout(base); 
-    return; 
-  }
-
   const val = Number(cd);
+  if (cd === null || cd === undefined || !isFinite(val) || isNaN(val)) {
+    setReadout(base);
+    return;
+  }
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
   
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
