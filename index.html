@@ -2463,7 +2463,11 @@ function renderMobileReadout(lon, lat) {
   updateMobileCursor(lon, lat);
   const base = `${toDDM(lon)} ${toDDM(lat)}`;
   const val = sampleMobileValueAt(lon, lat);
-  if (val === null || !isFinite(val) || isNaN(val)) {
+  if (val === null || val === undefined) {
+    setReadout(base);
+    return;
+  }
+  if (!isFinite(val) || isNaN(val)) {
     setReadout(base);
     return;
   }
@@ -2754,8 +2758,12 @@ function renderReadoutFromPoint(p) {
   const base = `${toDDM(lon)} ${toDDM(lat)}`;
   
   const cd = p.customdata;
+  if (cd === null || cd === undefined) {
+    setReadout(base);
+    return;
+  }
   const val = Number(cd);
-  if (cd === null || cd === undefined || !isFinite(val) || isNaN(val)) {
+  if (!isFinite(val) || isNaN(val)) {
     setReadout(base);
     return;
   }
