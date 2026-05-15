@@ -329,10 +329,10 @@
     /* Floating readout: fixed lower-right so it stays visible during map gestures. */
     #readout{
       position:fixed;
-      top:auto;
+      top:calc(6px + env(safe-area-inset-top, 0px));
       left:auto;
       right:10px;
-      bottom:12px;
+      bottom:auto;
       z-index:120;
       padding:5px 5px;
       background: rgba(255,255,255,0.50);
@@ -618,12 +618,12 @@
       #modebar-host .modebar-btn{ margin-left: 6px !important; margin-right: 6px !important; }
       #modebar-host .modebar-group{ gap: 8px !important; }
 
-      /* Readout anchored bottom-right for all orientations */
+      /* Readout: top-right in portrait (avoids bottom ambiguity) */
       #readout{
         left: auto !important;
         right: 8px;
-        top: auto;
-        bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+        top: calc(6px + env(safe-area-inset-top, 0px));
+        bottom: auto;
         font-size: 11px;
         min-width: 80px;
         padding: 3px 5px;
@@ -2771,9 +2771,9 @@ function updateReadoutPosition() {
   readoutDiv.dataset.dragged = "0";
   readoutDiv.style.position = "fixed";
   readoutDiv.style.left = "auto";
-  readoutDiv.style.top = "auto";
+  readoutDiv.style.top = "calc(6px + env(safe-area-inset-top, 0px))";
+  readoutDiv.style.bottom = "auto";
   readoutDiv.style.right = isPortrait() ? "8px" : "12px";
-  readoutDiv.style.bottom = "calc(12px + env(safe-area-inset-bottom, 0px))";
   readoutDiv.style.maxWidth = isPortrait() ? "140px" : "200px";
 }
 
