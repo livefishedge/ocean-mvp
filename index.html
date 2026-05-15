@@ -2458,7 +2458,10 @@ function sampleMobileValueAt(lon, lat) {
   const i = Math.max(0, Math.min(nx - 1, Math.round(iFrac * (nx - 1))));
   const j = Math.max(0, Math.min(ny - 1, Math.round(jFrac * (ny - 1))));
   const value = z[j]?.[i];
-  return isFinite(value) ? Number(value) : null;
+  if (value === null || value === undefined || value === "" || Number.isNaN(value)) return null;
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  return num;
 }
 
 function renderMobileReadout(lon, lat) {
