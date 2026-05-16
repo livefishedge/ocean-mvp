@@ -2283,8 +2283,10 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   ctx.strokeStyle = "rgba(255,255,255,0.95)";
   ctx.lineWidth = 3.0;
   ctx.lineCap = "round";
+  // Same orientation convention as makeMobileRasterCanvas: srcRow0=0 for UV/SST, ny-1 for CHL
+  const srcRow0 = 0;
   for (let row = 0; row < ny; row += step) {
-    const srcJ = yAscending ? (ny - 1 - row) : row;
+    const srcJ = yAscending ? srcRow0 - row : row;
     for (let col = 0; col < nx; col += step) {
       const srcI = xAscending ? col : (nx - 1 - col);
       const uu = u[srcJ]?.[srcI];
@@ -2514,8 +2516,14 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   const cfg = mobileValueConfig(varKey);
   const denom = cfg.hi === cfg.lo ? 1 : (cfg.hi - cfg.lo);
 
+  // UV/SST: yAxis is ascending (south→north), data rows 0..39 also south→north.
+  // For these products, row 0 (south, y=yAxis[0]) maps to data row 0. No flip needed.
+  // CHL: yAxis is ascending, but data row 0 is at yAxis[last] (north-up convention).
+  // Therefore flip is needed when data row 0 = north = yAxis[last] (yAscending && yAxis[0] > yAxis[last] never true, use data convention instead).
+  const srcRow0 = (varKey === "chl") ? (ny - 1) : 0;
+
   for (let row = 0; row < ny; row++) {
-    const srcJ = yAscending ? (ny - 1 - row) : row;
+    const srcJ = yAscending ? srcRow0 - row : row;
     for (let col = 0; col < nx; col++) {
       const srcI = xAscending ? col : (nx - 1 - col);
       const value = z[srcJ]?.[srcI];
