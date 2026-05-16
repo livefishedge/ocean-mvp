@@ -2269,7 +2269,7 @@ function frameExtentFromGrid(gridInfo) {
   return [x0, y0, x1, y1];
 }
 
-function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending) {
+function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, varKey) {
   const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
   const u = d?.u || dataObj?.meta?.grid?.u;
   const v = d?.v || dataObj?.meta?.grid?.v;
@@ -2544,7 +2544,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending);
+  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, varKey);
   return canvas;
 }
 
