@@ -2609,7 +2609,13 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
+  // TEMPORARILY DISABLED: pixel-accurate arrow drawing causing heatmap corruption on mobile.
+  // Arrows disabled until a safe arrow rendering approach is implemented.
+  // if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
+  if (varKey === "uv") {
+    // Log arrow params for debugging
+    console.log("UV arrows disabled for debug - yFlip=" + yFlip + " ny=" + ny + " nx=" + nx + " dataObj keys=" + Object.keys(dataObj || {}).join(","));
+  }
   return canvas;
 }
 
