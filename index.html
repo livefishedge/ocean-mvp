@@ -2587,7 +2587,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   // yFlip determines when to reverse row order relative to yAscending:
   //   CHL north-up data: flip when yAscending (data 0=north=top), no flip when yAscending is false (data 0=south)
   //   UV south-up data: flip when yAscending is false (data 0=south), no flip when yAscending (data 0=south)
-  const yFlip = (varKey === "uv") ? !yAscending : yAscending;
+  const yFlip = (varKey === "uv") ? yAscending : yAscending;
 
   for (let row = 0; row < ny; row++) {
     const srcJ = yFlip ? (ny - 1 - row) : row;
@@ -2614,11 +2614,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   ctx.putImageData(img, 0, 0);
   // TEMPORARILY DISABLED: pixel-accurate arrow drawing causing heatmap corruption on mobile.
   // Arrows disabled until a safe arrow rendering approach is implemented.
-  // if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
-  if (varKey === "uv") {
-    // Log arrow params for debugging
-    console.log("UV arrows disabled for debug - yFlip=" + yFlip + " ny=" + ny + " nx=" + nx + " dataObj keys=" + Object.keys(dataObj || {}).join(","));
-  }
+  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
   return canvas;
 }
 
