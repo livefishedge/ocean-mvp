@@ -2269,7 +2269,7 @@ function frameExtentFromGrid(gridInfo) {
   return [x0, y0, x1, y1];
 }
 
-function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, varKey) {
+function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip) {
   const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
   const u = d?.u || dataObj?.meta?.grid?.u;
   const v = d?.v || dataObj?.meta?.grid?.v;
@@ -2283,8 +2283,6 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   ctx.strokeStyle = "rgba(255,255,255,0.95)";
   ctx.lineWidth = 3.0;
   ctx.lineCap = "round";
-  // yFlip: use same convention as makeMobileRasterCanvas
-  const yFlip = (varKey === "uv") ? !yAscending : yAscending;
   for (let row = 0; row < ny; row += step) {
     const srcJ = yFlip ? (ny - 1 - row) : row;
     for (let col = 0; col < nx; col += step) {
@@ -2544,7 +2542,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, varKey);
+  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
   return canvas;
 }
 
