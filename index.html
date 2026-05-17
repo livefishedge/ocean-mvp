@@ -2614,7 +2614,8 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   ctx.putImageData(img, 0, 0);
   // TEMPORARILY DISABLED: pixel-accurate arrow drawing causing heatmap corruption on mobile.
   // Arrows disabled until a safe arrow rendering approach is implemented.
-  if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
+  // TEMPORARILY DISABLED: drawMobileUvArrows causing page freeze on some mobile devices.
+  // if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
   return canvas;
 }
 
