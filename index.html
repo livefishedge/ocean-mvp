@@ -9,6 +9,7 @@
 
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
+  <script src="drawMobileUvArrowsLite.js"></script>
 
 
   <style>
@@ -2612,10 +2613,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  // TEMPORARILY DISABLED: pixel-accurate arrow drawing causing heatmap corruption on mobile.
-  // Arrows disabled until a safe arrow rendering approach is implemented.
-  // TEMPORARILY DISABLED: drawMobileUvArrows causing page freeze on some mobile devices.
-  // if (varKey === "uv") drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
+  if (varKey === "uv") drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
   return canvas;
 }
 
