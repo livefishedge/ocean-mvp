@@ -9,7 +9,7 @@
 
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
-  <script src="drawMobileUvArrowsLite.js"></script>
+  <script src="drawMobileUvArrowsLite.js?v=20260517-arrows2"></script>
 
 
   <style>
@@ -2078,18 +2078,22 @@ function buildUv(gridInfo, dataObj) {
     zsmooth:false
   };
 
-  // Open arrowheads
+  // UV values are m/s, while the plot axes are lon/lat degrees. Render the
+  // direction in grid-cell units so arrows remain legible without covering ADT.
   const lineX = [];
   const lineY = [];
 
   let dxg = 0.01, dyg = 0.01;
   if (nx > 1) dxg = Math.abs(xAxis[1] - xAxis[0]);
   if (ny > 1) dyg = Math.abs(yAxis[1] - yAxis[0]);
-  const minHead = 0.2 * Math.max(dxg, dyg);
-  const headAngle = (10 * Math.PI) / 180;
+  const cell = Math.min(dxg, dyg);
+  const headAngle = (24 * Math.PI) / 180;
 
-  const step = (nx * ny > 2500) ? 2 : 1;
-  const scale = 1.0;
+  const step = Math.max(4, Math.floor(Math.sqrt(nx * ny) / 14));
+  const maxSpeed = 1.2;
+  const minSpeed = 0.035;
+  const minLen = 0.55 * cell;
+  const maxLen = 1.6 * cell;
 
   for (let j=0;j<ny;j+=step){
     const lat0 = yAxis[j];
@@ -2099,9 +2103,12 @@ function buildUv(gridInfo, dataObj) {
       const sp = Math.hypot(uu, vv);
 
       if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp)) continue;
+      if (sp < minSpeed) continue;
 
-      const lon1 = lon0 + uu * scale;
-      const lat1 = lat0 + vv * scale;
+      const scaled = Math.min(sp, maxSpeed) / maxSpeed;
+      const len = minLen + (maxLen - minLen) * scaled;
+      const lon1 = lon0 + (uu / sp) * len;
+      const lat1 = lat0 + (vv / sp) * len;
 
       const dx = lon1 - lon0, dy = lat1 - lat0;
       const L = Math.hypot(dx,dy);
@@ -2113,7 +2120,7 @@ function buildUv(gridInfo, dataObj) {
 
       // open V head
       const theta = Math.atan2(dy, dx);
-      const hl = Math.max(minHead, 0.45 * L);
+      const hl = Math.min(0.42 * L, 0.42 * cell);
 
       const xL = lon1 + hl * Math.cos(theta + Math.PI - headAngle);
       const yL = lat1 + hl * Math.sin(theta + Math.PI - headAngle);
@@ -2130,7 +2137,7 @@ function buildUv(gridInfo, dataObj) {
     mode:"lines",
     x:lineX, y:lineY,
     hoverinfo:"none",
-    line:{ color:"#ffffff", width:4 }, /* White arrows - maximum contrast on any ocean background */
+    line:{ color:"rgba(255,255,255,0.88)", width:1.5 },
     showlegend:false
   };
 

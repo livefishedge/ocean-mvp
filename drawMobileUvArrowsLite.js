@@ -13,13 +13,17 @@ function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAsce
   const sx = ctx.canvas.width  / Math.max(1, nx - 1);
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
 
-  // Sparse enough to be cheap; dense enough to show the flow
-  const step = Math.max(4, Math.floor(Math.sqrt(nx * ny) / 20));
+  // Sparse enough to be cheap; dense enough to show the flow without whitening the ADT field.
+  const step = Math.max(5, Math.floor(Math.sqrt(nx * ny) / 14));
+  const maxSpeed = 1.2;
+  const minSpeed = 0.035;
+  const minLen = 0.55 * Math.min(sx, sy);
+  const maxLen = 1.6 * Math.min(sx, sy);
 
   // Style
   ctx.save();
-  ctx.strokeStyle = "rgba(255,255,255,0.55)";
-  ctx.lineWidth   = 1.2;
+  ctx.strokeStyle = "rgba(255,255,255,0.82)";
+  ctx.lineWidth   = 1.1;
   ctx.lineCap     = "round";
   ctx.lineJoin    = "round";
 
@@ -30,12 +34,16 @@ function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAsce
       const uu = u[srcJ]?.[srcI];
       const vv = v[srcJ]?.[srcI];
       if (!isFinite(uu) || !isFinite(vv)) continue;
+      const sp = Math.hypot(uu, vv);
+      if (sp < minSpeed) continue;
 
       // Tail and tip in canvas pixel coords
       const x0 = col * sx;
       const y0 = row * sy;
-      const x1 = x0 + uu * sx * 6;   // SCALE=6 keeps arrows short enough
-      const y1 = y0 - vv * sy * 6;   // flip vv (lat increases upward in data, canvas y is inverted)
+      const scaled = Math.min(sp, maxSpeed) / maxSpeed;
+      const len = minLen + (maxLen - minLen) * scaled;
+      const x1 = x0 + (uu / sp) * len;
+      const y1 = y0 - (vv / sp) * len;   // flip vv (lat increases upward in data, canvas y is inverted)
 
       // Skip near-zero
       const dx = x1 - x0, dy = y1 - y0;
@@ -49,7 +57,7 @@ function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAsce
 
       // Arrowhead
       const angle = Math.atan2(dy, dx);
-      const hs    = 5;
+      const hs    = Math.max(2.2, Math.min(4, 0.55 * len));
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x1 - hs * Math.cos(angle - Math.PI / 6),
@@ -57,7 +65,7 @@ function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAsce
       ctx.lineTo(x1 - hs * Math.cos(angle + Math.PI / 6),
                 y1 - hs * Math.sin(angle + Math.PI / 6));
       ctx.closePath();
-      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillStyle = "rgba(255,255,255,0.82)";
       ctx.fill();
     }
   }
