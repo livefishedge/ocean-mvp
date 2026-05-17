@@ -2090,11 +2090,11 @@ function buildUv(gridInfo, dataObj) {
   const cell = Math.min(dxg, dyg);
   const headAngle = (24 * Math.PI) / 180;
 
-  const step = Math.max(4, Math.floor(Math.sqrt(nx * ny) / 14));
+  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 18));
   const maxSpeed = 1.2;
   const minSpeed = 0.035;
-  const minLen = 0.55 * cell;
-  const maxLen = 1.6 * cell;
+  const minLen = 0.75 * cell;
+  const maxLen = 2.25 * cell;
 
   for (let j=0;j<ny;j+=step){
     const lat0 = yAxis[j];
@@ -2121,7 +2121,7 @@ function buildUv(gridInfo, dataObj) {
 
       // open V head
       const theta = Math.atan2(dy, dx);
-      const hl = Math.min(0.42 * L, 0.42 * cell);
+      const hl = Math.min(0.44 * L, 0.58 * cell);
 
       const xL = lon1 + hl * Math.cos(theta + Math.PI - headAngle);
       const yL = lat1 + hl * Math.sin(theta + Math.PI - headAngle);
@@ -2138,7 +2138,7 @@ function buildUv(gridInfo, dataObj) {
     mode:"lines",
     x:lineX, y:lineY,
     hoverinfo:"none",
-    line:{ color:"rgba(255,255,255,0.88)", width:1.5 },
+    line:{ color:"rgba(255,255,255,0.88)", width:1.45 },
     showlegend:false
   };
 
@@ -2357,11 +2357,11 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
   const dxg = Math.abs(xAxis[1] - xAxis[0]);
   const dyg = Math.abs(yAxis[1] - yAxis[0]);
   const cell = Math.min(dxg, dyg);
-  const step = Math.max(5, Math.floor(Math.sqrt(nx * ny) / 14));
+  const step = Math.max(4, Math.floor(Math.sqrt(nx * ny) / 18));
   const maxSpeed = 1.2;
   const minSpeed = 0.035;
-  const minLen = 0.70 * cell;
-  const maxLen = 1.95 * cell;
+  const minLen = 0.95 * cell;
+  const maxLen = 2.80 * cell;
   const headAngle = Math.PI / 6;
   const features = [];
 
@@ -2379,7 +2379,7 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
       const lon1 = lon0 + (uu / sp) * len;
       const lat1 = lat0 + (vv / sp) * len;
       const theta = Math.atan2(lat1 - lat0, lon1 - lon0);
-      const headLen = Math.min(0.46 * len, 0.60 * cell);
+      const headLen = Math.min(0.46 * len, 0.74 * cell);
       const left = [
         lon1 + headLen * Math.cos(theta + Math.PI - headAngle),
         lat1 + headLen * Math.sin(theta + Math.PI - headAngle)
@@ -2407,7 +2407,7 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
     style: new ol.style.Style({
       stroke: new ol.style.Stroke({
         color: "rgba(255,255,255,0.86)",
-        width: 1.35,
+        width: 1.45,
         lineCap: "round",
         lineJoin: "round"
       })
