@@ -269,12 +269,12 @@
       inset:0;
       width:100vw;
       height:100dvh;
-      background:#ffffff;
+      background:#050b10;
       touch-action:none;
       z-index:20;
     }
     #mobile-map .ol-viewport{
-      background:#ffffff;
+      background:#050b10;
     }
     #mobile-map .ol-viewport,
     #mobile-map .ol-unselectable,
@@ -1062,6 +1062,7 @@ let mobileMapState = {
   fittedRegion: null,
   disabled: false,
   landLayer: null,
+  arrowLayer: null,
   placeLayer: null,
   cursorLayer: null,
   cursorFeature: null,
@@ -2270,6 +2271,12 @@ function isMobileMissingValue(varKey, rawValue, numericValue) {
   return false;
 }
 
+function clearMobileUvArrowLayer(map) {
+  if (!map || !mobileMapState.arrowLayer) return;
+  map.removeLayer(mobileMapState.arrowLayer);
+  mobileMapState.arrowLayer = null;
+}
+
 function frameExtentFromGrid(gridInfo) {
   const xs = gridInfo.xAxis || [];
   const ys = gridInfo.yAxis || [];
@@ -2333,6 +2340,79 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   }
 
   ctx.putImageData(imgData, 0, 0);
+}
+
+function buildMobileUvArrowLayer(dataObj, gridInfo) {
+  const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+  const u = d?.u || dataObj?.meta?.grid?.u;
+  const v = d?.v || dataObj?.meta?.grid?.v;
+  const xAxis = gridInfo?.xAxis || [];
+  const yAxis = gridInfo?.yAxis || [];
+  if (!is2D(u) || !is2D(v) || xAxis.length < 2 || yAxis.length < 2) return null;
+
+  const ny = Math.min(u.length, v.length, yAxis.length);
+  const nx = Math.min(u[0]?.length || 0, v[0]?.length || 0, xAxis.length);
+  if (nx < 2 || ny < 2) return null;
+
+  const dxg = Math.abs(xAxis[1] - xAxis[0]);
+  const dyg = Math.abs(yAxis[1] - yAxis[0]);
+  const cell = Math.min(dxg, dyg);
+  const step = Math.max(5, Math.floor(Math.sqrt(nx * ny) / 14));
+  const maxSpeed = 1.2;
+  const minSpeed = 0.035;
+  const minLen = 0.70 * cell;
+  const maxLen = 1.95 * cell;
+  const headAngle = Math.PI / 6;
+  const features = [];
+
+  for (let j = 0; j < ny; j += step) {
+    const lat0 = yAxis[j];
+    for (let i = 0; i < nx; i += step) {
+      const lon0 = xAxis[i];
+      const uu = u[j]?.[i];
+      const vv = v[j]?.[i];
+      const sp = Math.hypot(uu, vv);
+      if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp) || sp < minSpeed) continue;
+
+      const scaled = Math.min(sp, maxSpeed) / maxSpeed;
+      const len = minLen + (maxLen - minLen) * scaled;
+      const lon1 = lon0 + (uu / sp) * len;
+      const lat1 = lat0 + (vv / sp) * len;
+      const theta = Math.atan2(lat1 - lat0, lon1 - lon0);
+      const headLen = Math.min(0.46 * len, 0.60 * cell);
+      const left = [
+        lon1 + headLen * Math.cos(theta + Math.PI - headAngle),
+        lat1 + headLen * Math.sin(theta + Math.PI - headAngle)
+      ];
+      const right = [
+        lon1 + headLen * Math.cos(theta + Math.PI + headAngle),
+        lat1 + headLen * Math.sin(theta + Math.PI + headAngle)
+      ];
+      features.push(new ol.Feature({
+        geometry: new ol.geom.MultiLineString([
+          [[lon0, lat0], [lon1, lat1]],
+          [[lon1, lat1], left],
+          [[lon1, lat1], right]
+        ])
+      }));
+    }
+  }
+
+  const source = new ol.source.Vector({ features });
+  return new ol.layer.Vector({
+    source,
+    zIndex: 25,
+    updateWhileAnimating: true,
+    updateWhileInteracting: true,
+    style: new ol.style.Style({
+      stroke: new ol.style.Stroke({
+        color: "rgba(255,255,255,0.86)",
+        width: 1.35,
+        lineCap: "round",
+        lineJoin: "round"
+      })
+    })
+  });
 }
 
 // Draw a line using direct pixel manipulation (Bresenham-inspired)
@@ -2605,10 +2685,14 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
       const k = (row * nx + col) * 4;
       const numericValue = Number(value);
       if (isMobileMissingValue(varKey, value, numericValue)) {
-        img.data[k] = 255;
-        img.data[k + 1] = 255;
-        img.data[k + 2] = 255;
-        img.data[k + 3] = 255;
+        if (varKey === "uv") {
+          img.data[k + 3] = 0;
+        } else {
+          img.data[k] = 255;
+          img.data[k + 1] = 255;
+          img.data[k + 2] = 255;
+          img.data[k + 3] = 255;
+        }
         continue;
       }
       const t = (cfg.transform(numericValue) - cfg.lo) / denom;
@@ -2620,7 +2704,6 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  if (varKey === "uv") drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip);
   return canvas;
 }
 
@@ -2708,6 +2791,11 @@ async function renderMobileFrame(frameMeta) {
   mobileMapState.imageLayer = layer;
   mobileMapState.imageUrl = url;
   map.addLayer(layer);
+  clearMobileUvArrowLayer(map);
+  if (currentVar === "uv") {
+    mobileMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
+    if (mobileMapState.arrowLayer) map.addLayer(mobileMapState.arrowLayer);
+  }
   await ensureMobileLandLayer(map);
   ensureMobilePlaceLayer(map);
   installMobileReadoutOnce(map);
