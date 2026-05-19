@@ -3527,7 +3527,8 @@ async function showFrame() {
   // --- Overlay CHL fronts on CHL page ---
   if (showChlFrontOverlay && currentVar === "chl") {
     const frontFrames = framesByVar["chl_front"] || [];
-    if (frontFrames.length) {
+    if (!frontFrames.length) { console.warn("No chl_front frames available for overlay"); }
+    else {
       const curMs = epochMsForFrame(currentVar, frameMeta);
       const frontTimes = frameTimesByVar["chl_front"] || [];
       let bestIdx = 0, bestDiff = Infinity;
@@ -3535,20 +3536,25 @@ async function showFrame() {
         const d = Math.abs((frontTimes[i] || 0) - curMs);
         if (d < bestDiff) { bestDiff = d; bestIdx = i; }
       }
+      console.log("CHL front overlay: current frame time:", curMs, "best front idx:", bestIdx, "diff (min):", Math.round(bestDiff/60000));
       try {
         const frontMeta = frontFrames[bestIdx];
         const frontGrid = await loadGridForVar("chl_front", { bbox: dataObj.bbox, ny: dataObj.ny, nx: dataObj.nx });
+        console.log("CHL front overlay grid loaded:", frontGrid);
         const frontData = await fetchFrameData("chl_front", frontMeta);
+        console.log("CHL front overlay data loaded, features:", frontData.features?.length);
         const frontFig = buildFrontLines(frontGrid, frontData, "chl_front");
         fig.data.push(...frontFig.data);
-      } catch(e) { console.error("CHL front overlay failed:", e); }
+        console.log("CHL front overlay pushed", frontFig.data.length, "traces, total traces:", fig.data.length);
+      } catch(e) { console.error("CHL front overlay failed:", e.message, e.stack); }
     }
   }
 
   // --- Overlay SST fronts on SST page ---
   if (showSstFrontOverlay && currentVar === "sst") {
     const frontFrames = framesByVar["sst_front"] || [];
-    if (frontFrames.length) {
+    if (!frontFrames.length) { console.warn("No sst_front frames available for overlay"); }
+    else {
       const curMs = epochMsForFrame(currentVar, frameMeta);
       const frontTimes = frameTimesByVar["sst_front"] || [];
       let bestIdx = 0, bestDiff = Infinity;
@@ -3556,13 +3562,17 @@ async function showFrame() {
         const d = Math.abs((frontTimes[i] || 0) - curMs);
         if (d < bestDiff) { bestDiff = d; bestIdx = i; }
       }
+      console.log("SST front overlay: current frame time:", curMs, "best front idx:", bestIdx, "diff (min):", Math.round(bestDiff/60000));
       try {
         const frontMeta = frontFrames[bestIdx];
         const frontGrid = await loadGridForVar("sst_front", { bbox: dataObj.bbox, ny: dataObj.ny, nx: dataObj.nx });
+        console.log("SST front overlay grid loaded:", frontGrid);
         const frontData = await fetchFrameData("sst_front", frontMeta);
+        console.log("SST front overlay data loaded, features:", frontData.features?.length);
         const frontFig = buildFrontLines(frontGrid, frontData, "sst_front");
         fig.data.push(...frontFig.data);
-      } catch(e) { console.error("SST front overlay failed:", e); }
+        console.log("SST front overlay pushed", frontFig.data.length, "traces, total traces:", fig.data.length);
+      } catch(e) { console.error("SST front overlay failed:", e.message, e.stack); }
     }
   }
 
