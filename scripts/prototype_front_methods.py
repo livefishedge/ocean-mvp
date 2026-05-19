@@ -360,10 +360,13 @@ def reported_strength(values: np.ndarray, config: FrontConfig) -> np.ndarray:
     return values
 
 
-def lonlat_from_yx(y: int, x: int, bbox: Iterable[float], ny: int, nx: int) -> tuple[float, float]:
+def lonlat_from_yx(y: int, x: int, bbox: Iterable[float], ny: int, nx: int, row0_north: bool = False) -> tuple[float, float]:
     min_lon, min_lat, max_lon, max_lat = bbox
     lon = min_lon + (max_lon - min_lon) * (x / max(nx - 1, 1))
-    lat = min_lat + (max_lat - min_lat) * (y / max(ny - 1, 1))
+    if row0_north:
+        lat = max_lat - (max_lat - min_lat) * (y / max(ny - 1, 1))
+    else:
+        lat = min_lat + (max_lat - min_lat) * (y / max(ny - 1, 1))
     return round(float(lon), 6), round(float(lat), 6)
 
 
@@ -411,7 +414,10 @@ def components_to_geojson(mask: np.ndarray, strength: np.ndarray, data: dict, so
         ys, xs = np.where(labels == label)
         if ys.size < config.min_component_px:
             continue
-        coords = [lonlat_from_yx(y, x, bbox, ny, nx) for y, x in order_component_pixels(ys, xs)]
+        coords = [
+            lonlat_from_yx(y, x, bbox, ny, nx, row0_north=source_meta["var"] == "sst")
+            for y, x in order_component_pixels(ys, xs)
+        ]
         vals = reported_strength(strength[labels == label], config)
         features.append(
             {
