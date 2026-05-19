@@ -36,6 +36,7 @@ class FrontConfig:
     min_component_px: int
     max_components: int
     unit: str
+    report_exp_strength: bool = False
 
 
 CHL_BOA = FrontConfig(
@@ -50,6 +51,7 @@ CHL_BOA = FrontConfig(
     min_component_px=18,
     max_components=40,
     unit="fold",
+    report_exp_strength=True,
 )
 
 SST_CCA = FrontConfig(
@@ -128,6 +130,10 @@ def largest_fraction(mask: np.ndarray) -> float:
 
 def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.ndarray, np.ndarray, dict]:
     valid_global = np.isfinite(field)
+    fill_value = float(np.nanmedian(field)) if np.isfinite(field).any() else 0.0
+    filled = np.where(valid_global, field, fill_value)
+    grad_mag = np.hypot(ndi.sobel(filled, axis=0, mode="nearest"), ndi.sobel(filled, axis=1, mode="nearest"))
+    grad_mag[~valid_global] = np.nan
     half = config.window_px // 2
     votes = np.zeros(field.shape, dtype=np.float32)
     strength = np.zeros(field.shape, dtype=np.float32)
@@ -168,15 +174,23 @@ def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.nd
                 rejected += 1
                 continue
 
-            binary = warm_or_high
-            boundary = binary ^ ndi.binary_erosion(binary, structure=np.ones((3, 3)), border_value=0)
-            boundary &= valid
-            if not boundary.any():
+            grad_win = grad_mag[y - half : y + half + 1, x - half : x + half + 1]
+            grad_values = grad_win[np.isfinite(grad_win) & valid]
+            if grad_values.size == 0:
                 rejected += 1
                 continue
-            votes[y - half : y + half + 1, x - half : x + half + 1][boundary] += 1.0
-            strength[y - half : y + half + 1, x - half : x + half + 1][boundary] = np.maximum(
-                strength[y - half : y + half + 1, x - half : x + half + 1][boundary],
+            near_split = np.abs(win - threshold) <= max(delta * 0.65, 1.0e-6)
+            ridge = valid & near_split & (grad_win >= np.nanpercentile(grad_values, 65))
+            if not ridge.any():
+                binary = warm_or_high
+                ridge = binary ^ ndi.binary_erosion(binary, structure=np.ones((3, 3)), border_value=0)
+                ridge &= valid
+            if not ridge.any():
+                rejected += 1
+                continue
+            votes[y - half : y + half + 1, x - half : x + half + 1][ridge] += 1.0
+            strength[y - half : y + half + 1, x - half : x + half + 1][ridge] = np.maximum(
+                strength[y - half : y + half + 1, x - half : x + half + 1][ridge],
                 delta,
             )
             accepted += 1
@@ -199,6 +213,7 @@ def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.nd
         cutoff = {label for label, _ in ordered[: config.max_components]}
         keep = np.isin(labels, list(cutoff))
 
+    edge_strength = reported_strength(strength[keep], config)
     summary = {
         "algorithm": config.name,
         "accepted_windows": accepted,
@@ -206,9 +221,9 @@ def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.nd
         "edge_pixels": int(keep.sum()),
         "component_count": int(ndi.label(keep)[1]),
         "strength_unit": config.unit,
-        "strength_p50": safe_percentile(strength[keep], 50),
-        "strength_p90": safe_percentile(strength[keep], 90),
-        "strength_max": safe_percentile(strength[keep], 100),
+        "strength_p50": safe_percentile(edge_strength, 50),
+        "strength_p90": safe_percentile(edge_strength, 90),
+        "strength_max": safe_percentile(edge_strength, 100),
     }
     return keep, strength, summary
 
@@ -218,6 +233,13 @@ def safe_percentile(values: np.ndarray, pct: float) -> float | None:
     if values.size == 0:
         return None
     return round(float(np.nanpercentile(values, pct)), 4)
+
+
+def reported_strength(values: np.ndarray, config: FrontConfig) -> np.ndarray:
+    values = values[np.isfinite(values)]
+    if config.report_exp_strength:
+        return np.exp(values)
+    return values
 
 
 def lonlat_from_yx(y: int, x: int, bbox: Iterable[float], ny: int, nx: int) -> tuple[float, float]:
@@ -239,7 +261,7 @@ def components_to_geojson(mask: np.ndarray, strength: np.ndarray, data: dict, so
         if ys.size < config.min_component_px:
             continue
         coords = [lonlat_from_yx(int(y), int(x), bbox, ny, nx) for y, x in sorted(zip(ys, xs))]
-        vals = strength[labels == label]
+        vals = reported_strength(strength[labels == label], config)
         features.append(
             {
                 "type": "Feature",
