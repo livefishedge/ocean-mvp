@@ -3493,7 +3493,9 @@ async function showFrame() {
   }
   injectPlaceLabels(fig);
 
+  console.log("showFrame: calling Plotly.react. plotDiv display:", plotDiv.style.display, "clientWidth:", plotDiv.clientWidth, "clientHeight:", plotDiv.clientHeight);
   await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
+  console.log("showFrame: Plotly.react done");
   await renderFooterColorbar(currentVar);
   // Also render colorbar inside the portrait hamburger panel
   const hCbar = document.getElementById("hamburger-cbar");
