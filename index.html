@@ -821,6 +821,8 @@
       <select id="var-select" class="control-select" title="Product">
         <option value="chl">Chlorophyll</option>
         <option value="sst">Temperature</option>
+        <option value="chl_front">CHL Fronts</option>
+        <option value="sst_front">SST Fronts</option>
         <option value="uv">Currents/SSH</option>
         <option value="bathy">Bathymetry</option>
       </select>
@@ -949,6 +951,7 @@ if (!REGIONS[REGION_ID]) REGION_ID = "usec_south";
 // UV product contains currents vectors over SSH/ADT background.
 const VAR_LABELS = {
   chl:"Chlorophyll", sst:"Temperature",
+  chl_front:"CHL Fronts", sst_front:"SST Fronts",
   uv:"Currents/SSH",
   bathy:"Bathymetry"
 };
@@ -964,6 +967,8 @@ let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.02, vmax: 60.0, unit: "mg/m3" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
+  chl_front: { vmin: 1.0, vmax: 3.0, unit: "fold/km" },
+  sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
   uv:    { vmin: 0.0,  vmax: 1.6,  unit: "m" }, /* ADT/SSH range: actual data 0.005-1.625m */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" }
 };
@@ -971,6 +976,8 @@ const DEFAULT_RANGES = {
 let userRanges = {
   chl:   { ...DEFAULT_RANGES.chl },
   sst:   { ...DEFAULT_RANGES.sst },
+  chl_front: { ...DEFAULT_RANGES.chl_front },
+  sst_front: { ...DEFAULT_RANGES.sst_front },
   uv:    { ...DEFAULT_RANGES.uv },
   bathy: { ...DEFAULT_RANGES.bathy }
 };
@@ -1039,8 +1046,8 @@ const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => ([0.02,0.1,1,10,60].includes(v)) 
 
 /* ========================= STATE ========================= */
 let lastUpdateTimestamp = null;
-let framesByVar = { chl: [], sst: [], uv: [], bathy: [] };
-let frameTimesByVar = { chl: [], sst: [], uv: [], bathy: [] };
+let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
+let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
 let currentVar = "chl";
 let currentFrameIdx = 0;
 let playing = false;
@@ -1661,6 +1668,18 @@ function parseSstUtcFromName(filename) {
   }
   return null;
 }
+function parseFrontUtcFromName(filename) {
+  if (filename.startsWith("chlfront_")) return parseChlUtcFromName(filename);
+  if (filename.startsWith("sstfront_")) {
+    const m = filename.match(/^sstfront_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
+    if (!m) return null;
+    const y = Number(m[3].slice(0,4));
+    const mo = Number(m[3].slice(4,6)) - 1;
+    const d = Number(m[3].slice(6,8));
+    return new Date(Date.UTC(y, mo, d, Number(m[4]), 0, 0));
+  }
+  return null;
+}
 function parseUvDateFromName(filename) {
   const m = filename.match(/_(\d{8})_/);
   if (!m) return null;
@@ -1690,6 +1709,7 @@ function timeOnlyLabel(varKey, frameMeta) {
   const filename = String(path).split("/").pop() || "";
   if (varKey === "chl") { const dt = parseChlUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
   if (varKey === "sst") { const dt = parseSstUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
+  if (varKey === "chl_front" || varKey === "sst_front") { const dt = parseFrontUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
   if (varKey === "uv")  { const dt = parseUvDateFromName(filename);  return dt ? fmtLocalDate(dt) : ""; }
   return "";
 }
@@ -1748,6 +1768,7 @@ function epochMsForFrame(varKey, frameMeta) {
   let dt = null;
   if (varKey === "chl") dt = parseChlUtcFromName(filename);
   if (varKey === "sst") dt = parseSstUtcFromName(filename);
+  if (varKey === "chl_front" || varKey === "sst_front") dt = parseFrontUtcFromName(filename);
   if (varKey === "uv")  dt = parseUvDateFromName(filename);
   return dt ? dt.getTime() : null;
 }
@@ -1763,6 +1784,8 @@ function filterFramesForVar(varKey, frames) {
     if (fn.includes("grid")) continue;
     if (varKey === "chl" && !fn.includes("_chl_")) continue;
     if (varKey === "sst" && !fn.startsWith("sst")) continue;
+    if (varKey === "chl_front" && !fn.startsWith("chlfront_")) continue;
+    if (varKey === "sst_front" && !fn.startsWith("sstfront_")) continue;
     if (varKey === "uv"  && !fn.startsWith("uv_")) continue;
     out.push(f);
   }
@@ -2145,6 +2168,46 @@ function buildUv(gridInfo, dataObj) {
   return { data:[bg, arrows], layout: stableLayout() };
 }
 
+function buildFrontLines(gridInfo, dataObj, varKey) {
+  const features = Array.isArray(dataObj.features) ? dataObj.features : [];
+  const lineX = [];
+  const lineY = [];
+  const text = [];
+  const custom = [];
+  for (const feature of features) {
+    const coords = feature?.geometry?.coordinates || [];
+    const props = feature?.properties || {};
+    if (!Array.isArray(coords) || coords.length < 2) continue;
+    for (const pt of coords) {
+      if (!Array.isArray(pt) || pt.length < 2) continue;
+      lineX.push(Number(pt[0]));
+      lineY.push(Number(pt[1]));
+      text.push(String(props.strength_median ?? "") + " " + (props.strength_unit || "") + "<br>" + String(props.length_km ?? "") + " km");
+      custom.push(props);
+    }
+    lineX.push(null);
+    lineY.push(null);
+    text.push(null);
+    custom.push(null);
+  }
+  const color = varKey === "chl_front" ? "rgba(34, 197, 94, 0.95)" : "rgba(255, 116, 76, 0.95)";
+  const label = varKey === "chl_front" ? "CHL front" : "SST front";
+  const trace = {
+    type: "scatter",
+    mode: "lines",
+    x: lineX,
+    y: lineY,
+    text,
+    customdata: custom,
+    hovertemplate: "<b>" + label + "</b><br>%{text}<extra></extra>",
+    line: { color, width: 2.2 },
+    connectgaps: false,
+    showlegend: false
+  };
+  const layout = stableLayout();
+  return { data: [trace], layout };
+}
+
 /* ===== Bathymetry (.nc) ===== */
 /* ===== Improved Bathymetry Loader ===== */
 async function loadBathymetryJson(url) {
@@ -2197,6 +2260,7 @@ function buildBathy(bathy) {
 function buildForVar(varKey, gridInfo, dataObj) {
   if (varKey === "chl") return buildChl(gridInfo, dataObj);
   if (varKey === "sst") return buildSst(gridInfo, dataObj);
+  if (varKey === "chl_front" || varKey === "sst_front") return buildFrontLines(gridInfo, dataObj, varKey);
   if (varKey === "uv")  return buildUv(gridInfo, dataObj);
   throw new Error(`Unsupported varKey=${varKey}`);
 }
@@ -2750,6 +2814,7 @@ function fitMobileMapWidth(map, extent) {
 }
 
 async function renderMobileFrame(frameMeta) {
+  if (currentVar === "chl_front" || currentVar === "sst_front") return false;
   const map = initMobileMapIfNeeded();
   if (!map) return false;
 
@@ -3182,10 +3247,12 @@ async function loadIndex() {
 
   framesByVar.chl = filterFramesForVar("chl", fbv.chl || []);
   framesByVar.sst = filterFramesForVar("sst", fbv.sst || []);
+  framesByVar.chl_front = filterFramesForVar("chl_front", fbv.chl_front || []);
+  framesByVar.sst_front = filterFramesForVar("sst_front", fbv.sst_front || []);
   framesByVar.uv  = filterFramesForVar("uv",  fbv.uv  || []);
   framesByVar.bathy = [{ json_path: BATHY_JSON_URL }];
 
-  for (const v of ["chl","sst","uv","bathy"]) {
+  for (const v of ["chl","sst","chl_front","sst_front","uv","bathy"]) {
     framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
@@ -3218,6 +3285,10 @@ function inferGridFromFrame(v, dataObj) {
 }
 
 async function loadGridForVar(v, dataObj = null) {
+  if ((v === "chl_front" || v === "sst_front") && dataObj && dataObj.bbox?.length >= 4) {
+    const [lonMin, latMin, lonMax, latMax] = dataObj.bbox.map(Number);
+    return { xAxis: [lonMin, lonMax], yAxis: [latMin, latMax], nx: dataObj.nx || 2, ny: dataObj.ny || 2 };
+  }
   // CHL now mixes OLCI composites and VIIRS model frames with different
   // raster dimensions. A single var-level grid file silently misplaces frames.
   // Prefer each CHL frame's own bbox/nx/ny metadata; fall back to grid only for
