@@ -76,6 +76,26 @@
     }
     #var-select{ min-width:168px; }
     #region-select{ min-width:250px; }
+    #row-fronts-overlay{
+      display:none;
+      align-items:center;
+      gap:12px;
+      font-size:13px;
+      font-weight:700;
+      color:#c8d3df;
+      min-height:32px;
+    }
+    #row-fronts-overlay label{
+      display:none;
+      align-items:center;
+      gap:6px;
+      white-space:nowrap;
+    }
+    #row-fronts-overlay input{
+      width:16px;
+      height:16px;
+      accent-color:#e0e6ee;
+    }
 
     button{
       background:#0c1723;
@@ -554,6 +574,7 @@
       #controls.open{ display: flex; }
       #row-region-and-var{ display:flex; flex-wrap:nowrap; gap:8px; width:100%; }
       #row-region, #row-var{ flex:1 1 50%; }
+      #row-fronts-overlay{ width:100%; padding:0 2px; }
       #region-select, #var-select{
         width:100%;
         min-width:0;
@@ -821,13 +842,22 @@
       <select id="var-select" class="control-select" title="Product">
         <option value="chl">Chlorophyll</option>
         <option value="sst">Temperature</option>
-        <option value="chl_front">CHL Fronts</option>
-        <option value="sst_front">SST Fronts</option>
         <option value="uv">Currents/SSH</option>
         <option value="bathy">Bathymetry</option>
       </select>
       <button id="temp-unit-toggle" type="button" title="Temperature unit">°C</button>
     </div>
+    </div>
+
+    <div id="row-fronts-overlay">
+      <label id="chl-front-overlay-wrap">
+        <input id="chl-front-overlay" type="checkbox" />
+        CHL fronts
+      </label>
+      <label id="sst-front-overlay-wrap">
+        <input id="sst-front-overlay" type="checkbox" />
+        SST fronts
+      </label>
     </div>
 
     <div id="row-slider-and-play">
@@ -1062,6 +1092,8 @@ let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null };
 let landTrace = null;
+let showChlFrontOverlay = false;
+let showSstFrontOverlay = false;
 let mobileMapState = {
   map: null,
   imageLayer: null,
@@ -1503,6 +1535,11 @@ const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
 const tempUnitToggle = document.getElementById("temp-unit-toggle");
+const frontsOverlayRow = document.getElementById("row-fronts-overlay");
+const chlFrontOverlayWrap = document.getElementById("chl-front-overlay-wrap");
+const sstFrontOverlayWrap = document.getElementById("sst-front-overlay-wrap");
+const chlFrontOverlayInput = document.getElementById("chl-front-overlay");
+const sstFrontOverlayInput = document.getElementById("sst-front-overlay");
 
 const readoutDiv = document.getElementById("readout");
 const modebarHost = document.getElementById("modebar-host");
@@ -2170,7 +2207,6 @@ function buildUv(gridInfo, dataObj) {
 
 function buildFrontLines(gridInfo, dataObj, varKey) {
   const features = Array.isArray(dataObj.features) ? dataObj.features : [];
-  console.log("buildFrontLines:", varKey, "gridInfo:", gridInfo, "n_features:", features.length, "dataObj bbox:", dataObj.bbox, "ny nx:", dataObj.ny, dataObj.nx);
   const lineX = [];
   const lineY = [];
   const text = [];
@@ -2191,7 +2227,7 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     text.push(null);
     custom.push(null);
   }
-  const color = varKey === "chl_front" ? "rgba(34, 197, 94, 0.95)" : "rgba(255, 116, 76, 0.95)";
+  const color = "rgba(0, 0, 0, 0.96)";
   const label = varKey === "chl_front" ? "CHL front" : "SST front";
   const trace = {
     type: "scatter",
@@ -2206,7 +2242,6 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     showlegend: false
   };
   const layout = stableLayout();
-  console.log("buildFrontLines trace:", trace.type, "n_points:", lineX.length, "x_range:", Math.min(...lineX.filter(Boolean)), Math.max(...lineX.filter(Boolean)), "y_range:", Math.min(...lineY.filter(Boolean)), Math.max(...lineY.filter(Boolean)));
   return { data: [trace], layout };
 }
 
@@ -3086,6 +3121,58 @@ function syncArrowLegend() {
   arrowLegendDiv.style.display = isUv ? "flex" : "none";
 }
 
+function syncFrontOverlayControls() {
+  if (!frontsOverlayRow) return;
+  const showChl = currentVar === "chl";
+  const showSst = currentVar === "sst";
+  const chlCount = (framesByVar.chl_front || []).length;
+  const sstCount = (framesByVar.sst_front || []).length;
+
+  frontsOverlayRow.style.display = (showChl || showSst) ? "flex" : "none";
+  if (chlFrontOverlayWrap) chlFrontOverlayWrap.style.display = showChl ? "flex" : "none";
+  if (sstFrontOverlayWrap) sstFrontOverlayWrap.style.display = showSst ? "flex" : "none";
+  if (chlFrontOverlayInput) {
+    chlFrontOverlayInput.disabled = chlCount === 0;
+    chlFrontOverlayInput.checked = showChlFrontOverlay && chlCount > 0;
+  }
+  if (sstFrontOverlayInput) {
+    sstFrontOverlayInput.disabled = sstCount === 0;
+    sstFrontOverlayInput.checked = showSstFrontOverlay && sstCount > 0;
+  }
+}
+
+async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
+  const frontVar = baseVar === "chl" ? "chl_front" : baseVar === "sst" ? "sst_front" : null;
+  if (!frontVar) return;
+  if (frontVar === "chl_front" && !showChlFrontOverlay) return;
+  if (frontVar === "sst_front" && !showSstFrontOverlay) return;
+
+  const frontFrames = framesByVar[frontVar] || [];
+  if (!frontFrames.length) return;
+  const curMs = epochMsForFrame(baseVar, baseFrameMeta);
+  const frontTimes = frameTimesByVar[frontVar] || [];
+  let bestIdx = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < frontFrames.length; i++) {
+    const t = frontTimes[i];
+    if (!Number.isFinite(t)) continue;
+    const d = Math.abs(t - curMs);
+    if (d < bestDiff) {
+      bestDiff = d;
+      bestIdx = i;
+    }
+  }
+
+  try {
+    const frontData = await fetchFrameData(frontVar, frontFrames[bestIdx]);
+    const frontGrid = await loadGridForVar(frontVar, frontData);
+    const frontFig = buildFrontLines(frontGrid, frontData, frontVar);
+    fig.data.push(...frontFig.data);
+  } catch (e) {
+    console.error(`${frontVar} overlay failed:`, e);
+  }
+}
+
 async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const prevVar = currentVar;
   const prevFrames = framesByVar[prevVar] || [];
@@ -3115,6 +3202,7 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   updateSliderUI();
   syncTimeControls(); /* NEW */
   syncArrowLegend(); /* NEW */
+  syncFrontOverlayControls();
 
   if (frames.length) await showFrame();
   else Plotly.purge(plotDiv);
@@ -3264,6 +3352,7 @@ async function loadIndex() {
     opt.disabled = count === 0;
     opt.textContent = count === 0 ? `${VAR_LABELS[opt.value]} - no data` : VAR_LABELS[opt.value];
   }
+  syncFrontOverlayControls();
 
   return data;
 }
@@ -3490,6 +3579,7 @@ async function showFrame() {
     fig.data.push(landTrace);
   }
   injectPlaceLabels(fig);
+  await addNearestFrontOverlay(fig, currentVar, frameMeta);
 
   await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
   await renderFooterColorbar(currentVar);
@@ -3524,6 +3614,20 @@ if (tempUnitToggle) {
     tempUnit = tempUnit === "F" ? "C" : "F";
     localStorage.setItem("sst_temp_unit", tempUnit);
     updateTempUnitUI();
+    if (currentVar === "sst") showFrame();
+  });
+}
+
+if (chlFrontOverlayInput) {
+  chlFrontOverlayInput.addEventListener("change", () => {
+    showChlFrontOverlay = chlFrontOverlayInput.checked;
+    if (currentVar === "chl") showFrame();
+  });
+}
+
+if (sstFrontOverlayInput) {
+  sstFrontOverlayInput.addEventListener("change", () => {
+    showSstFrontOverlay = sstFrontOverlayInput.checked;
     if (currentVar === "sst") showFrame();
   });
 }
