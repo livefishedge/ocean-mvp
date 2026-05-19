@@ -367,6 +367,39 @@ def lonlat_from_yx(y: int, x: int, bbox: Iterable[float], ny: int, nx: int) -> t
     return round(float(lon), 6), round(float(lat), 6)
 
 
+def order_component_pixels(ys: np.ndarray, xs: np.ndarray) -> list[tuple[int, int]]:
+    pixels = {(int(y), int(x)) for y, x in zip(ys, xs)}
+    if len(pixels) <= 2:
+        return sorted(pixels)
+
+    def neighbors(pixel: tuple[int, int]) -> list[tuple[int, int]]:
+        y, x = pixel
+        out = []
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy == 0 and dx == 0:
+                    continue
+                candidate = (y + dy, x + dx)
+                if candidate in pixels:
+                    out.append(candidate)
+        return out
+
+    endpoints = [pixel for pixel in pixels if len(neighbors(pixel)) == 1]
+    start = min(endpoints or pixels)
+    ordered = [start]
+    visited = {start}
+    current = start
+    while len(visited) < len(pixels):
+        candidates = [pixel for pixel in neighbors(current) if pixel not in visited]
+        if not candidates:
+            remaining = list(pixels - visited)
+            candidates = remaining
+        current = min(candidates, key=lambda pixel: (pixel[0] - current[0]) ** 2 + (pixel[1] - current[1]) ** 2)
+        ordered.append(current)
+        visited.add(current)
+    return ordered
+
+
 def components_to_geojson(mask: np.ndarray, strength: np.ndarray, data: dict, source_meta: dict, config: FrontConfig) -> dict:
     labels, count = ndi.label(mask)
     sizes = np.bincount(labels.ravel())
@@ -378,7 +411,7 @@ def components_to_geojson(mask: np.ndarray, strength: np.ndarray, data: dict, so
         ys, xs = np.where(labels == label)
         if ys.size < config.min_component_px:
             continue
-        coords = [lonlat_from_yx(int(y), int(x), bbox, ny, nx) for y, x in sorted(zip(ys, xs))]
+        coords = [lonlat_from_yx(y, x, bbox, ny, nx) for y, x in order_component_pixels(ys, xs)]
         vals = reported_strength(strength[labels == label], config)
         features.append(
             {
