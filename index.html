@@ -3520,6 +3520,48 @@ async function showFrame() {
   }
   injectPlaceLabels(fig);
 
+  // --- Overlay CHL fronts on CHL page ---
+  if (showChlFrontOverlay && currentVar === "chl") {
+    const frontFrames = framesByVar["chl_front"] || [];
+    if (frontFrames.length) {
+      const curMs = epochMsForFrame(currentVar, frameMeta);
+      const frontTimes = frameTimesByVar["chl_front"] || [];
+      let bestIdx = 0, bestDiff = Infinity;
+      for (let i = 0; i < frontFrames.length; i++) {
+        const d = Math.abs((frontTimes[i] || 0) - curMs);
+        if (d < bestDiff) { bestDiff = d; bestIdx = i; }
+      }
+      try {
+        const frontMeta = frontFrames[bestIdx];
+        const frontGrid = await loadGridForVar("chl_front", { bbox: dataObj.bbox, ny: dataObj.ny, nx: dataObj.nx });
+        const frontData = await fetchFrameData("chl_front", frontMeta);
+        const frontFig = buildFrontLines(frontGrid, frontData, "chl_front");
+        fig.data.push(...frontFig.data);
+      } catch(e) { console.error("CHL front overlay failed:", e); }
+    }
+  }
+
+  // --- Overlay SST fronts on SST page ---
+  if (showSstFrontOverlay && currentVar === "sst") {
+    const frontFrames = framesByVar["sst_front"] || [];
+    if (frontFrames.length) {
+      const curMs = epochMsForFrame(currentVar, frameMeta);
+      const frontTimes = frameTimesByVar["sst_front"] || [];
+      let bestIdx = 0, bestDiff = Infinity;
+      for (let i = 0; i < frontFrames.length; i++) {
+        const d = Math.abs((frontTimes[i] || 0) - curMs);
+        if (d < bestDiff) { bestDiff = d; bestIdx = i; }
+      }
+      try {
+        const frontMeta = frontFrames[bestIdx];
+        const frontGrid = await loadGridForVar("sst_front", { bbox: dataObj.bbox, ny: dataObj.ny, nx: dataObj.nx });
+        const frontData = await fetchFrameData("sst_front", frontMeta);
+        const frontFig = buildFrontLines(frontGrid, frontData, "sst_front");
+        fig.data.push(...frontFig.data);
+      } catch(e) { console.error("SST front overlay failed:", e); }
+    }
+  }
+
   console.log("showFrame: calling Plotly.react. plotDiv display:", plotDiv.style.display, "clientWidth:", plotDiv.clientWidth, "clientHeight:", plotDiv.clientHeight);
   try {
     await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
