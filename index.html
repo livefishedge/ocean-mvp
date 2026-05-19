@@ -2170,6 +2170,7 @@ function buildUv(gridInfo, dataObj) {
 
 function buildFrontLines(gridInfo, dataObj, varKey) {
   const features = Array.isArray(dataObj.features) ? dataObj.features : [];
+  console.log("buildFrontLines:", varKey, "gridInfo:", gridInfo, "n_features:", features.length, "dataObj bbox:", dataObj.bbox, "ny nx:", dataObj.ny, dataObj.nx);
   const lineX = [];
   const lineY = [];
   const text = [];
@@ -2205,6 +2206,7 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     showlegend: false
   };
   const layout = stableLayout();
+  console.log("buildFrontLines trace:", trace.type, "n_points:", lineX.length, "x_range:", Math.min(...lineX.filter(Boolean)), Math.max(...lineX.filter(Boolean)), "y_range:", Math.min(...lineY.filter(Boolean)), Math.max(...lineY.filter(Boolean)));
   return { data: [trace], layout };
 }
 
@@ -2824,6 +2826,7 @@ async function renderMobileFrame(frameMeta) {
     gridInfo = { xAxis: dataObj.xAxis, yAxis: dataObj.yAxis, nx: dataObj.xAxis.length, ny: dataObj.yAxis.length };
   } else {
     dataObj = await fetchFrameData(currentVar, frameMeta);
+    console.log("showFrame fetched dataObj keys:", Object.keys(dataObj), "type:", dataObj.type, "n_features:", dataObj.features?.length);
     gridInfo = await loadGridForVar(currentVar, dataObj);
   }
   mobileMapState.currentGridInfo = gridInfo;
@@ -3287,6 +3290,7 @@ function inferGridFromFrame(v, dataObj) {
 async function loadGridForVar(v, dataObj = null) {
   if ((v === "chl_front" || v === "sst_front") && dataObj && dataObj.bbox?.length >= 4) {
     const [lonMin, latMin, lonMax, latMax] = dataObj.bbox.map(Number);
+    console.log("loadGridForVar front special path:", v, "bbox:", dataObj.bbox, "ny nx:", dataObj.ny, dataObj.nx);
     return { xAxis: [lonMin, lonMax], yAxis: [latMin, latMax], nx: dataObj.nx || 2, ny: dataObj.ny || 2 };
   }
   // CHL now mixes OLCI composites and VIIRS model frames with different
