@@ -3489,11 +3489,14 @@ function plotConfig() {
 
 async function showFrame() {
   updateReadoutPosition();
+  console.log("showFrame called. currentVar:", currentVar, "currentFrameIdx:", currentFrameIdx);
 
   const frames = framesByVar[currentVar] || [];
+  console.log("showFrame: frames count:", frames.length);
   if (!frames.length) return;
 
   const frameMeta = frames[currentFrameIdx];
+  console.log("showFrame: frameMeta json_path:", frameMeta?.json_path);
 
   if (isMobileMapMode()) {
     try {
