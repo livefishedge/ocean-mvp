@@ -1061,6 +1061,8 @@ let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bath
 let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
 let currentVar = "chl";
 let currentFrameIdx = 0;
+let showChlFrontOverlay = false;  // overlay CHL fronts on CHL page
+let showSstFrontOverlay = false;  // overlay SST fronts on SST page
 let playing = false;
 let playTimer = null;
 const BASE_PLAY_MS = 800;
@@ -3098,6 +3100,19 @@ function syncArrowLegend() {
   arrowLegendDiv.style.display = isUv ? "flex" : "none";
 }
 
+function syncFrontOverlayVisibility() {
+  // Show the front overlay checkboxes only on CHL or SST product pages
+  const show = (currentVar === "chl" || currentVar === "sst");
+  if (rowFrontsOverlay) rowFrontsOverlay.style.display = show ? "flex" : "none";
+  // Uncheck and hide checkboxes when not on CHL/SST
+  if (!show) {
+    showChlFrontOverlay = false;
+    showSstFrontOverlay = false;
+    if (chkChlFront) chkChlFront.checked = false;
+    if (chkSstFront) chkSstFront.checked = false;
+  }
+}
+
 async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const prevVar = currentVar;
   const prevFrames = framesByVar[prevVar] || [];
@@ -3127,6 +3142,7 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   updateSliderUI();
   syncTimeControls(); /* NEW */
   syncArrowLegend(); /* NEW */
+  syncFrontOverlayVisibility(); /* NEW */
 
   if (frames.length) await showFrame();
   else Plotly.purge(plotDiv);
@@ -3538,6 +3554,23 @@ varSelect.addEventListener("change", () => {
   // in the newly selected product. This is the actual product-switch path.
   setCurrentVar(varSelect.value, true);
 });
+
+// Front overlay checkboxes
+const chkChlFront = document.getElementById("chk-chl-front");
+const chkSstFront = document.getElementById("chk-sst-front");
+const rowFrontsOverlay = document.getElementById("row-fronts-overlay");
+if (chkChlFront) {
+  chkChlFront.addEventListener("change", () => {
+    showChlFrontOverlay = chkChlFront.checked;
+    showFrame();
+  });
+}
+if (chkSstFront) {
+  chkSstFront.addEventListener("change", () => {
+    showSstFrontOverlay = chkSstFront.checked;
+    showFrame();
+  });
+}
 
 if (tempUnitToggle) {
   tempUnitToggle.addEventListener("click", () => {
