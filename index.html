@@ -828,19 +828,9 @@
       </select>
       <button id="temp-unit-toggle" type="button" title="Temperature unit">°C</button>
     </div>
-
-    <div id="row-fronts-overlay" style="display:none; align-items:center; gap:12px; font-size:13px; color:#aaa;">
-      <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
-        <input type="checkbox" id="chk-chl-front" style="cursor:pointer; accent-color:#22c55e;" />
-        <span>CHL fronts</span>
-      </label>
-      <label style="cursor:pointer; display:flex; align-items:center; gap:4px;">
-        <input type="checkbox" id="chk-sst-front" style="cursor:pointer; accent-color:#ff744c;" />
-        <span>SST fronts</span>
-      </label>
     </div>
 
-  <div id="row-slider-and-play">
+    <div id="row-slider-and-play">
     <div class="row" id="row-slider">
       <span id="frame-label" style="min-width:200px;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;"></span>
       <div class="row" id="row-play">
@@ -1060,8 +1050,6 @@ let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bath
 let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
 let currentVar = "chl";
 let currentFrameIdx = 0;
-let showChlFrontOverlay = false;  // overlay CHL fronts on CHL page
-let showSstFrontOverlay = false;  // overlay SST fronts on SST page
 let playing = false;
 let playTimer = null;
 const BASE_PLAY_MS = 800;
@@ -2203,7 +2191,7 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     text.push(null);
     custom.push(null);
   }
-  const color = varKey === "chl_front" ? "rgba(0,0,0,1)" : "rgba(0,0,0,1)";
+  const color = varKey === "chl_front" ? "rgba(34, 197, 94, 0.95)" : "rgba(255, 116, 76, 0.95)";
   const label = varKey === "chl_front" ? "CHL front" : "SST front";
   const trace = {
     type: "scatter",
@@ -2213,15 +2201,10 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     text,
     customdata: custom,
     hovertemplate: "<b>" + label + "</b><br>%{text}<extra></extra>",
-    line: { color, width: 1.8 },
+    line: { color, width: 2.2 },
     connectgaps: false,
     showlegend: false
   };
-  // Force standalone colorscale so overlay traces don't inherit heatmap colorscale
-  trace.fill = 'none';
-  trace.hoverlabel = trace.hoverlabel || {};
-  trace.hoverlabel.bgcolor = 'rgba(0,0,0,0.7)';
-
   const layout = stableLayout();
   console.log("buildFrontLines trace:", trace.type, "n_points:", lineX.length, "x_range:", Math.min(...lineX.filter(Boolean)), Math.max(...lineX.filter(Boolean)), "y_range:", Math.min(...lineY.filter(Boolean)), Math.max(...lineY.filter(Boolean)));
   return { data: [trace], layout };
@@ -3104,19 +3087,6 @@ function syncArrowLegend() {
   arrowLegendDiv.style.display = isUv ? "flex" : "none";
 }
 
-function syncFrontOverlayVisibility() {
-  // Show the front overlay checkboxes only on CHL or SST product pages
-  const show = (currentVar === "chl" || currentVar === "sst");
-  if (rowFrontsOverlay) rowFrontsOverlay.style.display = show ? "flex" : "none";
-  // Uncheck and hide checkboxes when not on CHL/SST
-  if (!show) {
-    showChlFrontOverlay = false;
-    showSstFrontOverlay = false;
-    if (chkChlFront) chkChlFront.checked = false;
-    if (chkSstFront) chkSstFront.checked = false;
-  }
-}
-
 async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const prevVar = currentVar;
   const prevFrames = framesByVar[prevVar] || [];
@@ -3146,7 +3116,6 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   updateSliderUI();
   syncTimeControls(); /* NEW */
   syncArrowLegend(); /* NEW */
-  syncFrontOverlayVisibility(); /* NEW */
 
   if (frames.length) await showFrame();
   else Plotly.purge(plotDiv);
@@ -3413,7 +3382,7 @@ async function prepareLandMask() {
 /* ========================= RENDER ========================= */
 function plotConfig() {
   return {
-    responsive: false,
+    responsive: true,
     displayModeBar: true,
     displaylogo: false,
     scrollZoom: false,
@@ -3489,14 +3458,11 @@ function plotConfig() {
 
 async function showFrame() {
   updateReadoutPosition();
-  console.log("showFrame called. currentVar:", currentVar, "currentFrameIdx:", currentFrameIdx);
 
   const frames = framesByVar[currentVar] || [];
-  console.log("showFrame: frames count:", frames.length);
   if (!frames.length) return;
 
   const frameMeta = frames[currentFrameIdx];
-  console.log("showFrame: frameMeta json_path:", frameMeta?.json_path);
 
   if (isMobileMapMode()) {
     try {
@@ -3527,66 +3493,7 @@ async function showFrame() {
   }
   injectPlaceLabels(fig);
 
-  // --- Overlay CHL fronts on CHL page ---
-  if (showChlFrontOverlay && currentVar === "chl") {
-    const frontFrames = framesByVar["chl_front"] || [];
-    if (!frontFrames.length) { console.warn("No chl_front frames available for overlay"); }
-    else {
-      const curMs = epochMsForFrame(currentVar, frameMeta);
-      const frontTimes = frameTimesByVar["chl_front"] || [];
-      let bestIdx = 0, bestDiff = Infinity;
-      for (let i = 0; i < frontFrames.length; i++) {
-        const d = Math.abs((frontTimes[i] || 0) - curMs);
-        if (d < bestDiff) { bestDiff = d; bestIdx = i; }
-      }
-      console.log("CHL front overlay: current frame time:", curMs, "best front idx:", bestIdx, "diff (min):", Math.round(bestDiff/60000));
-      try {
-        const frontMeta = frontFrames[bestIdx];
-        const frontGrid = await loadGridForVar("chl_front", { bbox: dataObj.bbox, ny: dataObj.ny, nx: dataObj.nx });
-        console.log("CHL front overlay grid loaded:", frontGrid);
-        const frontData = await fetchFrameData("chl_front", frontMeta);
-        console.log("CHL front overlay data loaded, features:", frontData.features?.length);
-        const frontFig = buildFrontLines(frontGrid, frontData, "chl_front");
-        fig.data.push(...frontFig.data);
-        console.log("CHL front overlay pushed", frontFig.data.length, "traces, total traces:", fig.data.length);
-      } catch(e) { console.error("CHL front overlay failed:", e.message, e.stack); }
-    }
-  }
-
-  // --- Overlay SST fronts on SST page ---
-  if (showSstFrontOverlay && currentVar === "sst") {
-    const frontFrames = framesByVar["sst_front"] || [];
-    if (!frontFrames.length) { console.warn("No sst_front frames available for overlay"); }
-    else {
-      const curMs = epochMsForFrame(currentVar, frameMeta);
-      const frontTimes = frameTimesByVar["sst_front"] || [];
-      let bestIdx = 0, bestDiff = Infinity;
-      for (let i = 0; i < frontFrames.length; i++) {
-        const d = Math.abs((frontTimes[i] || 0) - curMs);
-        if (d < bestDiff) { bestDiff = d; bestIdx = i; }
-      }
-      console.log("SST front overlay: current frame time:", curMs, "best front idx:", bestIdx, "diff (min):", Math.round(bestDiff/60000));
-      try {
-        const frontMeta = frontFrames[bestIdx];
-        const frontGrid = await loadGridForVar("sst_front", { bbox: dataObj.bbox, ny: dataObj.ny, nx: dataObj.nx });
-        console.log("SST front overlay grid loaded:", frontGrid);
-        const frontData = await fetchFrameData("sst_front", frontMeta);
-        console.log("SST front overlay data loaded, features:", frontData.features?.length);
-        const frontFig = buildFrontLines(frontGrid, frontData, "sst_front");
-        fig.data.push(...frontFig.data);
-        console.log("SST front overlay pushed", frontFig.data.length, "traces, total traces:", fig.data.length);
-      } catch(e) { console.error("SST front overlay failed:", e.message, e.stack); }
-    }
-  }
-
-  console.log("showFrame: calling Plotly.react. plotDiv display:", plotDiv.style.display, "clientWidth:", plotDiv.clientWidth, "clientHeight:", plotDiv.clientHeight);
-  try {
-    await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
-    console.log("showFrame: Plotly.react done");
-  } catch(e) {
-    console.error("showFrame Plotly.react FAILED:", e.message, "stack:", e.stack);
-    throw e;
-  }
+  await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
   await renderFooterColorbar(currentVar);
   // Also render colorbar inside the portrait hamburger panel
   const hCbar = document.getElementById("hamburger-cbar");
@@ -3613,23 +3520,6 @@ varSelect.addEventListener("change", () => {
   // in the newly selected product. This is the actual product-switch path.
   setCurrentVar(varSelect.value, true);
 });
-
-// Front overlay checkboxes
-const chkChlFront = document.getElementById("chk-chl-front");
-const chkSstFront = document.getElementById("chk-sst-front");
-const rowFrontsOverlay = document.getElementById("row-fronts-overlay");
-if (chkChlFront) {
-  chkChlFront.addEventListener("change", () => {
-    showChlFrontOverlay = chkChlFront.checked;
-    showFrame();
-  });
-}
-if (chkSstFront) {
-  chkSstFront.addEventListener("change", () => {
-    showSstFrontOverlay = chkSstFront.checked;
-    showFrame();
-  });
-}
 
 if (tempUnitToggle) {
   tempUnitToggle.addEventListener("click", () => {
