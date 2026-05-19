@@ -108,6 +108,23 @@
       cursor:pointer;
     }
     button:disabled{ opacity:.45; cursor:default; }
+    #row-play{
+      gap:8px;
+    }
+    #prev-btn,
+    #next-btn{
+      min-width:58px;
+      min-height:52px;
+      padding:8px 14px;
+      font-size:30px;
+      line-height:1;
+      font-weight:900;
+    }
+    #play-btn{
+      min-height:52px;
+      padding:8px 16px;
+      font-weight:800;
+    }
 
     #frame-slider{ flex:1; min-width:220px; height:24px; }
     #frame-label{
@@ -586,8 +603,10 @@
       #row-slider-and-play{ display:flex; width:100%; }
       #row-slider{ display:flex; flex-wrap:wrap; gap:8px; width:100%; min-width:0; }
       #frame-label{ flex:1 1 100%; min-width:0 !important; font-size:14px !important; white-space:nowrap; }
-      #row-play{ display:flex; gap:6px; flex:0 0 auto; }
-      #row-play button{ min-width:36px; min-height:36px; font-size:14px; }
+      #row-play{ display:flex; gap:8px; flex:0 0 auto; }
+      #row-play button{ min-width:42px; min-height:42px; font-size:16px; }
+      #row-play #prev-btn,
+      #row-play #next-btn{ min-width:56px; min-height:48px; font-size:28px; }
       #frame-slider{ width:100%; min-width:0 !important; flex:1 1 100% !important; }
       #speed-wrap{ flex: 0 0 auto; }
       #mobile-range-controls{
@@ -862,11 +881,11 @@
 
     <div id="row-slider-and-play">
     <div class="row" id="row-slider">
-      <span id="frame-label" style="min-width:200px;font-size:16px;font-weight:700;font-variant-numeric:tabular-nums;"></span>
+      <span id="frame-label"></span>
       <div class="row" id="row-play">
-        <button id="prev-btn" title="Previous frame">&#9664;</button>
+        <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
         <button id="play-btn">Play</button>
-        <button id="next-btn" title="Next frame">&#9654;</button>
+        <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
       </div>
       <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" style="flex:1;min-width:160px;" />
       <label id="speed-wrap">
@@ -1742,6 +1761,11 @@ function frameFilenameOf(f){ const p = framePathOf(f); return p.split("/").pop()
 
 function timeOnlyLabel(varKey, frameMeta) {
   if (varKey === "bathy") return ""; /* EMPTY for bathy */
+  if (frameMeta?.time_iso) {
+    const dt = new Date(frameMeta.time_iso);
+    if (!isNaN(dt.getTime())) return fmtLocalDateTime(dt);
+  }
+  if (frameMeta?.label) return String(frameMeta.label);
   const path = framePathOf(frameMeta);
   const filename = String(path).split("/").pop() || "";
   if (varKey === "chl") { const dt = parseChlUtcFromName(filename); return dt ? fmtLocalDateTime(dt) : ""; }
@@ -3096,10 +3120,12 @@ function syncRangeInputsToVar() {
 function updateSliderUI() {
   const frames = framesByVar[currentVar] || [];
   const n = frames.length;
+  if (n) currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, n - 1));
+  else currentFrameIdx = 0;
 
   slider.min = 0;
   slider.max = Math.max(0, n - 1);
-  slider.value = Math.min(currentFrameIdx, Math.max(0, n - 1));
+  slider.value = currentFrameIdx;
 
   prevBtn.disabled = n <= 1;
   nextBtn.disabled = n <= 1;
@@ -3548,6 +3574,7 @@ async function showFrame() {
 
   const frames = framesByVar[currentVar] || [];
   if (!frames.length) return;
+  currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, frames.length - 1));
 
   const frameMeta = frames[currentFrameIdx];
 
