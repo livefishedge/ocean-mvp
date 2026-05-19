@@ -68,6 +68,34 @@ SST_CCA = FrontConfig(
     unit="degC",
 )
 
+CHL_GRADIENT_RIDGE = FrontConfig(
+    name="chl_log_multiscale_gradient_ridge_v0",
+    transform="log_chl",
+    window_px=0,
+    stride_px=0,
+    min_valid_fraction=0.0,
+    min_population_fraction=0.0,
+    min_class_delta=math.log(1.25),
+    min_cohesion=0.0,
+    min_component_px=18,
+    max_components=60,
+    unit="log_chl_gradient",
+)
+
+CHL_LOG_ZERO_CROSSING = FrontConfig(
+    name="chl_log_laplacian_zero_crossing_v0",
+    transform="log_chl",
+    window_px=0,
+    stride_px=0,
+    min_valid_fraction=0.0,
+    min_population_fraction=0.0,
+    min_class_delta=math.log(1.2),
+    min_cohesion=0.0,
+    min_component_px=16,
+    max_components=60,
+    unit="log_chl_gradient",
+)
+
 
 def load_frame(index_path: Path, var_name: str, frame_idx: int | None) -> tuple[dict, Path, dict]:
     index = json.loads(index_path.read_text())
@@ -126,6 +154,52 @@ def largest_fraction(mask: np.ndarray) -> float:
     if sizes.size <= 1:
         return 0.0
     return float(sizes[1:].max() / max(mask.sum(), 1))
+
+
+def skeletonize_mask(mask: np.ndarray) -> np.ndarray:
+    """Zhang-Suen thinning for dependency-free one-pixel front centerlines."""
+    img = mask.astype(np.uint8).copy()
+    if img.sum() == 0:
+        return img.astype(bool)
+
+    changed = True
+    while changed:
+        changed = False
+        for step in (0, 1):
+            padded = np.pad(img, 1, mode="constant")
+            p2 = padded[:-2, 1:-1]
+            p3 = padded[:-2, 2:]
+            p4 = padded[1:-1, 2:]
+            p5 = padded[2:, 2:]
+            p6 = padded[2:, 1:-1]
+            p7 = padded[2:, :-2]
+            p8 = padded[1:-1, :-2]
+            p9 = padded[:-2, :-2]
+            neighbors = [p2, p3, p4, p5, p6, p7, p8, p9]
+            count = sum(neighbors)
+            transitions = sum((neighbors[i] == 0) & (neighbors[(i + 1) % 8] == 1) for i in range(8))
+            if step == 0:
+                m1 = p2 * p4 * p6 == 0
+                m2 = p4 * p6 * p8 == 0
+            else:
+                m1 = p2 * p4 * p8 == 0
+                m2 = p2 * p6 * p8 == 0
+            remove = (img == 1) & (count >= 2) & (count <= 6) & (transitions == 1) & m1 & m2
+            if remove.any():
+                img[remove] = 0
+                changed = True
+    return img.astype(bool)
+
+
+def component_filter(mask: np.ndarray, min_component_px: int, max_components: int) -> np.ndarray:
+    labels, count = ndi.label(mask)
+    if count == 0:
+        return mask.astype(bool)
+    sizes = np.bincount(labels.ravel())
+    candidates = [(label, int(sizes[label])) for label in range(1, count + 1) if sizes[label] >= min_component_px]
+    candidates.sort(key=lambda item: item[1], reverse=True)
+    keep_labels = {label for label, _ in candidates[:max_components]}
+    return np.isin(labels, list(keep_labels))
 
 
 def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.ndarray, np.ndarray, dict]:
@@ -198,20 +272,8 @@ def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.nd
     edge = votes >= max(2.0, np.nanpercentile(votes[votes > 0], 35) if np.any(votes > 0) else 2.0)
     edge &= valid_global
     edge = ndi.binary_opening(edge, structure=np.ones((2, 2)))
-    labels, count = ndi.label(edge)
-    component_sizes = np.bincount(labels.ravel())
-    keep = np.zeros_like(edge, dtype=bool)
-    kept_sizes: list[int] = []
-    for label in range(1, count + 1):
-        size = int(component_sizes[label])
-        if size >= config.min_component_px:
-            keep[labels == label] = True
-            kept_sizes.append(size)
-
-    if len(kept_sizes) > config.max_components:
-        ordered = sorted(enumerate(kept_sizes, start=1), key=lambda t: t[1], reverse=True)
-        cutoff = {label for label, _ in ordered[: config.max_components]}
-        keep = np.isin(labels, list(cutoff))
+    thick_keep = component_filter(edge, config.min_component_px, config.max_components)
+    keep = skeletonize_mask(thick_keep)
 
     edge_strength = reported_strength(strength[keep], config)
     summary = {
@@ -226,6 +288,62 @@ def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.nd
         "strength_max": safe_percentile(edge_strength, 100),
     }
     return keep, strength, summary
+
+
+def gradient_ridge_front(field: np.ndarray, config: FrontConfig) -> tuple[np.ndarray, np.ndarray, dict]:
+    valid = np.isfinite(field)
+    fill_value = float(np.nanmedian(field)) if valid.any() else 0.0
+    filled = np.where(valid, field, fill_value)
+
+    sigmas = (0.8, 1.6, 3.0) if "multiscale" in config.name else (1.2,)
+    best_grad = np.zeros(field.shape, dtype=np.float32)
+    best_lap = np.zeros(field.shape, dtype=np.float32)
+    for sigma in sigmas:
+        smooth = ndi.gaussian_filter(filled, sigma=sigma, mode="nearest")
+        gx = ndi.sobel(smooth, axis=1, mode="nearest")
+        gy = ndi.sobel(smooth, axis=0, mode="nearest")
+        grad = np.hypot(gx, gy)
+        lap = ndi.laplace(smooth, mode="nearest")
+        use = grad > best_grad
+        best_grad[use] = grad[use]
+        best_lap[use] = lap[use]
+
+    eroded_valid = ndi.binary_erosion(valid, structure=np.ones((3, 3)))
+    best_grad[~eroded_valid] = np.nan
+    values = best_grad[np.isfinite(best_grad)]
+    if values.size == 0:
+        empty = np.zeros(field.shape, dtype=bool)
+        return empty, best_grad, {"algorithm": config.name, "edge_pixels": 0, "component_count": 0}
+
+    if "zero_crossing" in config.name:
+        signs = np.sign(best_lap)
+        zero = np.zeros(field.shape, dtype=bool)
+        zero[:-1, :] |= signs[:-1, :] * signs[1:, :] < 0
+        zero[:, :-1] |= signs[:, :-1] * signs[:, 1:] < 0
+        edge = zero & (best_grad >= np.nanpercentile(values, 82))
+    else:
+        high = best_grad >= np.nanpercentile(values, 96)
+        low = best_grad >= np.nanpercentile(values, 90)
+        labels, count = ndi.label(low)
+        high_labels = set(np.unique(labels[high]))
+        high_labels.discard(0)
+        edge = np.isin(labels, list(high_labels))
+
+    edge &= eroded_valid
+    edge = ndi.binary_opening(edge, structure=np.ones((2, 2)))
+    thick_keep = component_filter(edge, config.min_component_px, config.max_components)
+    keep = skeletonize_mask(thick_keep)
+    edge_strength = reported_strength(best_grad[keep], config)
+    summary = {
+        "algorithm": config.name,
+        "edge_pixels": int(keep.sum()),
+        "component_count": int(ndi.label(keep)[1]),
+        "strength_unit": config.unit,
+        "strength_p50": safe_percentile(edge_strength, 50),
+        "strength_p90": safe_percentile(edge_strength, 90),
+        "strength_max": safe_percentile(edge_strength, 100),
+    }
+    return keep, best_grad, summary
 
 
 def safe_percentile(values: np.ndarray, pct: float) -> float | None:
@@ -320,7 +438,10 @@ def run_one(index_path: Path, var_name: str, frame_idx: int | None, config: Fron
     meta, frame_path, data = load_frame(index_path, var_name, frame_idx)
     raw = as_array(data)
     field = transform_field(raw, config.transform)
-    mask, strength, summary = local_histogram_front(field, config)
+    if "gradient_ridge" in config.name or "zero_crossing" in config.name:
+        mask, strength, summary = gradient_ridge_front(field, config)
+    else:
+        mask, strength, summary = local_histogram_front(field, config)
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = Path(meta["json_path"]).stem
     geojson = components_to_geojson(mask, strength, data, meta, config)
@@ -350,6 +471,8 @@ def main() -> None:
 
     results = [
         run_one(args.index, "chl", args.chl_frame_idx, CHL_BOA, args.out_dir),
+        run_one(args.index, "chl", args.chl_frame_idx, CHL_GRADIENT_RIDGE, args.out_dir),
+        run_one(args.index, "chl", args.chl_frame_idx, CHL_LOG_ZERO_CROSSING, args.out_dir),
         run_one(args.index, "sst", args.sst_frame_idx, SST_CCA, args.out_dir),
     ]
     summary_path = args.out_dir / "summary.json"
