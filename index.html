@@ -1081,7 +1081,7 @@ let mobileMapState = {
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 function isPortrait() { return window.innerHeight > window.innerWidth; }
 function isMobileDevice() { return IS_TOUCH || Math.min(window.innerWidth, window.innerHeight) <= 760; }
-function isMobileMapMode() { return isMobileDevice() && !mobileMapState.disabled && !!window.ol?.Map; }
+function isMobileMapMode() { return false; }
 let lastViewportPortrait = isPortrait();
 function syncViewportClasses() {
   if (!document.body) return;
@@ -2826,7 +2826,6 @@ async function renderMobileFrame(frameMeta) {
     gridInfo = { xAxis: dataObj.xAxis, yAxis: dataObj.yAxis, nx: dataObj.xAxis.length, ny: dataObj.yAxis.length };
   } else {
     dataObj = await fetchFrameData(currentVar, frameMeta);
-    console.log("showFrame fetched dataObj keys:", Object.keys(dataObj), "type:", dataObj.type, "n_features:", dataObj.features?.length);
     gridInfo = await loadGridForVar(currentVar, dataObj);
   }
   mobileMapState.currentGridInfo = gridInfo;
@@ -3290,7 +3289,6 @@ function inferGridFromFrame(v, dataObj) {
 async function loadGridForVar(v, dataObj = null) {
   if ((v === "chl_front" || v === "sst_front") && dataObj && dataObj.bbox?.length >= 4) {
     const [lonMin, latMin, lonMax, latMax] = dataObj.bbox.map(Number);
-    console.log("loadGridForVar front special path:", v, "bbox:", dataObj.bbox, "ny nx:", dataObj.ny, dataObj.nx);
     return { xAxis: [lonMin, lonMax], yAxis: [latMin, latMax], nx: dataObj.nx || 2, ny: dataObj.ny || 2 };
   }
   // CHL now mixes OLCI composites and VIIRS model frames with different
