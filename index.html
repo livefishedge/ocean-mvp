@@ -2203,7 +2203,7 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     text.push(null);
     custom.push(null);
   }
-  const color = varKey === "chl_front" ? "rgba(34, 197, 94, 0.95)" : "rgba(255, 116, 76, 0.95)";
+  const color = varKey === "chl_front" ? "rgba(0,0,0,1)" : "rgba(0,0,0,1)";
   const label = varKey === "chl_front" ? "CHL front" : "SST front";
   const trace = {
     type: "scatter",
@@ -2213,10 +2213,15 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     text,
     customdata: custom,
     hovertemplate: "<b>" + label + "</b><br>%{text}<extra></extra>",
-    line: { color, width: 2.2 },
+    line: { color, width: 1.8 },
     connectgaps: false,
     showlegend: false
   };
+  // Force standalone colorscale so overlay traces don't inherit heatmap colorscale
+  trace.fill = 'none';
+  trace.hoverlabel = trace.hoverlabel || {};
+  trace.hoverlabel.bgcolor = 'rgba(0,0,0,0.7)';
+
   const layout = stableLayout();
   console.log("buildFrontLines trace:", trace.type, "n_points:", lineX.length, "x_range:", Math.min(...lineX.filter(Boolean)), Math.max(...lineX.filter(Boolean)), "y_range:", Math.min(...lineY.filter(Boolean)), Math.max(...lineY.filter(Boolean)));
   return { data: [trace], layout };
