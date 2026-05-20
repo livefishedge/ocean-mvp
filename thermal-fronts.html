@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <title>Thermal Front History</title>
+  <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
+  <style>
+    :root{ --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.90); --border:#1b2836; }
+    html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
+    #toolbar{
+      position:fixed; top:0; left:0; right:0; z-index:10;
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--border);
+      backdrop-filter:blur(6px);
+    }
+    #toolbar a, #toolbar button, #toolbar select{
+      min-height:38px; border:1px solid #273649; border-radius:8px;
+      background:#0c1723; color:var(--fg); font-weight:800; font-size:14px;
+    }
+    #toolbar a{ display:inline-flex; align-items:center; padding:0 10px; text-decoration:none; }
+    #toolbar button{ padding:0 12px; cursor:pointer; }
+    #toolbar button.active{ background:#1d4f91; border-color:#4d7dff; }
+    #region-select{ padding:0 10px; min-width:245px; }
+    #status{ color:#9fb0c3; font-size:13px; font-weight:700; white-space:nowrap; }
+    #plot{ width:100vw; height:100dvh; }
+    #legend{
+      position:fixed; left:12px; bottom:12px; z-index:11;
+      padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
+      border-radius:8px; color:#fff; font-size:12px; font-weight:800;
+    }
+    @media (max-width:720px){
+      #toolbar{ gap:6px; }
+      #region-select{ min-width:0; flex:1 1 100%; }
+      #status{ flex:1 1 100%; white-space:normal; }
+      #legend{ font-size:11px; max-width:calc(100vw - 44px); }
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <a href="index.html">Map</a>
+    <select id="region-select">
+      <option value="usec_south">US East Coast - South-Atlantic</option>
+      <option value="usec_md">US East Coast - Mid-Atlantic</option>
+    </select>
+    <button id="mode-animation" class="active" type="button">Animation</button>
+    <button id="mode-overlay" type="button">All fronts</button>
+    <button id="play-btn" type="button">Play</button>
+    <span id="status"></span>
+  </div>
+  <div id="plot"></div>
+  <div id="legend">Color: newer fronts are warmer. Labels show age before latest frame.</div>
+
+<script>
+const REGIONS = {
+  usec_south: { label: "US East Coast - South-Atlantic", index: "index-usec_south.json" },
+  usec_md: { label: "US East Coast - Mid-Atlantic", index: "index-usec_md.json" }
+};
+let regionId = new URLSearchParams(location.search).get("region") || "usec_south";
+if (!REGIONS[regionId]) regionId = "usec_south";
+let bbox = [-81,31,-71,40];
+let frames = [];
+let frameData = [];
+let mode = "animation";
+let playing = false;
+let playTimer = null;
+let frameIdx = 0;
+
+const plot = document.getElementById("plot");
+const statusEl = document.getElementById("status");
+const regionSelect = document.getElementById("region-select");
+const animationBtn = document.getElementById("mode-animation");
+const overlayBtn = document.getElementById("mode-overlay");
+const playBtn = document.getElementById("play-btn");
+regionSelect.value = regionId;
+
+function framePathOf(f){ return String(f?.json_path || f?.path || f?.file || f?.url || f?.json || ""); }
+function parseFrameTime(f) {
+  if (f?.time_iso) {
+    const dt = new Date(f.time_iso);
+    if (!Number.isNaN(dt.getTime())) return dt.getTime();
+  }
+  const fn = framePathOf(f).split("/").pop() || "";
+  const m = fn.match(/^sstfront_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
+  if (!m) return null;
+  const y = Number(m[3].slice(0,4));
+  const mo = Number(m[3].slice(4,6)) - 1;
+  const d = Number(m[3].slice(6,8));
+  return Date.UTC(y, mo, d, Number(m[4]), 0, 0);
+}
+function formatAge(ms, latestMs) {
+  const hours = Math.max(0, Math.round((latestMs - ms) / 36e5));
+  if (hours < 48) return `${hours}h`;
+  return `${Math.round(hours / 24)}d`;
+}
+function colorForAge(ms, latestMs, oldestMs) {
+  const span = Math.max(1, latestMs - oldestMs);
+  const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
+  const hue = 210 - 190 * t;
+  return `hsl(${hue}, 92%, 56%)`;
+}
+function lineLength(coords) {
+  let d = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const a = coords[i - 1], b = coords[i];
+    if (!Array.isArray(a) || !Array.isArray(b)) continue;
+    d += Math.hypot(Number(b[0]) - Number(a[0]), Number(b[1]) - Number(a[1]));
+  }
+  return d;
+}
+function labelPoint(coords) {
+  if (!coords.length) return null;
+  return coords[Math.floor(coords.length / 2)];
+}
+function tracesForFrames(items, labelEveryFrame = true) {
+  const latestMs = frames.at(-1)?.t ?? Date.now();
+  const oldestMs = frames[0]?.t ?? latestMs;
+  const traces = [];
+  for (const item of items) {
+    const age = formatAge(item.t, latestMs);
+    const color = colorForAge(item.t, latestMs, oldestMs);
+    const lineX = [], lineY = [], labelX = [], labelY = [], labels = [];
+    const features = Array.isArray(item.data?.features) ? item.data.features : [];
+    const candidates = [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      if (!Array.isArray(coords) || coords.length < 2) continue;
+      candidates.push({ coords, length: Number(feature?.properties?.length_km) || lineLength(coords) });
+      for (const pt of coords) {
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        lineX.push(Number(pt[0]));
+        lineY.push(Number(pt[1]));
+      }
+      lineX.push(null);
+      lineY.push(null);
+    }
+    traces.push({
+      type:"scatter", mode:"lines", x:lineX, y:lineY,
+      line:{ color, width: labelEveryFrame ? 2.8 : 1.8 },
+      hovertemplate:`<b>Thermal front</b><br>${new Date(item.t).toLocaleString()}<br>${age} before latest<extra></extra>`,
+      showlegend:false
+    });
+    candidates.sort((a,b) => b.length - a.length);
+    const labelCount = labelEveryFrame ? Math.min(5, candidates.length) : Math.min(2, candidates.length);
+    for (const c of candidates.slice(0, labelCount)) {
+      const pt = labelPoint(c.coords);
+      if (!pt) continue;
+      labelX.push(Number(pt[0]));
+      labelY.push(Number(pt[1]));
+      labels.push(age);
+    }
+    if (labelX.length) {
+      traces.push({
+        type:"scatter", mode:"text", x:labelX, y:labelY, text:labels,
+        textfont:{ color:"#050b10", size:13, family:"system-ui,-apple-system,Segoe UI,sans-serif" },
+        textposition:"middle center",
+        hoverinfo:"skip",
+        showlegend:false
+      });
+    }
+  }
+  return traces;
+}
+function layout(title) {
+  return {
+    title:{ text:title, x:0.5, font:{ size:16, color:"#e0e6ee" } },
+    margin:{ l:0, r:0, t:58, b:0 },
+    paper_bgcolor:"#050b10",
+    plot_bgcolor:"#f8fbff",
+    font:{ color:"#e0e6ee" },
+    xaxis:{ range:[bbox[0], bbox[2]], showgrid:false, zeroline:false },
+    yaxis:{ range:[bbox[1], bbox[3]], scaleanchor:"x", scaleratio:1, showgrid:false, zeroline:false },
+    dragmode:"pan",
+    uirevision:"thermal-front-history"
+  };
+}
+async function render() {
+  if (!frameData.length) {
+    statusEl.textContent = "No thermal-front frames available for this region.";
+    await Plotly.react(plot, [], layout("Thermal fronts"));
+    return;
+  }
+  if (mode === "overlay") {
+    const traces = tracesForFrames(frameData, false);
+    statusEl.textContent = `${frameData.length} thermal-front frames, last ${Math.round((frames.at(-1).t - frames[0].t)/864e5) || 1} days`;
+    await Plotly.react(plot, traces, layout("Thermal fronts: all available frames"));
+    return;
+  }
+  frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
+  const item = frameData[frameIdx];
+  const traces = tracesForFrames([item], true);
+  statusEl.textContent = `${frameIdx + 1}/${frameData.length} • ${new Date(item.t).toLocaleString()} • ${formatAge(item.t, frames.at(-1).t)} before latest`;
+  await Plotly.react(plot, traces, layout("Thermal fronts: animation"));
+}
+function setMode(next) {
+  mode = next;
+  animationBtn.classList.toggle("active", mode === "animation");
+  overlayBtn.classList.toggle("active", mode === "overlay");
+  playBtn.disabled = mode !== "animation" || frameData.length <= 1;
+  if (mode !== "animation") setPlaying(false);
+  render();
+}
+function step(delta) {
+  if (!frameData.length) return;
+  frameIdx = (frameIdx + delta + frameData.length) % frameData.length;
+  render();
+}
+function setPlaying(on) {
+  playing = on;
+  playBtn.textContent = playing ? "Pause" : "Play";
+  if (playTimer) clearInterval(playTimer);
+  playTimer = playing ? setInterval(() => step(1), 750) : null;
+}
+async function init() {
+  const idxRes = await fetch(REGIONS[regionId].index + "?t=" + Date.now());
+  if (!idxRes.ok) throw new Error(`Failed to load ${REGIONS[regionId].index}`);
+  const idx = await idxRes.json();
+  if (idx.region_meta?.bbox?.length >= 4) bbox = idx.region_meta.bbox.map(Number);
+  frames = ((idx.frames || idx.frames_by_var || {}).sst_front || [])
+    .map(f => ({ ...f, t: parseFrameTime(f) }))
+    .filter(f => Number.isFinite(f.t))
+    .sort((a,b) => a.t - b.t);
+  const latest = frames.at(-1)?.t;
+  if (latest) frames = frames.filter(f => latest - f.t <= 21 * 864e5);
+  frameData = await Promise.all(frames.map(async f => {
+    const res = await fetch(framePathOf(f));
+    return { meta:f, t:f.t, data: res.ok ? await res.json() : { features:[] } };
+  }));
+  frameIdx = Math.max(0, frameData.length - 1);
+  await render();
+}
+regionSelect.addEventListener("change", () => {
+  const url = new URL(location.href);
+  url.searchParams.set("region", regionSelect.value);
+  location.href = url.toString();
+});
+animationBtn.addEventListener("click", () => setMode("animation"));
+overlayBtn.addEventListener("click", () => setMode("overlay"));
+playBtn.addEventListener("click", () => setPlaying(!playing));
+window.addEventListener("resize", () => { try { Plotly.Plots.resize(plot); } catch(_){} });
+init().catch(err => {
+  console.error(err);
+  statusEl.textContent = err.message;
+});
+</script>
+</body>
+</html>

@@ -363,6 +363,46 @@
       content:"›";
       margin-left:4px;
     }
+    #thermal-front-toolbar{
+      position:fixed;
+      top:calc(8px + env(safe-area-inset-top, 0px));
+      left:50%;
+      transform:translateX(-50%);
+      z-index:145;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 9px;
+      border:1px solid rgba(255,255,255,0.30);
+      border-radius:8px;
+      background:rgba(5,11,16,0.78);
+      color:#fff;
+      font-size:12px;
+      font-weight:800;
+      box-shadow:0 3px 12px rgba(0,0,0,0.35);
+      backdrop-filter:blur(5px);
+      pointer-events:auto;
+      user-select:none;
+    }
+    #thermal-front-toolbar label{
+      display:flex;
+      align-items:center;
+      gap:5px;
+      white-space:nowrap;
+    }
+    #thermal-front-toolbar input{
+      width:15px;
+      height:15px;
+      accent-color:#ffb000;
+    }
+    #thermal-front-history-link{
+      color:#ffd166;
+      text-decoration:none;
+      white-space:nowrap;
+      border-left:1px solid rgba(255,255,255,0.20);
+      padding-left:8px;
+    }
+    #thermal-front-history-link:hover{ text-decoration:underline; }
 
     /* Floating readout: fixed lower-right so it stays visible during map gestures. */
     #readout{
@@ -387,6 +427,10 @@
       cursor:default;
       line-height: 1.4;
       display: inline-block;
+    }
+    body.mobile-device #readout,
+    body.portrait-mode #readout{
+      display:none !important;
     }
 
     /* ======= Bottom ranges (sticky): Reduced Padding ======= */
@@ -731,6 +775,16 @@
       #feedback-toggle::before{ width:15px; height:12px; border-width:2px; border-radius:3px; }
       #feedback-toggle::after{ width:6px; height:6px; border-width:0 2px 2px 0; margin-top:11px; margin-left:-7px; }
       #feedback-toggle{ touch-action:none; }
+      #thermal-front-toolbar{
+        top:calc(8px + env(safe-area-inset-top, 0px));
+        left:calc(10px + env(safe-area-inset-left, 0px));
+        right:60px;
+        transform:none;
+        justify-content:flex-start;
+        max-width:calc(100vw - 82px);
+        overflow:hidden;
+      }
+      #thermal-front-history-link{ display:none; }
 
     }
 
@@ -915,6 +969,13 @@
   </div>
 
   <div id="mobile-time-badge"></div>
+  <div id="thermal-front-toolbar">
+    <label title="Overlay nearest thermal front on the current product">
+      <input id="global-sst-front-overlay" type="checkbox" />
+      Thermal fronts
+    </label>
+    <a id="thermal-front-history-link" href="thermal-fronts.html">3-week view</a>
+  </div>
   <div id="readout"></div>
   <div id="feedback-float">
     <button id="feedback-toggle" title="Send feedback">&#9993;</button>
@@ -1113,6 +1174,7 @@ let viewState = { hasRange:false, xRange:null, yRange:null };
 let landTrace = null;
 let showChlFrontOverlay = false;
 let showSstFrontOverlay = false;
+let showGlobalSstFrontOverlay = false;
 let mobileMapState = {
   map: null,
   imageLayer: null,
@@ -1559,6 +1621,7 @@ const chlFrontOverlayWrap = document.getElementById("chl-front-overlay-wrap");
 const sstFrontOverlayWrap = document.getElementById("sst-front-overlay-wrap");
 const chlFrontOverlayInput = document.getElementById("chl-front-overlay");
 const sstFrontOverlayInput = document.getElementById("sst-front-overlay");
+const globalSstFrontOverlayInput = document.getElementById("global-sst-front-overlay");
 
 const readoutDiv = document.getElementById("readout");
 const modebarHost = document.getElementById("modebar-host");
@@ -1775,11 +1838,23 @@ function timeOnlyLabel(varKey, frameMeta) {
   return "";
 }
 
+function daylightStatusLabel(varKey, frameMeta) {
+  if (varKey === "bathy") return "STATIC";
+  if (varKey === "uv") return "DAILY";
+  return isDaytimeFrame(varKey, frameMeta) ? "DAYTIME" : "NIGHT";
+}
+
+function productFrameLabel(varKey, frameMeta) {
+  const time = timeOnlyLabel(varKey, frameMeta);
+  if (!time) return "";
+  return `${daylightStatusLabel(varKey, frameMeta)} • ${time}`;
+}
+
 function updateMobileTimeBadge() {
   const badge = document.getElementById("mobile-time-badge");
   if (!badge) return;
   const frames = framesByVar[currentVar] || [];
-  const label = frames.length ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
+  const label = frames.length ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
   badge.textContent = label;
   badge.classList.toggle("has-time", !!label);
   syncFloatingViewportUi();
@@ -3131,7 +3206,7 @@ function updateSliderUI() {
   nextBtn.disabled = n <= 1;
   playBtn.disabled = n <= 1;
 
-  frameLbl.textContent = n ? timeOnlyLabel(currentVar, frames[currentFrameIdx]) : "";
+  frameLbl.textContent = n ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
   updateMobileTimeBadge();
 }
 
@@ -3165,17 +3240,23 @@ function syncFrontOverlayControls() {
     sstFrontOverlayInput.disabled = sstCount === 0;
     sstFrontOverlayInput.checked = showSstFrontOverlay && sstCount > 0;
   }
+  if (globalSstFrontOverlayInput) {
+    globalSstFrontOverlayInput.disabled = sstCount === 0 || currentVar === "sst_front";
+    globalSstFrontOverlayInput.checked = showGlobalSstFrontOverlay && sstCount > 0;
+  }
 }
 
 async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
-  const frontVar = baseVar === "chl" ? "chl_front" : baseVar === "sst" ? "sst_front" : null;
+  let frontVar = baseVar === "chl" ? "chl_front" : baseVar === "sst" ? "sst_front" : null;
+  if (showGlobalSstFrontOverlay && baseVar !== "sst_front") frontVar = "sst_front";
   if (!frontVar) return;
   if (frontVar === "chl_front" && !showChlFrontOverlay) return;
-  if (frontVar === "sst_front" && !showSstFrontOverlay) return;
+  if (frontVar === "sst_front" && !(showSstFrontOverlay || showGlobalSstFrontOverlay)) return;
 
   const frontFrames = framesByVar[frontVar] || [];
   if (!frontFrames.length) return;
-  const curMs = epochMsForFrame(baseVar, baseFrameMeta);
+  const finiteFrontTimes = (frameTimesByVar[frontVar] || []).filter(Number.isFinite);
+  const curMs = epochMsForFrame(baseVar, baseFrameMeta) ?? finiteFrontTimes.at(-1) ?? null;
   const frontTimes = frameTimesByVar[frontVar] || [];
   let bestIdx = 0;
   let bestDiff = Infinity;
@@ -3656,6 +3737,14 @@ if (sstFrontOverlayInput) {
   sstFrontOverlayInput.addEventListener("change", () => {
     showSstFrontOverlay = sstFrontOverlayInput.checked;
     if (currentVar === "sst") showFrame();
+  });
+}
+
+if (globalSstFrontOverlayInput) {
+  globalSstFrontOverlayInput.addEventListener("change", () => {
+    showGlobalSstFrontOverlay = globalSstFrontOverlayInput.checked;
+    syncFrontOverlayControls();
+    showFrame();
   });
 }
 
