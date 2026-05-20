@@ -3123,9 +3123,11 @@ function setupReadoutHandlersOnce() {
   plotDiv.on("plotly_unhover", () => { if (!IS_TOUCH) setReadout(""); });
 
   plotDiv.on("plotly_hover", (ev) => {
+    console.log("[hover] plotly_hover fired, points:", ev.points?.length, "IS_TOUCH:", IS_TOUCH);
     if (IS_TOUCH) return;
     const p = ev.points && ev.points[0];
-    if (!p) return;
+    if (!p) { console.log("[hover] no point"); return; }
+    console.log("[hover] point x=", p.x, "y=", p.y, "customdata=", p.customdata);
     renderReadoutFromPoint(p);
   });
 
