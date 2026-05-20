@@ -1,0 +1,523 @@
+#!/usr/bin/env python3
+"""Prototype literature-style CHL/SST front detectors on published viewer frames.
+
+This is intentionally offline: it writes artifacts for inspection, not production
+front products. The two trial detectors are:
+
+- CHL: BOA-style local histogram separation on log chlorophyll.
+- SST: Cayula-Cornillon/SIED-style local histogram separation with cohesion gates.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Iterable
+
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import ndimage as ndi
+
+
+@dataclass(frozen=True)
+class FrontConfig:
+    name: str
+    transform: str
+    window_px: int
+    stride_px: int
+    min_valid_fraction: float
+    min_population_fraction: float
+    min_class_delta: float
+    min_cohesion: float
+    min_component_px: int
+    max_components: int
+    unit: str
+    report_exp_strength: bool = False
+
+
+CHL_BOA = FrontConfig(
+    name="boa_local_histogram_log_chl_v0",
+    transform="log_chl",
+    window_px=41,
+    stride_px=6,
+    min_valid_fraction=0.45,
+    min_population_fraction=0.12,
+    min_class_delta=math.log(1.35),  # 1.35x CHL contrast
+    min_cohesion=0.45,
+    min_component_px=18,
+    max_components=40,
+    unit="fold",
+    report_exp_strength=True,
+)
+
+SST_CCA = FrontConfig(
+    name="cca_sied_local_histogram_sst_v0",
+    transform="linear",
+    window_px=49,
+    stride_px=6,
+    min_valid_fraction=0.55,
+    min_population_fraction=0.15,
+    min_class_delta=0.45,  # deg C
+    min_cohesion=0.42,
+    min_component_px=22,
+    max_components=60,
+    unit="degC",
+)
+
+CHL_GRADIENT_RIDGE = FrontConfig(
+    name="chl_log_multiscale_gradient_ridge_v0",
+    transform="log_chl",
+    window_px=0,
+    stride_px=0,
+    min_valid_fraction=0.0,
+    min_population_fraction=0.0,
+    min_class_delta=math.log(1.25),
+    min_cohesion=0.0,
+    min_component_px=18,
+    max_components=60,
+    unit="log_chl_gradient",
+)
+
+CHL_LOG_ZERO_CROSSING = FrontConfig(
+    name="chl_log_laplacian_zero_crossing_v0",
+    transform="log_chl",
+    window_px=0,
+    stride_px=0,
+    min_valid_fraction=0.0,
+    min_population_fraction=0.0,
+    min_class_delta=math.log(1.2),
+    min_cohesion=0.0,
+    min_component_px=16,
+    max_components=60,
+    unit="log_chl_gradient",
+)
+
+
+def load_frame(index_path: Path, var_name: str, frame_idx: int | None) -> tuple[dict, Path, dict]:
+    index = json.loads(index_path.read_text())
+    frames = index["frames"][var_name]
+    if not frames:
+        raise SystemExit(f"No frames for {var_name}")
+    if frame_idx is None:
+        frame_idx = len(frames) - 1
+    meta = frames[frame_idx]
+    frame_path = index_path.parent / meta["json_path"]
+    data = json.loads(frame_path.read_text())
+    return meta, frame_path, data
+
+
+def as_array(data: dict) -> np.ndarray:
+    z = np.asarray(data["z"], dtype=np.float32)
+    z[~np.isfinite(z)] = np.nan
+    return z
+
+
+def transform_field(z: np.ndarray, transform: str) -> np.ndarray:
+    if transform == "log_chl":
+        out = np.full_like(z, np.nan, dtype=np.float32)
+        valid = np.isfinite(z) & (z > 0)
+        out[valid] = np.log(z[valid])
+        return out
+    return z.astype(np.float32, copy=True)
+
+
+def otsu_threshold(values: np.ndarray, bins: int = 64) -> float | None:
+    values = values[np.isfinite(values)]
+    if values.size < 64:
+        return None
+    vmin, vmax = np.nanpercentile(values, [1, 99])
+    if not np.isfinite(vmin) or not np.isfinite(vmax) or vmax <= vmin:
+        return None
+    hist, edges = np.histogram(values, bins=bins, range=(float(vmin), float(vmax)))
+    centers = (edges[:-1] + edges[1:]) / 2
+    weight1 = np.cumsum(hist)
+    weight2 = np.cumsum(hist[::-1])[::-1]
+    if weight1[-1] == 0:
+        return None
+    mean1 = np.cumsum(hist * centers) / np.maximum(weight1, 1)
+    mean2 = (np.cumsum((hist * centers)[::-1]) / np.maximum(weight2[::-1], 1))[::-1]
+    variance12 = weight1[:-1] * weight2[1:] * (mean1[:-1] - mean2[1:]) ** 2
+    if variance12.size == 0 or not np.isfinite(variance12).any():
+        return None
+    return float(centers[:-1][int(np.nanargmax(variance12))])
+
+
+def largest_fraction(mask: np.ndarray) -> float:
+    labels, count = ndi.label(mask)
+    if count == 0:
+        return 0.0
+    sizes = np.bincount(labels.ravel())
+    if sizes.size <= 1:
+        return 0.0
+    return float(sizes[1:].max() / max(mask.sum(), 1))
+
+
+def skeletonize_mask(mask: np.ndarray) -> np.ndarray:
+    """Zhang-Suen thinning for dependency-free one-pixel front centerlines."""
+    img = mask.astype(np.uint8).copy()
+    if img.sum() == 0:
+        return img.astype(bool)
+
+    changed = True
+    while changed:
+        changed = False
+        for step in (0, 1):
+            padded = np.pad(img, 1, mode="constant")
+            p2 = padded[:-2, 1:-1]
+            p3 = padded[:-2, 2:]
+            p4 = padded[1:-1, 2:]
+            p5 = padded[2:, 2:]
+            p6 = padded[2:, 1:-1]
+            p7 = padded[2:, :-2]
+            p8 = padded[1:-1, :-2]
+            p9 = padded[:-2, :-2]
+            neighbors = [p2, p3, p4, p5, p6, p7, p8, p9]
+            count = sum(neighbors)
+            transitions = sum((neighbors[i] == 0) & (neighbors[(i + 1) % 8] == 1) for i in range(8))
+            if step == 0:
+                m1 = p2 * p4 * p6 == 0
+                m2 = p4 * p6 * p8 == 0
+            else:
+                m1 = p2 * p4 * p8 == 0
+                m2 = p2 * p6 * p8 == 0
+            remove = (img == 1) & (count >= 2) & (count <= 6) & (transitions == 1) & m1 & m2
+            if remove.any():
+                img[remove] = 0
+                changed = True
+    return img.astype(bool)
+
+
+def component_filter(mask: np.ndarray, min_component_px: int, max_components: int) -> np.ndarray:
+    labels, count = ndi.label(mask)
+    if count == 0:
+        return mask.astype(bool)
+    sizes = np.bincount(labels.ravel())
+    candidates = [(label, int(sizes[label])) for label in range(1, count + 1) if sizes[label] >= min_component_px]
+    candidates.sort(key=lambda item: item[1], reverse=True)
+    keep_labels = {label for label, _ in candidates[:max_components]}
+    return np.isin(labels, list(keep_labels))
+
+
+def local_histogram_front(field: np.ndarray, config: FrontConfig) -> tuple[np.ndarray, np.ndarray, dict]:
+    valid_global = np.isfinite(field)
+    fill_value = float(np.nanmedian(field)) if np.isfinite(field).any() else 0.0
+    filled = np.where(valid_global, field, fill_value)
+    grad_mag = np.hypot(ndi.sobel(filled, axis=0, mode="nearest"), ndi.sobel(filled, axis=1, mode="nearest"))
+    grad_mag[~valid_global] = np.nan
+    half = config.window_px // 2
+    votes = np.zeros(field.shape, dtype=np.float32)
+    strength = np.zeros(field.shape, dtype=np.float32)
+    accepted = rejected = 0
+
+    for y in range(half, field.shape[0] - half, config.stride_px):
+        for x in range(half, field.shape[1] - half, config.stride_px):
+            win = field[y - half : y + half + 1, x - half : x + half + 1]
+            valid = np.isfinite(win)
+            valid_fraction = float(valid.mean())
+            if valid_fraction < config.min_valid_fraction:
+                rejected += 1
+                continue
+
+            values = win[valid]
+            threshold = otsu_threshold(values)
+            if threshold is None:
+                rejected += 1
+                continue
+
+            cold_or_low = valid & (win <= threshold)
+            warm_or_high = valid & (win > threshold)
+            low_fraction = cold_or_low.sum() / valid.sum()
+            high_fraction = warm_or_high.sum() / valid.sum()
+            if min(low_fraction, high_fraction) < config.min_population_fraction:
+                rejected += 1
+                continue
+
+            low_mean = float(np.nanmean(win[cold_or_low]))
+            high_mean = float(np.nanmean(win[warm_or_high]))
+            delta = high_mean - low_mean
+            if delta < config.min_class_delta:
+                rejected += 1
+                continue
+
+            cohesion = min(largest_fraction(cold_or_low), largest_fraction(warm_or_high))
+            if cohesion < config.min_cohesion:
+                rejected += 1
+                continue
+
+            grad_win = grad_mag[y - half : y + half + 1, x - half : x + half + 1]
+            grad_values = grad_win[np.isfinite(grad_win) & valid]
+            if grad_values.size == 0:
+                rejected += 1
+                continue
+            near_split = np.abs(win - threshold) <= max(delta * 0.65, 1.0e-6)
+            ridge = valid & near_split & (grad_win >= np.nanpercentile(grad_values, 65))
+            if not ridge.any():
+                binary = warm_or_high
+                ridge = binary ^ ndi.binary_erosion(binary, structure=np.ones((3, 3)), border_value=0)
+                ridge &= valid
+            if not ridge.any():
+                rejected += 1
+                continue
+            votes[y - half : y + half + 1, x - half : x + half + 1][ridge] += 1.0
+            strength[y - half : y + half + 1, x - half : x + half + 1][ridge] = np.maximum(
+                strength[y - half : y + half + 1, x - half : x + half + 1][ridge],
+                delta,
+            )
+            accepted += 1
+
+    edge = votes >= max(2.0, np.nanpercentile(votes[votes > 0], 35) if np.any(votes > 0) else 2.0)
+    edge &= valid_global
+    edge = ndi.binary_opening(edge, structure=np.ones((2, 2)))
+    thick_keep = component_filter(edge, config.min_component_px, config.max_components)
+    keep = skeletonize_mask(thick_keep)
+
+    edge_strength = reported_strength(strength[keep], config)
+    summary = {
+        "algorithm": config.name,
+        "accepted_windows": accepted,
+        "rejected_windows": rejected,
+        "edge_pixels": int(keep.sum()),
+        "component_count": int(ndi.label(keep)[1]),
+        "strength_unit": config.unit,
+        "strength_p50": safe_percentile(edge_strength, 50),
+        "strength_p90": safe_percentile(edge_strength, 90),
+        "strength_max": safe_percentile(edge_strength, 100),
+    }
+    return keep, strength, summary
+
+
+def gradient_ridge_front(field: np.ndarray, config: FrontConfig) -> tuple[np.ndarray, np.ndarray, dict]:
+    valid = np.isfinite(field)
+    fill_value = float(np.nanmedian(field)) if valid.any() else 0.0
+    filled = np.where(valid, field, fill_value)
+
+    sigmas = (0.8, 1.6, 3.0) if "multiscale" in config.name else (1.2,)
+    best_grad = np.zeros(field.shape, dtype=np.float32)
+    best_lap = np.zeros(field.shape, dtype=np.float32)
+    for sigma in sigmas:
+        smooth = ndi.gaussian_filter(filled, sigma=sigma, mode="nearest")
+        gx = ndi.sobel(smooth, axis=1, mode="nearest")
+        gy = ndi.sobel(smooth, axis=0, mode="nearest")
+        grad = np.hypot(gx, gy)
+        lap = ndi.laplace(smooth, mode="nearest")
+        use = grad > best_grad
+        best_grad[use] = grad[use]
+        best_lap[use] = lap[use]
+
+    eroded_valid = ndi.binary_erosion(valid, structure=np.ones((3, 3)))
+    best_grad[~eroded_valid] = np.nan
+    values = best_grad[np.isfinite(best_grad)]
+    if values.size == 0:
+        empty = np.zeros(field.shape, dtype=bool)
+        return empty, best_grad, {"algorithm": config.name, "edge_pixels": 0, "component_count": 0}
+
+    if "zero_crossing" in config.name:
+        signs = np.sign(best_lap)
+        zero = np.zeros(field.shape, dtype=bool)
+        zero[:-1, :] |= signs[:-1, :] * signs[1:, :] < 0
+        zero[:, :-1] |= signs[:, :-1] * signs[:, 1:] < 0
+        edge = zero & (best_grad >= np.nanpercentile(values, 82))
+    else:
+        high = best_grad >= np.nanpercentile(values, 96)
+        low = best_grad >= np.nanpercentile(values, 90)
+        labels, count = ndi.label(low)
+        high_labels = set(np.unique(labels[high]))
+        high_labels.discard(0)
+        edge = np.isin(labels, list(high_labels))
+
+    edge &= eroded_valid
+    edge = ndi.binary_opening(edge, structure=np.ones((2, 2)))
+    thick_keep = component_filter(edge, config.min_component_px, config.max_components)
+    keep = skeletonize_mask(thick_keep)
+    edge_strength = reported_strength(best_grad[keep], config)
+    summary = {
+        "algorithm": config.name,
+        "edge_pixels": int(keep.sum()),
+        "component_count": int(ndi.label(keep)[1]),
+        "strength_unit": config.unit,
+        "strength_p50": safe_percentile(edge_strength, 50),
+        "strength_p90": safe_percentile(edge_strength, 90),
+        "strength_max": safe_percentile(edge_strength, 100),
+    }
+    return keep, best_grad, summary
+
+
+def safe_percentile(values: np.ndarray, pct: float) -> float | None:
+    values = values[np.isfinite(values)]
+    if values.size == 0:
+        return None
+    return round(float(np.nanpercentile(values, pct)), 4)
+
+
+def reported_strength(values: np.ndarray, config: FrontConfig) -> np.ndarray:
+    values = values[np.isfinite(values)]
+    if config.report_exp_strength:
+        return np.exp(values)
+    return values
+
+
+def lonlat_from_yx(y: int, x: int, bbox: Iterable[float], ny: int, nx: int, row0_north: bool = False) -> tuple[float, float]:
+    min_lon, min_lat, max_lon, max_lat = bbox
+    lon = min_lon + (max_lon - min_lon) * (x / max(nx - 1, 1))
+    if row0_north:
+        lat = max_lat - (max_lat - min_lat) * (y / max(ny - 1, 1))
+    else:
+        lat = min_lat + (max_lat - min_lat) * (y / max(ny - 1, 1))
+    return round(float(lon), 6), round(float(lat), 6)
+
+
+def order_component_pixels(ys: np.ndarray, xs: np.ndarray) -> list[tuple[int, int]]:
+    pixels = {(int(y), int(x)) for y, x in zip(ys, xs)}
+    if len(pixels) <= 2:
+        return sorted(pixels)
+
+    def neighbors(pixel: tuple[int, int]) -> list[tuple[int, int]]:
+        y, x = pixel
+        out = []
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy == 0 and dx == 0:
+                    continue
+                candidate = (y + dy, x + dx)
+                if candidate in pixels:
+                    out.append(candidate)
+        return out
+
+    endpoints = [pixel for pixel in pixels if len(neighbors(pixel)) == 1]
+    start = min(endpoints or pixels)
+    ordered = [start]
+    visited = {start}
+    current = start
+    while len(visited) < len(pixels):
+        candidates = [pixel for pixel in neighbors(current) if pixel not in visited]
+        if not candidates:
+            remaining = list(pixels - visited)
+            candidates = remaining
+        current = min(candidates, key=lambda pixel: (pixel[0] - current[0]) ** 2 + (pixel[1] - current[1]) ** 2)
+        ordered.append(current)
+        visited.add(current)
+    return ordered
+
+
+def components_to_geojson(mask: np.ndarray, strength: np.ndarray, data: dict, source_meta: dict, config: FrontConfig) -> dict:
+    labels, count = ndi.label(mask)
+    sizes = np.bincount(labels.ravel())
+    ranked = sorted(range(1, count + 1), key=lambda label: sizes[label], reverse=True)[: config.max_components]
+    features = []
+    bbox = data["bbox"]
+    ny, nx = mask.shape
+    for label in ranked:
+        ys, xs = np.where(labels == label)
+        if ys.size < config.min_component_px:
+            continue
+        coords = [
+            lonlat_from_yx(y, x, bbox, ny, nx, row0_north=source_meta["var"] == "sst")
+            for y, x in order_component_pixels(ys, xs)
+        ]
+        vals = reported_strength(strength[labels == label], config)
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {"type": "LineString", "coordinates": coords},
+                "properties": {
+                    "source_var": source_meta["var"],
+                    "pixel_count": int(ys.size),
+                    "strength_unit": config.unit,
+                    "strength_median": safe_percentile(vals, 50),
+                    "strength_max": safe_percentile(vals, 100),
+                },
+            }
+        )
+    return {
+        "type": "FeatureCollection",
+        "variable": f"{source_meta['var']}_front_trial",
+        "source_variable": source_meta["var"],
+        "source_frame": source_meta.get("json_path"),
+        "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "bbox": data["bbox"],
+        "ny": ny,
+        "nx": nx,
+        "algorithm": {
+            "name": config.name,
+            "window_px": config.window_px,
+            "stride_px": config.stride_px,
+            "transform": config.transform,
+            "min_class_delta": config.min_class_delta,
+            "min_cohesion": config.min_cohesion,
+        },
+        "features": features,
+    }
+
+
+def plot_trial(raw: np.ndarray, mask: np.ndarray, strength: np.ndarray, title: str, out_path: Path) -> None:
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
+    finite = raw[np.isfinite(raw)]
+    vmin, vmax = np.nanpercentile(finite, [2, 98]) if finite.size else (0, 1)
+    axes[0].imshow(raw, origin="lower", cmap="viridis", vmin=vmin, vmax=vmax)
+    axes[0].set_title("source")
+    axes[1].imshow(mask, origin="lower", cmap="gray")
+    axes[1].set_title("trial fronts")
+    axes[2].imshow(raw, origin="lower", cmap="gray", vmin=vmin, vmax=vmax)
+    overlay = np.ma.masked_where(~mask, strength)
+    axes[2].imshow(overlay, origin="lower", cmap="autumn")
+    axes[2].set_title("overlay / strength")
+    for ax in axes:
+        ax.set_xticks([])
+        ax.set_yticks([])
+    fig.suptitle(title)
+    fig.savefig(out_path, dpi=160)
+    plt.close(fig)
+
+
+def run_one(index_path: Path, var_name: str, frame_idx: int | None, config: FrontConfig, out_dir: Path) -> dict:
+    meta, frame_path, data = load_frame(index_path, var_name, frame_idx)
+    raw = as_array(data)
+    field = transform_field(raw, config.transform)
+    if "gradient_ridge" in config.name or "zero_crossing" in config.name:
+        mask, strength, summary = gradient_ridge_front(field, config)
+    else:
+        mask, strength, summary = local_histogram_front(field, config)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = Path(meta["json_path"]).stem
+    geojson = components_to_geojson(mask, strength, data, meta, config)
+    geojson_path = out_dir / f"{stem}.{config.name}.geojson"
+    png_path = out_dir / f"{stem}.{config.name}.png"
+    geojson_path.write_text(json.dumps(geojson, separators=(",", ":")))
+    plot_trial(raw, mask, strength, f"{var_name.upper()} {stem} {config.name}", png_path)
+    summary.update(
+        {
+            "var": var_name,
+            "source": str(frame_path),
+            "geojson": str(geojson_path),
+            "png": str(png_path),
+            "feature_count": len(geojson["features"]),
+        }
+    )
+    return summary
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--index", default="index-usec_south.json", type=Path)
+    parser.add_argument("--out-dir", default="artifacts/front_trials", type=Path)
+    parser.add_argument("--chl-frame-idx", type=int)
+    parser.add_argument("--sst-frame-idx", type=int)
+    args = parser.parse_args()
+
+    results = [
+        run_one(args.index, "chl", args.chl_frame_idx, CHL_BOA, args.out_dir),
+        run_one(args.index, "chl", args.chl_frame_idx, CHL_GRADIENT_RIDGE, args.out_dir),
+        run_one(args.index, "chl", args.chl_frame_idx, CHL_LOG_ZERO_CROSSING, args.out_dir),
+        run_one(args.index, "sst", args.sst_frame_idx, SST_CCA, args.out_dir),
+    ]
+    summary_path = args.out_dir / "summary.json"
+    summary_path.write_text(json.dumps(results, indent=2))
+    print(json.dumps(results, indent=2))
+
+
+if __name__ == "__main__":
+    main()

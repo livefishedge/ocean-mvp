@@ -1,0 +1,62 @@
+[
+  {
+    "algorithm": "boa_local_histogram_log_chl_v0",
+    "accepted_windows": 5267,
+    "rejected_windows": 17389,
+    "edge_pixels": 13554,
+    "component_count": 1608,
+    "strength_unit": "fold",
+    "strength_p50": 2.9415,
+    "strength_p90": 10.3566,
+    "strength_max": 18.6266,
+    "var": "chl",
+    "source": "data/usec_south/chl/usec_south_20260519_2026139.1450_chl_S3A.json",
+    "geojson": "artifacts/front_trials/usec_south_20260519_2026139.1450_chl_S3A.boa_local_histogram_log_chl_v0.geojson",
+    "png": "artifacts/front_trials/usec_south_20260519_2026139.1450_chl_S3A.boa_local_histogram_log_chl_v0.png",
+    "feature_count": 40
+  },
+  {
+    "algorithm": "chl_log_multiscale_gradient_ridge_v0",
+    "edge_pixels": 6723,
+    "component_count": 1133,
+    "strength_unit": "log_chl_gradient",
+    "strength_p50": 1.3933,
+    "strength_p90": 2.688,
+    "strength_max": 10.0984,
+    "var": "chl",
+    "source": "data/usec_south/chl/usec_south_20260519_2026139.1450_chl_S3A.json",
+    "geojson": "artifacts/front_trials/usec_south_20260519_2026139.1450_chl_S3A.chl_log_multiscale_gradient_ridge_v0.geojson",
+    "png": "artifacts/front_trials/usec_south_20260519_2026139.1450_chl_S3A.chl_log_multiscale_gradient_ridge_v0.png",
+    "feature_count": 60
+  },
+  {
+    "algorithm": "chl_log_laplacian_zero_crossing_v0",
+    "edge_pixels": 0,
+    "component_count": 0,
+    "strength_unit": "log_chl_gradient",
+    "strength_p50": null,
+    "strength_p90": null,
+    "strength_max": null,
+    "var": "chl",
+    "source": "data/usec_south/chl/usec_south_20260519_2026139.1450_chl_S3A.json",
+    "geojson": "artifacts/front_trials/usec_south_20260519_2026139.1450_chl_S3A.chl_log_laplacian_zero_crossing_v0.geojson",
+    "png": "artifacts/front_trials/usec_south_20260519_2026139.1450_chl_S3A.chl_log_laplacian_zero_crossing_v0.png",
+    "feature_count": 0
+  },
+  {
+    "algorithm": "cca_sied_local_histogram_sst_v0",
+    "accepted_windows": 953,
+    "rejected_windows": 1053,
+    "edge_pixels": 3183,
+    "component_count": 709,
+    "strength_unit": "degC",
+    "strength_p50": 2.6833,
+    "strength_p90": 3.7004,
+    "strength_max": 4.3559,
+    "var": "sst",
+    "source": "data/usec_south/sst/sst_usec_south_2026139_20260519_17_g19.json",
+    "geojson": "artifacts/front_trials/sst_usec_south_2026139_20260519_17_g19.cca_sied_local_histogram_sst_v0.geojson",
+    "png": "artifacts/front_trials/sst_usec_south_2026139_20260519_17_g19.cca_sied_local_histogram_sst_v0.png",
+    "feature_count": 11
+  }
+]
