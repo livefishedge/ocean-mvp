@@ -1776,6 +1776,7 @@ function installTouchGestureHandler() {
 
 // Keep old name as alias for callers that don't check return value
 let _wheelInstalled = false;
+let _lastWheelTime = 0;
 
 function smoothWheelZoom(event) {
   event.preventDefault();
