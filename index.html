@@ -4046,7 +4046,7 @@ async function loadCaptainBriefing() {
   setTimeout(() => {
     console.log('[init] Testing setReadout');
     if (typeof setReadout === 'function') {
-      setReadout('TEST: -74°41.50' 33°06.95' 0.045mg/m3');
+      setReadout(`TEST: -74°41.50' 33°06.95' 0.045mg/m3`);
       console.log('[init] setReadout called');
     } else {
       console.log('[init] setReadout not found');
