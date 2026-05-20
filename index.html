@@ -1661,7 +1661,8 @@ const rowSlider = document.getElementById("row-slider"); /* NEW */
 const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
 
 function setReadout(txt) {
-  if (!readoutDiv) return;
+  console.log('[readout] setReadout called, txt=', txt ? txt.slice(0,50) : 'empty');
+  if (!readoutDiv) { console.warn('[readout] readoutDiv is null!'); return; }
   readoutDiv.textContent = txt || "";
   readoutDiv.style.cssText = "";
   if (txt) {
@@ -1829,12 +1830,14 @@ function smoothWheelZoom(event) {
 }
 
 function installTouchPolicyOnce() {
+  console.log('[touch] installTouchPolicyOnce IS_TOUCH=' + IS_TOUCH);
   installTouchGestureHandler();
 
   // Smooth wheel zoom on desktop/trackpad
   if (_wheelInstalled) return;
   _wheelInstalled = true;
   plotDiv.addEventListener("wheel", smoothWheelZoom, { passive: false });
+  console.log('[touch] wheel listener registered');
 }
 
 /* ========================= TIME PARSERS ========================= */
@@ -3145,9 +3148,11 @@ function setupReadoutHandlersOnce() {
   plotDiv.on("plotly_unhover", () => { if (!IS_TOUCH) setReadout(""); });
 
   plotDiv.on("plotly_hover", (ev) => {
+    console.log('[readout] plotly_hover fired, IS_TOUCH=', IS_TOUCH, 'points=', ev.points?.length);
     if (IS_TOUCH) return;
     const p = ev.points && ev.points[0];
-    if (!p) return;
+    if (!p) { console.log('[readout] no points'); return; }
+    console.log('[readout] point=', JSON.stringify({x: p.x, y: p.y, customdata: p.customdata}));
     renderReadoutFromPoint(p);
   });
 
