@@ -1660,48 +1660,13 @@ const rowPlay = document.getElementById("row-play"); /* NEW */
 const rowSlider = document.getElementById("row-slider"); /* NEW */
 const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
 
-// Debug: force readout on page load
-if (typeof setReadout === 'function') {
-  setTimeout(() => setReadout('TEST: readout is working'), 2000);
-}
-
 function setReadout(txt) {
-  console.log("[readout] setReadout called:", txt);
-  if (!readoutDiv) { console.warn("[readout] readoutDiv is null!"); return; }
-
-  // Also write to a guaranteed-visible test element
-  let testEl = document.getElementById("readout-test");
-  if (!testEl) {
-    testEl = document.createElement("div");
-    testEl.id = "readout-test";
-    document.body.appendChild(testEl);
-  }
-  testEl.style.cssText = "position:fixed!important;bottom:250px!important;right:10px!important;background:#ff0000!important;color:#fff!important;z-index:99999!important;padding:12px!important;font-size:20px!important;border:4px solid #ffff00!important;display:block!important;";
-  testEl.textContent = txt || "";
-  console.log("[readout] testEl rect:", JSON.stringify(testEl.getBoundingClientRect()));
-
+  if (!readoutDiv) return;
   readoutDiv.textContent = txt || "";
-  // Force override ALL CSS with inline !important styles
-  const forceStyles = [
-    "position:fixed!important",
-    "bottom:80px!important",
-    "right:10px!important",
-    "top:auto!important",
-    "left:auto!important",
-    "z-index:9999!important",
-    "background:" + (txt ? "rgba(255,0,0,0.95)!important" : "rgba(255,255,255,0.5)!important"),
-    "color:#000!important",
-    "font-size:18px!important",
-    "font-weight:bold!important",
-    "padding:8px 12px!important",
-    "border:3px solid #00ff00!important",
-    "display:inline-block!important",
-    "pointer-events:none!important",
-    "visibility:visible!important",
-    "opacity:1!important"
-  ];
-  readoutDiv.style.cssText = forceStyles.join(";");
-  console.log("[readout] final readoutDiv rect:", JSON.stringify(readoutDiv.getBoundingClientRect()));
+  readoutDiv.style.cssText = "";
+  if (txt) {
+    readoutDiv.style.cssText = "position:fixed;bottom:12px;right:72px;z-index:120;background:rgba(255,255,255,0.85);color:#000;border:1px solid rgba(0,0,0,0.2);border-radius:8px;padding:4px 8px;font-size:13px;pointer-events:none;display:inline-block;";
+  }
 }
 
 /* ========================= TOUCH POLICY ========================= */
