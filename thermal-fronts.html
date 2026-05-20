@@ -29,6 +29,24 @@
       padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
       border-radius:8px; color:#fff; font-size:12px; font-weight:800;
     }
+    #hamburger-btn{
+      position:fixed; top:8px; right:8px; z-index:30;
+      width:42px; height:42px; border:1px solid rgba(255,255,255,0.38); border-radius:8px;
+      background:rgba(5,11,16,0.92); color:#fff; font-size:22px; font-weight:900; cursor:pointer;
+      box-shadow:0 3px 12px rgba(0,0,0,0.42);
+    }
+    #menu-panel{
+      position:fixed; top:58px; right:8px; z-index:31; width:min(320px, calc(100vw - 16px));
+      display:none; flex-direction:column; gap:10px; padding:12px;
+      background:rgba(5,11,16,0.94); border:1px solid rgba(255,255,255,0.22); border-radius:8px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.45); backdrop-filter:blur(8px);
+    }
+    #menu-panel.open{ display:flex; }
+    #menu-panel label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:800; color:#9fb0c3; }
+    #menu-panel select{
+      min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
+      color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
+    }
     @media (max-width:720px){
       #toolbar{ gap:6px; }
       #region-select{ min-width:0; flex:1 1 100%; }
@@ -51,6 +69,26 @@
   </div>
   <div id="plot"></div>
   <div id="legend">Color: newer fronts are warmer. Labels show age before latest frame.</div>
+  <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
+  <div id="menu-panel">
+    <label>
+      Region
+      <select id="menu-region-select">
+        <option value="usec_south">US East Coast - South-Atlantic</option>
+        <option value="usec_md">US East Coast - Mid-Atlantic</option>
+      </select>
+    </label>
+    <label>
+      Product
+      <select id="product-select">
+        <option value="chl">Chlorophyll</option>
+        <option value="sst">Temperature</option>
+        <option value="uv">Currents/SSH</option>
+        <option value="bathy">Bathymetry</option>
+        <option value="thermal_fronts">Thermal Fronts</option>
+      </select>
+    </label>
+  </div>
 
 <script>
 const REGIONS = {
@@ -63,6 +101,7 @@ let bbox = [-81,31,-71,40];
 let frames = [];
 let frameData = [];
 let sourceFrameCount = 0;
+let landTrace = null;
 let mode = "animation";
 let playing = false;
 let playTimer = null;
@@ -74,7 +113,47 @@ const regionSelect = document.getElementById("region-select");
 const animationBtn = document.getElementById("mode-animation");
 const overlayBtn = document.getElementById("mode-overlay");
 const playBtn = document.getElementById("play-btn");
+const hamburgerBtn = document.getElementById("hamburger-btn");
+const menuPanel = document.getElementById("menu-panel");
+const menuRegionSelect = document.getElementById("menu-region-select");
+const productSelect = document.getElementById("product-select");
 regionSelect.value = regionId;
+menuRegionSelect.value = regionId;
+productSelect.value = "thermal_fronts";
+
+const PLACE_LABELS = [
+  {type:"city", name:"New York", lon:-74.0060, lat:40.7128},
+  {type:"city", name:"Philadelphia", lon:-75.1652, lat:39.9526},
+  {type:"city", name:"Atlantic City", lon:-74.4229, lat:39.3643},
+  {type:"city", name:"Baltimore", lon:-76.6122, lat:39.2904},
+  {type:"city", name:"Washington DC", lon:-77.0369, lat:38.9072},
+  {type:"city", name:"Norfolk", lon:-76.2859, lat:36.8508},
+  {type:"city", name:"Virginia Beach", lon:-75.9780, lat:36.8529},
+  {type:"city", name:"Wilmington", lon:-77.9447, lat:34.2257},
+  {type:"city", name:"Myrtle Beach", lon:-78.8867, lat:33.6891},
+  {type:"city", name:"Charleston", lon:-79.9311, lat:32.7765},
+  {type:"city", name:"Savannah", lon:-81.0998, lat:32.0809},
+  {type:"port", name:"Montauk", lon:-71.9448, lat:41.0359},
+  {type:"port", name:"Brielle / Manasquan", lon:-74.0565, lat:40.1079},
+  {type:"port", name:"Barnegat Light", lon:-74.1065, lat:39.7576},
+  {type:"port", name:"Cape May", lon:-74.9060, lat:38.9351},
+  {type:"port", name:"Ocean City MD", lon:-75.0849, lat:38.3365},
+  {type:"port", name:"Wachapreague", lon:-75.6896, lat:37.6057},
+  {type:"port", name:"Oregon Inlet", lon:-75.5488, lat:35.7957},
+  {type:"port", name:"Hatteras", lon:-75.6902, lat:35.2196},
+  {type:"port", name:"Morehead City", lon:-76.7260, lat:34.7229},
+  {type:"port", name:"Beaufort NC", lon:-76.6638, lat:34.7182},
+  {type:"port", name:"Wrightsville Beach", lon:-77.7950, lat:34.2085},
+  {type:"port", name:"Little River", lon:-78.6142, lat:33.8732},
+  {type:"port", name:"Georgetown", lon:-79.2945, lat:33.3768},
+  {type:"port", name:"Charleston Harbor", lon:-79.9237, lat:32.7810},
+  {type:"spot", name:"Wilmington Canyon", lon:-73.60, lat:38.10},
+  {type:"spot", name:"Norfolk Canyon", lon:-74.80, lat:36.90},
+  {type:"spot", name:"Cape May Rim", lon:-74.40, lat:38.90},
+  {type:"spot", name:"Polar Fork", lon:-72.80, lat:38.70},
+  {type:"spot", name:"Saxon State", lon:-73.40, lat:38.00},
+  {type:"spot", name:"Northern Rim", lon:-73.00, lat:38.60}
+];
 
 function framePathOf(f){ return String(f?.json_path || f?.path || f?.file || f?.url || f?.json || ""); }
 function parseFrameTime(f) {

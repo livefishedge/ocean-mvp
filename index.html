@@ -390,6 +390,23 @@
       white-space:nowrap;
       font-variant-numeric:tabular-nums;
     }
+    .map-time-step{
+      width:22px;
+      height:22px;
+      border:1px solid rgba(255,255,255,0.28);
+      border-radius:6px;
+      background:rgba(255,255,255,0.10);
+      color:#fff;
+      font-size:15px;
+      font-weight:900;
+      line-height:18px;
+      cursor:pointer;
+      padding:0;
+    }
+    .map-time-step:disabled{
+      opacity:0.35;
+      cursor:default;
+    }
     #thermal-front-toolbar{
       display:flex;
       align-items:center;
@@ -968,7 +985,9 @@
 
   <div id="mobile-time-badge"></div>
   <div id="map-status-toolbar">
+    <button id="map-prev-btn" class="map-time-step" type="button" title="Previous frame" aria-label="Previous frame">&#8249;</button>
     <span id="map-time-status"></span>
+    <button id="map-next-btn" class="map-time-step" type="button" title="Next frame" aria-label="Next frame">&#8250;</button>
     <label id="thermal-front-toolbar" title="Overlay nearest thermal front on the current product">
       <input id="global-sst-front-overlay" type="checkbox" />
       Fronts
@@ -1044,11 +1063,12 @@
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
+const QUERY_PARAMS = new URLSearchParams(location.search);
 const REGIONS = {
   usec_md: { label: "US East Coast - Mid-Atlantic", index: "index-usec_md.json" },
   usec_south: { label: "US East Coast - South-Atlantic", index: "index-usec_south.json" }
 };
-let REGION_ID = new URLSearchParams(location.search).get("region") || "usec_south";
+let REGION_ID = QUERY_PARAMS.get("region") || "usec_south";
 if (!REGIONS[REGION_ID]) REGION_ID = "usec_south";
 
 // Bounding Box (LonMin, LatMin, LonMax, LatMax)
@@ -1157,7 +1177,8 @@ const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => ([0.02,0.1,1,10,60].includes(v)) 
 let lastUpdateTimestamp = null;
 let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
 let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
-let currentVar = "chl";
+const INITIAL_VAR = QUERY_PARAMS.get("var");
+let currentVar = VAR_LABELS[INITIAL_VAR] && INITIAL_VAR !== "thermal_fronts" ? INITIAL_VAR : "chl";
 let currentFrameIdx = 0;
 let playing = false;
 let playTimer = null;
@@ -1622,6 +1643,8 @@ const chlFrontOverlayInput = document.getElementById("chl-front-overlay");
 const sstFrontOverlayInput = document.getElementById("sst-front-overlay");
 const globalSstFrontOverlayInput = document.getElementById("global-sst-front-overlay");
 const mapTimeStatus = document.getElementById("map-time-status");
+const mapPrevBtn = document.getElementById("map-prev-btn");
+const mapNextBtn = document.getElementById("map-next-btn");
 
 const readoutDiv = document.getElementById("readout");
 const modebarHost = document.getElementById("modebar-host");
@@ -2306,12 +2329,23 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
     const coords = feature?.geometry?.coordinates || [];
     const props = feature?.properties || {};
     if (!Array.isArray(coords) || coords.length < 2) continue;
+    let prev = null;
     for (const pt of coords) {
       if (!Array.isArray(pt) || pt.length < 2) continue;
-      lineX.push(Number(pt[0]));
-      lineY.push(Number(pt[1]));
+      const lon = Number(pt[0]);
+      const lat = Number(pt[1]);
+      if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+      if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > 0.08) {
+        lineX.push(null);
+        lineY.push(null);
+        text.push(null);
+        custom.push(null);
+      }
+      lineX.push(lon);
+      lineY.push(lat);
       text.push(String(props.strength_median ?? "") + " " + (props.strength_unit || "") + "<br>" + String(props.length_km ?? "") + " km");
       custom.push(props);
+      prev = [lon, lat];
     }
     lineX.push(null);
     lineY.push(null);
@@ -2334,6 +2368,38 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
   };
   const layout = stableLayout();
   return { data: [trace], layout };
+}
+
+function formatRelativeFrontTime(diffMs) {
+  if (!Number.isFinite(diffMs)) return "";
+  const absHours = Math.abs(diffMs) / 36e5;
+  if (absHours < 0.5) return "same time";
+  const suffix = diffMs < 0 ? "ago" : "later";
+  if (absHours < 48) return `${Math.round(absHours)}h ${suffix}`;
+  return `${Math.round(absHours / 24)}d ${suffix}`;
+}
+
+function frontLabelTrace(frontData, label) {
+  if (!label) return null;
+  const features = (Array.isArray(frontData?.features) ? frontData.features : [])
+    .filter(f => Array.isArray(f?.geometry?.coordinates) && f.geometry.coordinates.length >= 2)
+    .sort((a, b) => (Number(b?.properties?.length_km) || b.geometry.coordinates.length) - (Number(a?.properties?.length_km) || a.geometry.coordinates.length));
+  const feature = features[0];
+  if (!feature) return null;
+  const coords = feature.geometry.coordinates;
+  const pt = coords[Math.floor(coords.length / 2)];
+  if (!Array.isArray(pt) || pt.length < 2) return null;
+  return {
+    type: "scatter",
+    mode: "text",
+    x: [Number(pt[0])],
+    y: [Number(pt[1])],
+    text: [label],
+    textfont: { color: "#050b10", size: 13, family: "system-ui,-apple-system,Segoe UI,sans-serif" },
+    textposition: "middle center",
+    hoverinfo: "skip",
+    showlegend: false
+  };
 }
 
 /* ===== Bathymetry (.nc) ===== */
@@ -3196,6 +3262,8 @@ function updateSliderUI() {
 
   prevBtn.disabled = n <= 1;
   nextBtn.disabled = n <= 1;
+  if (mapPrevBtn) mapPrevBtn.disabled = n <= 1;
+  if (mapNextBtn) mapNextBtn.disabled = n <= 1;
   playBtn.disabled = n <= 1;
 
   frameLbl.textContent = n ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
@@ -3267,7 +3335,14 @@ async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
     const frontData = await fetchFrameData(frontVar, frontFrames[bestIdx]);
     const frontGrid = await loadGridForVar(frontVar, frontData);
     const frontFig = buildFrontLines(frontGrid, frontData, frontVar);
+    const label = formatRelativeFrontTime((frontTimes[bestIdx] ?? NaN) - curMs);
+    for (const trace of frontFig.data || []) {
+      trace.name = label ? `Thermal front (${label})` : "Thermal front";
+      trace.hovertemplate = label ? `<b>Thermal front</b><br>${label}<extra></extra>` : trace.hovertemplate;
+    }
     fig.data.push(...frontFig.data);
+    const labelTrace = frontLabelTrace(frontData, label);
+    if (labelTrace) fig.data.push(labelTrace);
   } catch (e) {
     console.error(`${frontVar} overlay failed:`, e);
   }
@@ -3779,6 +3854,8 @@ document.addEventListener("fullscreenchange", () => {
 
 prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
 nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
+if (mapPrevBtn) mapPrevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
+if (mapNextBtn) mapNextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
 
 applyBtn.addEventListener("click", () => {
   const vmin = Number(vminInput.value);
