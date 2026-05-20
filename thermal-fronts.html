@@ -62,6 +62,7 @@ if (!REGIONS[regionId]) regionId = "usec_south";
 let bbox = [-81,31,-71,40];
 let frames = [];
 let frameData = [];
+let sourceFrameCount = 0;
 let mode = "animation";
 let playing = false;
 let playTimer = null;
@@ -183,14 +184,14 @@ async function render() {
   }
   if (mode === "overlay") {
     const traces = tracesForFrames(frameData, false);
-    statusEl.textContent = `${frameData.length} thermal-front frames, last ${Math.round((frames.at(-1).t - frames[0].t)/864e5) || 1} days`;
+    statusEl.textContent = `${frameData.length}/${sourceFrameCount} front-bearing frames, last ${Math.round((frames.at(-1).t - frames[0].t)/864e5) || 1} days`;
     await Plotly.react(plot, traces, layout("Thermal fronts: all available frames"));
     return;
   }
   frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
   const item = frameData[frameIdx];
   const traces = tracesForFrames([item], true);
-  statusEl.textContent = `${frameIdx + 1}/${frameData.length} • ${new Date(item.t).toLocaleString()} • ${formatAge(item.t, frames.at(-1).t)} before latest`;
+  statusEl.textContent = `${frameIdx + 1}/${frameData.length} front-bearing • ${new Date(item.t).toLocaleString()} • ${formatAge(item.t, frames.at(-1).t)} before latest`;
   await Plotly.react(plot, traces, layout("Thermal fronts: animation"));
 }
 function setMode(next) {
@@ -223,10 +224,12 @@ async function init() {
     .sort((a,b) => a.t - b.t);
   const latest = frames.at(-1)?.t;
   if (latest) frames = frames.filter(f => latest - f.t <= 21 * 864e5);
+  sourceFrameCount = frames.length;
   frameData = await Promise.all(frames.map(async f => {
     const res = await fetch(framePathOf(f));
     return { meta:f, t:f.t, data: res.ok ? await res.json() : { features:[] } };
   }));
+  frameData = frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
   frameIdx = Math.max(0, frameData.length - 1);
   await render();
 }
