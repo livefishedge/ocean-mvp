@@ -363,46 +363,44 @@
       content:"›";
       margin-left:4px;
     }
-    #thermal-front-toolbar{
+    #map-status-toolbar{
       position:fixed;
       top:calc(8px + env(safe-area-inset-top, 0px));
-      left:50%;
-      transform:translateX(-50%);
+      left:calc(10px + env(safe-area-inset-left, 0px));
       z-index:145;
       display:flex;
       align-items:center;
-      gap:8px;
-      padding:6px 9px;
-      border:1px solid rgba(255,255,255,0.30);
+      gap:7px;
+      padding:4px 7px;
+      border:1px solid rgba(255,255,255,0.24);
       border-radius:8px;
-      background:rgba(5,11,16,0.78);
+      background:rgba(5,11,16,0.70);
       color:#fff;
-      font-size:12px;
+      font-size:11px;
       font-weight:800;
       box-shadow:0 3px 12px rgba(0,0,0,0.35);
       backdrop-filter:blur(5px);
       pointer-events:auto;
       user-select:none;
     }
-    #thermal-front-toolbar label{
+    #map-time-status{
+      max-width:190px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      font-variant-numeric:tabular-nums;
+    }
+    #thermal-front-toolbar{
       display:flex;
       align-items:center;
-      gap:5px;
+      gap:4px;
       white-space:nowrap;
     }
     #thermal-front-toolbar input{
-      width:15px;
-      height:15px;
+      width:13px;
+      height:13px;
       accent-color:#ffb000;
     }
-    #thermal-front-history-link{
-      color:#ffd166;
-      text-decoration:none;
-      white-space:nowrap;
-      border-left:1px solid rgba(255,255,255,0.20);
-      padding-left:8px;
-    }
-    #thermal-front-history-link:hover{ text-decoration:underline; }
 
     /* Floating readout: fixed lower-right so it stays visible during map gestures. */
     #readout{
@@ -775,16 +773,15 @@
       #feedback-toggle::before{ width:15px; height:12px; border-width:2px; border-radius:3px; }
       #feedback-toggle::after{ width:6px; height:6px; border-width:0 2px 2px 0; margin-top:11px; margin-left:-7px; }
       #feedback-toggle{ touch-action:none; }
-      #thermal-front-toolbar{
+      #map-status-toolbar{
         top:calc(8px + env(safe-area-inset-top, 0px));
         left:calc(10px + env(safe-area-inset-left, 0px));
         right:60px;
-        transform:none;
         justify-content:flex-start;
         max-width:calc(100vw - 82px);
         overflow:hidden;
       }
-      #thermal-front-history-link{ display:none; }
+      #map-time-status{ max-width:calc(100vw - 220px); }
 
     }
 
@@ -917,6 +914,7 @@
         <option value="sst">Temperature</option>
         <option value="uv">Currents/SSH</option>
         <option value="bathy">Bathymetry</option>
+        <option value="thermal_fronts">Thermal Fronts</option>
       </select>
       <button id="temp-unit-toggle" type="button" title="Temperature unit">°C</button>
     </div>
@@ -969,12 +967,12 @@
   </div>
 
   <div id="mobile-time-badge"></div>
-  <div id="thermal-front-toolbar">
-    <label title="Overlay nearest thermal front on the current product">
+  <div id="map-status-toolbar">
+    <span id="map-time-status"></span>
+    <label id="thermal-front-toolbar" title="Overlay nearest thermal front on the current product">
       <input id="global-sst-front-overlay" type="checkbox" />
-      Thermal fronts
+      Fronts
     </label>
-    <a id="thermal-front-history-link" href="thermal-fronts.html">3-week view</a>
   </div>
   <div id="readout"></div>
   <div id="feedback-float">
@@ -1063,7 +1061,8 @@ const VAR_LABELS = {
   chl:"Chlorophyll", sst:"Temperature",
   chl_front:"CHL Fronts", sst_front:"SST Fronts",
   uv:"Currents/SSH",
-  bathy:"Bathymetry"
+  bathy:"Bathymetry",
+  thermal_fronts:"Thermal Fronts"
 };
 
 const VAR_TO_GRID = {
@@ -1622,6 +1621,7 @@ const sstFrontOverlayWrap = document.getElementById("sst-front-overlay-wrap");
 const chlFrontOverlayInput = document.getElementById("chl-front-overlay");
 const sstFrontOverlayInput = document.getElementById("sst-front-overlay");
 const globalSstFrontOverlayInput = document.getElementById("global-sst-front-overlay");
+const mapTimeStatus = document.getElementById("map-time-status");
 
 const readoutDiv = document.getElementById("readout");
 const modebarHost = document.getElementById("modebar-host");
@@ -1838,16 +1838,8 @@ function timeOnlyLabel(varKey, frameMeta) {
   return "";
 }
 
-function daylightStatusLabel(varKey, frameMeta) {
-  if (varKey === "bathy") return "STATIC";
-  if (varKey === "uv") return "DAILY";
-  return isDaytimeFrame(varKey, frameMeta) ? "DAYTIME" : "NIGHT";
-}
-
 function productFrameLabel(varKey, frameMeta) {
-  const time = timeOnlyLabel(varKey, frameMeta);
-  if (!time) return "";
-  return `${daylightStatusLabel(varKey, frameMeta)} • ${time}`;
+  return timeOnlyLabel(varKey, frameMeta);
 }
 
 function updateMobileTimeBadge() {
@@ -3207,6 +3199,7 @@ function updateSliderUI() {
   playBtn.disabled = n <= 1;
 
   frameLbl.textContent = n ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
+  if (mapTimeStatus) mapTimeStatus.textContent = n ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
   updateMobileTimeBadge();
 }
 
@@ -3455,6 +3448,11 @@ async function loadIndex() {
   }
 
   for (const opt of varSelect.options) {
+    if (opt.value === "thermal_fronts") {
+      opt.disabled = false;
+      opt.textContent = VAR_LABELS.thermal_fronts || "Thermal Fronts";
+      continue;
+    }
     const count = (framesByVar[opt.value] || []).length;
     opt.disabled = count === 0;
     opt.textContent = count === 0 ? `${VAR_LABELS[opt.value]} - no data` : VAR_LABELS[opt.value];
@@ -3711,6 +3709,12 @@ async function showFrame() {
 
 /* ========================= EVENTS ========================= */
 varSelect.addEventListener("change", () => {
+  if (varSelect.value === "thermal_fronts") {
+    const url = new URL("thermal-fronts.html", location.href);
+    url.searchParams.set("region", REGION_ID);
+    location.href = url.toString();
+    return;
+  }
   setPlaying(false);
   // Preserve the user's viewed timestamp and land on the nearest daytime frame
   // in the newly selected product. This is the actual product-switch path.
