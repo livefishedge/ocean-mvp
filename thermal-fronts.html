@@ -180,6 +180,24 @@ function colorForAge(ms, latestMs, oldestMs) {
   const hue = 210 - 190 * t;
   return `hsl(${hue}, 92%, 56%)`;
 }
+function appendSegmentedLine(lineX, lineY, coords, maxJumpDeg = 0.08) {
+  let prev = null;
+  for (const pt of coords) {
+    if (!Array.isArray(pt) || pt.length < 2) continue;
+    const lon = Number(pt[0]);
+    const lat = Number(pt[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) {
+      lineX.push(null);
+      lineY.push(null);
+    }
+    lineX.push(lon);
+    lineY.push(lat);
+    prev = [lon, lat];
+  }
+  lineX.push(null);
+  lineY.push(null);
+}
 function lineLength(coords) {
   let d = 0;
   for (let i = 1; i < coords.length; i++) {
@@ -192,6 +210,37 @@ function lineLength(coords) {
 function labelPoint(coords) {
   if (!coords.length) return null;
   return coords[Math.floor(coords.length / 2)];
+}
+function placeInRegion(p) {
+  const [w, s, e, n] = bbox.map(Number);
+  return p.lon >= w && p.lon <= e && p.lat >= s && p.lat <= n;
+}
+function placeTrace(type) {
+  const pts = PLACE_LABELS.filter(p => p.type === type && placeInRegion(p));
+  const isPort = type === "port";
+  const isSpot = type === "spot";
+  return {
+    type:"scatter",
+    mode:"markers+text",
+    x: pts.map(p => p.lon),
+    y: pts.map(p => p.lat),
+    text: pts.map(p => p.name),
+    textposition: isSpot ? "top center" : isPort ? "bottom center" : "top center",
+    textfont:{ size:13, color:isSpot ? "#ffb000" : isPort ? "#ffe066" : "#ffffff" },
+    marker:{ size:isSpot ? 10 : isPort ? 8 : 7, color:isSpot ? "#ff6b35" : isPort ? "#ffb000" : "#7bdff2", symbol:isSpot ? "star" : isPort ? "diamond" : "circle", line:{ color:"#000", width:2 } },
+    hovertemplate:"%{text}<extra></extra>",
+    showlegend:false,
+    name:type
+  };
+}
+function baseTraces() {
+  const traces = [];
+  if (landTrace) traces.push(landTrace);
+  for (const type of ["city", "port", "spot"]) {
+    const trace = placeTrace(type);
+    if (trace.x.length) traces.push(trace);
+  }
+  return traces;
 }
 function tracesForFrames(items, labelEveryFrame = true) {
   const latestMs = frames.at(-1)?.t ?? Date.now();
@@ -207,13 +256,7 @@ function tracesForFrames(items, labelEveryFrame = true) {
       const coords = feature?.geometry?.coordinates || [];
       if (!Array.isArray(coords) || coords.length < 2) continue;
       candidates.push({ coords, length: Number(feature?.properties?.length_km) || lineLength(coords) });
-      for (const pt of coords) {
-        if (!Array.isArray(pt) || pt.length < 2) continue;
-        lineX.push(Number(pt[0]));
-        lineY.push(Number(pt[1]));
-      }
-      lineX.push(null);
-      lineY.push(null);
+      appendSegmentedLine(lineX, lineY, coords);
     }
     traces.push({
       type:"scatter", mode:"lines", x:lineX, y:lineY,
@@ -255,23 +298,58 @@ function layout(title) {
     uirevision:"thermal-front-history"
   };
 }
+function plotConfig() {
+  return {
+    responsive:true,
+    displayModeBar:true,
+    displaylogo:false,
+    scrollZoom:true,
+    doubleClick:"reset",
+    modeBarButtonsToRemove:["lasso2d", "select2d"]
+  };
+}
+async function prepareLandMask(indexMeta) {
+  try {
+    const path = indexMeta?.region_meta?.bathy_path || "gebco_bath_latest/gebco_bathy.json";
+    const res = await fetch(`data/${regionId}/${path}?t=${Date.now()}`);
+    if (!res.ok) return;
+    const bathy = await res.json();
+    const depth = bathy.depth || bathy.z || [];
+    const zMask = depth.map(row => row.map(v => Number.isFinite(Number(v)) && Number(v) <= 0 ? 1 : null));
+    landTrace = {
+      type:"heatmap",
+      x:bathy.xAxis || bathy.x || [],
+      y:bathy.yAxis || bathy.y || [],
+      z:zMask,
+      colorscale:[[0, "#c9d0d6"], [1, "#c9d0d6"]],
+      zmin:0,
+      zmax:1,
+      showscale:false,
+      hoverinfo:"skip",
+      name:"Land"
+    };
+  } catch (err) {
+    console.warn("Land mask failed", err);
+  }
+}
 async function render() {
+  const basemap = baseTraces();
   if (!frameData.length) {
     statusEl.textContent = "No thermal-front frames available for this region.";
-    await Plotly.react(plot, [], layout("Thermal fronts"));
+    await Plotly.react(plot, basemap, layout("Thermal fronts"), plotConfig());
     return;
   }
   if (mode === "overlay") {
-    const traces = tracesForFrames(frameData, false);
+    const traces = basemap.concat(tracesForFrames(frameData, false));
     statusEl.textContent = `${frameData.length}/${sourceFrameCount} front-bearing frames, last ${Math.round((frames.at(-1).t - frames[0].t)/864e5) || 1} days`;
-    await Plotly.react(plot, traces, layout("Thermal fronts: all available frames"));
+    await Plotly.react(plot, traces, layout("Thermal fronts: all available frames"), plotConfig());
     return;
   }
   frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
   const item = frameData[frameIdx];
-  const traces = tracesForFrames([item], true);
+  const traces = basemap.concat(tracesForFrames([item], true));
   statusEl.textContent = `${frameIdx + 1}/${frameData.length} front-bearing • ${new Date(item.t).toLocaleString()} • ${formatAge(item.t, frames.at(-1).t)} before latest`;
-  await Plotly.react(plot, traces, layout("Thermal fronts: animation"));
+  await Plotly.react(plot, traces, layout("Thermal fronts: animation"), plotConfig());
 }
 function setMode(next) {
   mode = next;
@@ -297,6 +375,7 @@ async function init() {
   if (!idxRes.ok) throw new Error(`Failed to load ${REGIONS[regionId].index}`);
   const idx = await idxRes.json();
   if (idx.region_meta?.bbox?.length >= 4) bbox = idx.region_meta.bbox.map(Number);
+  await prepareLandMask(idx);
   frames = ((idx.frames || idx.frames_by_var || {}).sst_front || [])
     .map(f => ({ ...f, t: parseFrameTime(f) }))
     .filter(f => Number.isFinite(f.t))
@@ -315,6 +394,19 @@ async function init() {
 regionSelect.addEventListener("change", () => {
   const url = new URL(location.href);
   url.searchParams.set("region", regionSelect.value);
+  location.href = url.toString();
+});
+hamburgerBtn.addEventListener("click", () => menuPanel.classList.toggle("open"));
+menuRegionSelect.addEventListener("change", () => {
+  const url = new URL(location.href);
+  url.searchParams.set("region", menuRegionSelect.value);
+  location.href = url.toString();
+});
+productSelect.addEventListener("change", () => {
+  if (productSelect.value === "thermal_fronts") return;
+  const url = new URL("index.html", location.href);
+  url.searchParams.set("region", regionId);
+  url.searchParams.set("var", productSelect.value);
   location.href = url.toString();
 });
 animationBtn.addEventListener("click", () => setMode("animation"));
