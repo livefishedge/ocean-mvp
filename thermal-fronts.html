@@ -10,20 +10,20 @@
     html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
     #toolbar{
       position:fixed; top:0; left:0; right:0; z-index:10;
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-      padding:8px 10px; background:var(--panel); border-bottom:1px solid var(--border);
+      display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+      padding:4px 8px; background:var(--panel); border-bottom:1px solid var(--border);
       backdrop-filter:blur(6px);
     }
     #toolbar a, #toolbar button, #toolbar select{
-      min-height:38px; border:1px solid #273649; border-radius:8px;
-      background:#0c1723; color:var(--fg); font-weight:800; font-size:14px;
+      min-height:30px; border:1px solid #273649; border-radius:6px;
+      background:#0c1723; color:var(--fg); font-weight:700; font-size:12px;
     }
     #toolbar a{ display:inline-flex; align-items:center; padding:0 10px; text-decoration:none; }
     #toolbar button{ padding:0 12px; cursor:pointer; }
     #toolbar button.active{ background:#1d4f91; border-color:#4d7dff; }
     #region-select{ padding:0 10px; min-width:245px; }
     #status{ color:#9fb0c3; font-size:13px; font-weight:700; white-space:nowrap; }
-    #plot{ width:100vw; height:100dvh; }
+    #plot{ width:100vw; height:100dvh; touch-action:pan-y; }
     #legend{
       position:fixed; left:12px; bottom:12px; z-index:11;
       padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
@@ -63,32 +63,14 @@
       <option value="usec_md">US East Coast - Mid-Atlantic</option>
     </select>
     <button id="mode-animation" class="active" type="button">Animation</button>
+    <button id="mode-daily" type="button">Daily</button>
     <button id="mode-overlay" type="button">All fronts</button>
     <button id="play-btn" type="button">Play</button>
     <span id="status"></span>
   </div>
   <div id="plot"></div>
-  <div id="legend">Color: newer fronts are warmer. Labels show age before latest frame.</div>
+  <div id="legend">Color by age: newer fronts are warmer. Labels show age in minutes/hours.</div>
   <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
-  <div id="menu-panel">
-    <label>
-      Region
-      <select id="menu-region-select">
-        <option value="usec_south">US East Coast - South-Atlantic</option>
-        <option value="usec_md">US East Coast - Mid-Atlantic</option>
-      </select>
-    </label>
-    <label>
-      Product
-      <select id="product-select">
-        <option value="chl">Chlorophyll</option>
-        <option value="sst">Temperature</option>
-        <option value="uv">Currents/SSH</option>
-        <option value="bathy">Bathymetry</option>
-        <option value="thermal_fronts">Thermal Fronts</option>
-      </select>
-    </label>
-  </div>
 
 <script>
 const REGIONS = {
@@ -106,11 +88,13 @@ let mode = "animation";
 let playing = false;
 let playTimer = null;
 let frameIdx = 0;
+let dailyFrames = []; // {date: "YYYY-MM-DD", t: ms, item}[]
 
 const plot = document.getElementById("plot");
 const statusEl = document.getElementById("status");
 const regionSelect = document.getElementById("region-select");
 const animationBtn = document.getElementById("mode-animation");
+const dailyBtn = document.getElementById("mode-daily");
 const overlayBtn = document.getElementById("mode-overlay");
 const playBtn = document.getElementById("play-btn");
 const hamburgerBtn = document.getElementById("hamburger-btn");
@@ -170,9 +154,11 @@ function parseFrameTime(f) {
   return Date.UTC(y, mo, d, Number(m[4]), 0, 0);
 }
 function formatAge(ms, latestMs) {
-  const hours = Math.max(0, Math.round((latestMs - ms) / 36e5));
-  if (hours < 48) return `${hours}h`;
-  return `${Math.round(hours / 24)}d`;
+  const mins = Math.max(0, Math.round((latestMs - ms) / 6e4));
+  if (mins < 60) return `${mins} mins ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
 }
 function colorForAge(ms, latestMs, oldestMs) {
   const span = Math.max(1, latestMs - oldestMs);
@@ -260,8 +246,8 @@ function tracesForFrames(items, labelEveryFrame = true) {
     }
     traces.push({
       type:"scatter", mode:"lines", x:lineX, y:lineY,
-      line:{ color, width: labelEveryFrame ? 2.8 : 1.8 },
-      hovertemplate:`<b>Thermal front</b><br>${new Date(item.t).toLocaleString()}<br>${age} before latest<extra></extra>`,
+      line:{ color, width: labelEveryFrame ? 2.2 : 1.5 },
+      hovertemplate:`<b>Thermal front</b><br>${new Date(item.t).toLocaleString()}<br>${age}<extra></extra>`,
       showlegend:false
     });
     candidates.sort((a,b) => b.length - a.length);
@@ -276,7 +262,7 @@ function tracesForFrames(items, labelEveryFrame = true) {
     if (labelX.length) {
       traces.push({
         type:"scatter", mode:"text", x:labelX, y:labelY, text:labels,
-        textfont:{ color:"#050b10", size:13, family:"system-ui,-apple-system,Segoe UI,sans-serif" },
+        textfont:{ color:"#050b10", size:10, family:"system-ui,-apple-system,Segoe UI,sans-serif" },
         textposition:"middle center",
         hoverinfo:"skip",
         showlegend:false
@@ -341,8 +327,22 @@ async function render() {
   }
   if (mode === "overlay") {
     const traces = basemap.concat(tracesForFrames(frameData, false));
-    statusEl.textContent = `${frameData.length}/${sourceFrameCount} front-bearing frames, last ${Math.round((frames.at(-1).t - frames[0].t)/864e5) || 1} days`;
+    statusEl.textContent = `${frameData.length} front-bearing frames across ${Math.round((frames.at(-1).t - frames[0].t)/864e5)||1} days`;
     await Plotly.react(plot, traces, layout("Thermal fronts: all available frames"), plotConfig());
+    return;
+  }
+  if (mode === "daily") {
+    if (!dailyFrames.length) buildDailyFrames();
+    frameIdx = Math.max(0, Math.min(frameIdx, dailyFrames.length - 1));
+    const dayItem = dailyFrames[frameIdx];
+    const allThatDay = frameData.filter(item => {
+      const d = new Date(item.t);
+      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+      return dateStr === dayItem.date;
+    });
+    const traces = basemap.concat(tracesForFrames(allThatDay, false));
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem.date}`;
+    await Plotly.react(plot, traces, layout(`Thermal fronts: ${dayItem.date}`), plotConfig());
     return;
   }
   frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
@@ -354,10 +354,24 @@ async function render() {
 function setMode(next) {
   mode = next;
   animationBtn.classList.toggle("active", mode === "animation");
+  dailyBtn.classList.toggle("active", mode === "daily");
   overlayBtn.classList.toggle("active", mode === "overlay");
   playBtn.disabled = mode !== "animation" || frameData.length <= 1;
   if (mode !== "animation") setPlaying(false);
   render();
+}
+function buildDailyFrames() {
+  dailyFrames = [];
+  const seen = new Set();
+  const sorted = [...frameData].sort((a,b) => a.t - b.t);
+  for (const item of sorted) {
+    const d = new Date(item.t);
+    const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+    if (!seen.has(dateStr)) {
+      seen.add(dateStr);
+      dailyFrames.push({ date: dateStr, t: item.t, item });
+    }
+  }
 }
 function step(delta) {
   if (!frameData.length) return;
@@ -410,6 +424,7 @@ productSelect.addEventListener("change", () => {
   location.href = url.toString();
 });
 animationBtn.addEventListener("click", () => setMode("animation"));
+dailyBtn.addEventListener("click", () => setMode("daily"));
 overlayBtn.addEventListener("click", () => setMode("overlay"));
 playBtn.addEventListener("click", () => setPlaying(!playing));
 window.addEventListener("resize", () => { try { Plotly.Plots.resize(plot); } catch(_){} });

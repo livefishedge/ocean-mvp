@@ -2883,20 +2883,8 @@ function sampleMobileValueAt(lon, lat) {
 function renderMobileReadout(lon, lat) {
   if (!isFinite(lon) || !isFinite(lat)) return;
   updateMobileCursor(lon, lat);
-  const base = `${toDDM(lon)} ${toDDM(lat)}`;
-  const val = sampleMobileValueAt(lon, lat);
-  if (val === null || val === undefined) {
-    setReadout(base);
-    return;
-  }
-  if (!isFinite(val) || isNaN(val)) {
-    setReadout(base);
-    return;
-  }
-  const unit = DEFAULT_RANGES[currentVar]?.unit || "";
-  if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
-  else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else setReadout(`${base} ${val.toFixed(3)}${unit}`);
+  // Show only lat/lon coordinate — no parameter value on mobile
+  setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
 }
 
 function installMobileReadoutOnce(map) {
