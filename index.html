@@ -1210,6 +1210,182 @@ let mobileMapState = {
   currentDataObj: null
 };
 
+/* ====================== DESKTOP OPENLAYERS MAP ====================== */
+let desktopMapState = {
+  map: null,
+  imageLayer: null,
+  landLayer: null,
+  arrowLayer: null,
+  currentGridInfo: null,
+  currentDataObj: null,
+  ready: false
+};
+
+function isDesktopMapMode() {
+  // Use OpenLayers on desktop (non-touch) devices
+  return !IS_TOUCH && !isMobileDevice();
+}
+
+async function initDesktopMapIfNeeded() {
+  if (desktopMapState.map) {
+    desktopMapState.map.updateSize();
+    return desktopMapState.map;
+  }
+  const target = document.getElementById("plot-div");
+  if (!target || !window.ol) return null;
+  const view = new ol.View({
+    projection: "EPSG:4326",
+    center: [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2],
+    zoom: 6,
+    minZoom: 4,
+    maxZoom: 13,
+    enableRotation: false
+  });
+  view.on("change:rotation", () => {
+    if (view.getRotation()) view.setRotation(0);
+  });
+  // Let OL handle all zoom/pan natively — no custom wheel handler needed
+  const desktopInteractions = (ol.interaction && typeof ol.interaction.defaults === "function")
+    ? ol.interaction.defaults({ altShiftDragRotate: false, pinchRotate: false })
+    : undefined;
+  desktopMapState.map = new ol.Map({
+    target,
+    layers: [],
+    view,
+    controls: [],
+    interactions: desktopInteractions
+  });
+  return desktopMapState.map;
+}
+
+function renderDesktopReadout(lon, lat) {
+  if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) return;
+  const gridInfo = desktopMapState.currentGridInfo;
+  const dataObj = desktopMapState.currentDataObj;
+
+  // Bilinear-like sampling: find nearest grid cell
+  const nx = gridInfo.xAxis.length;
+  const ny = gridInfo.yAxis.length;
+  if (nx === 0 || ny === 0) return;
+
+  // Find nearest column
+  let col = 0;
+  let minDistX = Infinity;
+  for (let c = 0; c < nx; c++) {
+    const d = Math.abs(gridInfo.xAxis[c] - lon);
+    if (d < minDistX) { minDistX = d; col = c; }
+  }
+  // Find nearest row
+  let row = 0;
+  let minDistY = Infinity;
+  for (let r = 0; r < ny; r++) {
+    const d = Math.abs(gridInfo.yAxis[r] - lat);
+    if (d < minDistY) { minDistY = d; row = r; }
+  }
+
+  const z = mobileZForVar(currentVar, dataObj);
+  if (!z || !z[row] || !Number.isFinite(z[row][col])) {
+    // NaN / no-data area: show just lat/lon, no 0, no value
+    setReadout(formatCoord(lon, lat));
+    return;
+  }
+  const value = z[row][col];
+  const base = formatCoord(lon, lat);
+  if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(value)}`);
+  else if (currentVar === "bathy") setReadout(`${base}, ${value.toFixed(0)}m`);
+  else if (currentVar === "uv") {
+    const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+    const adt = d?.adt?.[row]?.[col];
+    if (Number.isFinite(adt)) setReadout(`${base}, ADT ${adt.toFixed(3)}m`);
+    else setReadout(formatCoord(lon, lat));
+  } else {
+    setReadout(`${base} ${value.toFixed(3)} mg/m3`);
+  }
+}
+
+function installDesktopReadoutHandlersOnce(map) {
+  if (map.__desktopReadoutInstalled) return;
+  map.__desktopReadoutInstalled = true;
+  map.on("pointermove", (ev) => {
+    if (!ev.coordinate) return;
+    renderDesktopReadout(ev.coordinate[0], ev.coordinate[1]);
+  });
+  map.on("click", (ev) => {
+    if (!ev.coordinate) return;
+    renderDesktopReadout(ev.coordinate[0], ev.coordinate[1]);
+  });
+}
+
+async function renderDesktopFrame(frameMeta) {
+  if (currentVar === "chl_front" || currentVar === "sst_front") return false;
+  const map = await initDesktopMapIfNeeded();
+  if (!map) return false;
+
+  let dataObj, gridInfo;
+  if (currentVar === "bathy") {
+    dataObj = await loadBathymetryJson(BATHY_JSON_URL);
+    gridInfo = { xAxis: dataObj.xAxis, yAxis: dataObj.yAxis, nx: dataObj.xAxis.length, ny: dataObj.yAxis.length };
+  } else {
+    dataObj = await fetchFrameData(currentVar, frameMeta);
+    gridInfo = await loadGridForVar(currentVar, dataObj);
+  }
+  desktopMapState.currentGridInfo = gridInfo;
+  desktopMapState.currentDataObj = dataObj;
+
+  // Build raster canvas
+  const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
+  const url = canvas.toDataURL("image/png");
+  if (!url || !url.startsWith("data:image/png")) throw new Error("Could not encode desktop raster");
+
+  const extent = frameExtentFromGrid(gridInfo);
+  const source = new ol.source.ImageStatic({
+    url,
+    imageExtent: extent,
+    projection: "EPSG:4326",
+    interpolate: false
+  });
+  source.on("imageloaderror", () => {
+    console.error("Desktop OL image layer failed to load.");
+    throw new Error("Desktop OL image load failed");
+  });
+  const layer = new ol.layer.Image({ source });
+
+  if (desktopMapState.imageLayer) map.removeLayer(desktopMapState.imageLayer);
+  desktopMapState.imageLayer = layer;
+  map.addLayer(layer);
+
+  installDesktopReadoutHandlersOnce(map);
+
+  // Remove any stale land layer and re-add if needed
+  if (landTrace && desktopMapState.landLayer) {
+    map.removeLayer(desktopMapState.landLayer);
+    desktopMapState.landLayer = null;
+  }
+
+  // Fit view to extent
+  const view = map.getView();
+  const size = map.getSize();
+  if (size && size[0] > 0 && size[1] > 0) {
+    const widthRes = Math.abs(extent[2] - extent[0]) / size[0];
+    const heightRes = Math.abs(extent[3] - extent[1]) / size[1];
+    const res = Math.max(widthRes, heightRes);
+    view.setResolution(res);
+    view.setCenter([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
+  }
+
+  // Hide the Plotly color bar (we'll manage it separately)
+  const cbar = document.getElementById("colorbar-svg");
+  if (cbar) cbar.style.display = "none";
+  const cbFig = document.getElementById("cb-figure");
+  if (cbFig) cbFig.style.display = "none";
+  document.getElementById("plot-div").style.background = "";
+
+  desktopMapState.ready = true;
+  return true;
+}
+
+/* ============================================================ */
+
 /* Touch / portrait detection */
 const IS_TOUCH = window.matchMedia && window.matchMedia("(pointer: coarse)").matches;
 function isPortrait() { return window.innerHeight > window.innerWidth; }
@@ -3785,6 +3961,20 @@ async function showFrame() {
       console.error("Mobile map render failed; falling back to Plotly.", e);
       mobileMapState.disabled = true;
       document.body.classList.remove("mobile-map-ready");
+    }
+  }
+
+  // Desktop: use OpenLayers
+  if (isDesktopMapMode()) {
+    try {
+      const renderedDesktop = await renderDesktopFrame(frameMeta);
+      if (renderedDesktop) {
+        await renderFooterColorbar(currentVar);
+        updateSliderUI();
+        return;
+      }
+    } catch (e) {
+      console.error("Desktop OL render failed; falling back to Plotly.", e);
     }
   }
 
