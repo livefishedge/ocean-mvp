@@ -1188,8 +1188,6 @@ let playIntervalMs = BASE_PLAY_MS;
 
 const gridCache = {};
 let _readoutHooked = false;
-let _wheelInstalled = false;
-let _lastWheelTime = 0;
 let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null };
@@ -1664,6 +1662,46 @@ const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
 
 function setReadout(txt) { readoutDiv.textContent = txt || ""; }
 
+let _wheelInstalled = false;
+let _lastWheelTime = 0;
+
+function smoothWheelZoom(event) {
+  event.preventDefault();
+  const now = Date.now();
+  if (now - _lastWheelTime < 16) return;
+  _lastWheelTime = now;
+  const delta = event.deltaY;
+  if (!delta || !isFinite(delta)) return;
+  const ratio = delta > 0 ? 1.10 : 0.91;
+  const xaxis = plotDiv._fullLayout?.xaxis;
+  const yaxis = plotDiv._fullLayout?.yaxis;
+  if (!xaxis || !yaxis) return;
+  const xRange = xaxis.range;
+  const yRange = yaxis.range;
+  if (!xRange || !yRange) return;
+  const [x0, x1] = xRange;
+  const [y0, y1] = yRange;
+  if (x1 <= x0 || y1 <= y0) return;
+  const xSpan = x1 - x0;
+  const ySpan = y1 - y0;
+  const rect = plotDiv.getBoundingClientRect();
+  const mouseX = (event.clientX - rect.left) / rect.width;
+  const mouseY = (event.clientY - rect.top) / rect.height;
+  const anchorX = x0 + xSpan * mouseX;
+  const anchorY = y1 - ySpan * (1 - mouseY);
+  const newXSpan = xSpan * ratio;
+  const newYSpan = ySpan * ratio;
+  const nx0 = anchorX - newXSpan * mouseX;
+  const nx1 = nx0 + newXSpan;
+  const ny1 = anchorY + newYSpan * (1 - mouseY);
+  const ny0 = ny1 - newYSpan;
+  Plotly.relayout(plotDiv, {
+    "xaxis.range[0]": nx0, "xaxis.range[1]": nx1,
+    "yaxis.range[0]": ny0, "yaxis.range[1]": ny1,
+    "xaxis.autorange": false, "yaxis.autorange": false
+  });
+}
+
 /* ========================= TOUCH POLICY ========================= */
 /* ========================= TOUCH GESTURES: PINCH + PAN ========================= */
 // Pinch state
@@ -1772,6 +1810,9 @@ function installTouchGestureHandler() {
 // Keep old name as alias for callers that don't check return value
 function installTouchPolicyOnce() {
   installTouchGestureHandler();
+  if (_wheelInstalled) return;
+  _wheelInstalled = true;
+  plotDiv.addEventListener("wheel", smoothWheelZoom, { passive: false });
 }
 
 /* ========================= TIME PARSERS ========================= */
