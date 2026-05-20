@@ -2195,7 +2195,8 @@ function stableLayout() {
     xaxis: { automargin:true, tickpadding: 0, showticklabels: !portrait, ticks: portrait ? "" : "outside", tickfont: { size: portrait ? 0 : 11 } },
     yaxis: { automargin:true, tickpadding: 0, scaleanchor:"x", scaleratio: 1, showticklabels: !portrait, ticks: portrait ? "" : "outside", tickfont: { size: portrait ? 0 : 11 } },
     hovermode: "closest",
-    dragmode: "pan"
+    dragmode: "pan",
+    hoverlabel: { showhoverinfo: false }
   };
 
   if (viewState.hasRange && viewState.xRange && viewState.yRange) {
