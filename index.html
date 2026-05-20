@@ -1660,7 +1660,33 @@ const rowPlay = document.getElementById("row-play"); /* NEW */
 const rowSlider = document.getElementById("row-slider"); /* NEW */
 const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
 
-function setReadout(txt) { console.log("[readout] setReadout called:", txt); readoutDiv.textContent = txt || ""; }
+function setReadout(txt) {
+  console.log("[readout] setReadout called:", txt);
+  if (!readoutDiv) { console.warn("[readout] readoutDiv is null!"); return; }
+  readoutDiv.textContent = txt || "";
+  // DEBUG: make sure it's visible
+  readoutDiv.style.background = txt ? "rgba(255,0,0,0.9)" : "rgba(255,255,255,0.5)";
+  readoutDiv.style.color = "#000";
+  readoutDiv.style.fontSize = "16px";
+  readoutDiv.style.fontWeight = "bold";
+  readoutDiv.style.zIndex = "9999";
+  readoutDiv.style.top = "auto";
+  readoutDiv.style.bottom = "80px";
+  readoutDiv.style.right = "10px";
+  readoutDiv.style.left = "auto";
+  readoutDiv.style.position = "fixed";
+  readoutDiv.style.display = "inline-block";
+  readoutDiv.style.padding = "8px 12px";
+  readoutDiv.style.border = "3px solid red";
+  console.log("[readout] DOM readout element:", {
+    text: readoutDiv.textContent,
+    display: window.getComputedStyle(readoutDiv).display,
+    visibility: window.getComputedStyle(readoutDiv).visibility,
+    opacity: window.getComputedStyle(readoutDiv).opacity,
+    zIndex: window.getComputedStyle(readoutDiv).zIndex,
+    rect: readoutDiv.getBoundingClientRect()
+  });
+}
 
 /* ========================= TOUCH POLICY ========================= */
 /* ========================= TOUCH GESTURES: PINCH + PAN ========================= */
