@@ -1775,8 +1775,65 @@ function installTouchGestureHandler() {
 }
 
 // Keep old name as alias for callers that don't check return value
+let _wheelInstalled = false;
+
+function smoothWheelZoom(event) {
+  event.preventDefault();
+  const now = Date.now();
+  // Debounce: only respond once per 16ms (60fps)
+  if (now - _lastWheelTime < 16) return;
+  _lastWheelTime = now;
+
+  const delta = event.deltaY;
+  if (!delta || !isFinite(delta)) return;
+  const ratio = delta > 0 ? 1.10 : 0.91; // zoom out / zoom in
+
+  const xaxis = plotDiv._fullLayout?.xaxis;
+  const yaxis = plotDiv._fullLayout?.yaxis;
+  if (!xaxis || !yaxis) return;
+
+  const xRange = xaxis.range;
+  const yRange = yaxis.range;
+  if (!xRange || !yRange) return;
+
+  const [x0, x1] = xRange;
+  const [y0, y1] = yRange;
+  if (x1 <= x0 || y1 <= y0) return;
+
+  const xSpan = x1 - x0;
+  const ySpan = y1 - y0;
+
+  // Zoom toward mouse position
+  const rect = plotDiv.getBoundingClientRect();
+  const mouseX = (event.clientX - rect.left) / rect.width;
+  const mouseY = (event.clientY - rect.top) / rect.height;
+  const anchorX = x0 + xSpan * mouseX;
+  const anchorY = y1 - ySpan * (1 - mouseY);
+
+  const newXSpan = xSpan * ratio;
+  const newYSpan = ySpan * ratio;
+  const nx0 = anchorX - newXSpan * mouseX;
+  const nx1 = nx0 + newXSpan;
+  const ny1 = anchorY + newYSpan * (1 - mouseY);
+  const ny0 = ny1 - newYSpan;
+
+  Plotly.relayout(plotDiv, {
+    "xaxis.range[0]": nx0,
+    "xaxis.range[1]": nx1,
+    "yaxis.range[0]": ny0,
+    "yaxis.range[1]": ny1,
+    "xaxis.autorange": false,
+    "yaxis.autorange": false
+  });
+}
+
 function installTouchPolicyOnce() {
   installTouchGestureHandler();
+
+  // Smooth wheel zoom on desktop/trackpad
+  if (_wheelInstalled) return;
+  _wheelInstalled = true;
+  plotDiv.addEventListener("wheel", smoothWheelZoom, { passive: false });
 }
 
 /* ========================= TIME PARSERS ========================= */
@@ -3197,9 +3254,6 @@ function renderReadoutFromPoint(p) {
   const lat = Number(p.y);
   if (!isFinite(lon) || !isFinite(lat)) return;
 
-  console.log("[readout] plotly_hover point:", JSON.stringify({x: p.x, y: p.y, customdata: p.customdata}));
-
-  // CHANGED: Use DDM format
   const base = `${toDDM(lon)} ${toDDM(lat)}`;
 
   const cd = p.customdata;
@@ -3661,7 +3715,7 @@ function plotConfig() {
     responsive: true,
     displayModeBar: true,
     displaylogo: false,
-    scrollZoom: true,
+    scrollZoom: false, // We use custom smooth wheel zoom instead
     doubleClick: "reset",
     modeBarButtonsToRemove: ["lasso2d", "select2d", "resetScale2d"],
     modeBarButtonsToAdd: [
