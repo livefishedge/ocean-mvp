@@ -1988,6 +1988,9 @@ function installTouchPolicyOnce() {
   installTouchGestureHandler();
   if (_wheelInstalled) return;
   _wheelInstalled = true;
+  // Only register custom wheel handler when NOT using desktop OL map
+  // (OL handles pinch/wheel natively; custom handler interferes with it)
+  if (isDesktopMapMode()) return;
   plotDiv.addEventListener("wheel", smoothWheelZoom, { passive: false });
 }
 
