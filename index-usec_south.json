@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-20T20:56:43.196113Z",
+  "last_updated": "2026-05-20T20:58:18.930602Z",
   "vars": [
     "chl",
     "sst",
@@ -4008,10 +4008,28 @@
     "id": "usec_south",
     "label": "US East Coast \u2014 South-Atlantic",
     "bbox": [
-      -81,
-      31,
-      -73,
-      36
+      "-81",
+      "31",
+      "-73",
+      "36"
+    ],
+    "polygon": [
+      [
+        -81,
+        32
+      ],
+      [
+        -76,
+        36
+      ],
+      [
+        -73,
+        35
+      ],
+      [
+        -79,
+        31
+      ]
     ],
     "bathy_path": "gebco_bath_latest/gebco_bathy.json",
     "online_retention_days": 31
