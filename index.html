@@ -1660,7 +1660,7 @@ const rowPlay = document.getElementById("row-play"); /* NEW */
 const rowSlider = document.getElementById("row-slider"); /* NEW */
 const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
 
-function setReadout(txt) { readoutDiv.textContent = txt || ""; }
+function setReadout(txt) { console.log("[readout] setReadout called:", txt); readoutDiv.textContent = txt || ""; }
 
 /* ========================= TOUCH POLICY ========================= */
 /* ========================= TOUCH GESTURES: PINCH + PAN ========================= */
@@ -3190,6 +3190,8 @@ function renderReadoutFromPoint(p) {
   const lat = Number(p.y);
   if (!isFinite(lon) || !isFinite(lat)) return;
 
+  console.log("[readout] plotly_hover point:", JSON.stringify({x: p.x, y: p.y, customdata: p.customdata}));
+
   // CHANGED: Use DDM format
   const base = `${toDDM(lon)} ${toDDM(lat)}`;
 
@@ -3652,7 +3654,7 @@ function plotConfig() {
     responsive: true,
     displayModeBar: true,
     displaylogo: false,
-    scrollZoom: false,
+    scrollZoom: true,
     doubleClick: "reset",
     modeBarButtonsToRemove: ["lasso2d", "select2d", "resetScale2d"],
     modeBarButtonsToAdd: [
