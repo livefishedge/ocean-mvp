@@ -1188,6 +1188,8 @@ let playIntervalMs = BASE_PLAY_MS;
 
 const gridCache = {};
 let _readoutHooked = false;
+let _wheelInstalled = false;
+let _lastWheelTime = 0;
 let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null };
