@@ -1262,7 +1262,11 @@ async function initDesktopMapIfNeeded() {
 }
 
 function renderDesktopReadout(lon, lat) {
-  if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) return;
+  // Guard: if no grid/data yet, show just coordinates
+  if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
+    setReadout(formatCoord(lon, lat));
+    return;
+  }
   const gridInfo = desktopMapState.currentGridInfo;
   const dataObj = desktopMapState.currentDataObj;
 
@@ -1361,6 +1365,21 @@ async function renderDesktopFrame(frameMeta) {
 
   installDesktopReadoutHandlersOnce(map);
 
+  // Hide Plotly div completely when OL is rendering (avoid visual overlap)
+  const plotDivEl = document.getElementById("plot");
+  if (plotDivEl) {
+    // Ensure the div has explicit dimensions so OL map can render
+    if (!plotDivEl.style.width && !plotDivEl.offsetWidth) {
+      plotDivEl.style.width = "100%";
+    }
+    if (!plotDivEl.style.height && !plotDivEl.offsetHeight) {
+      plotDivEl.style.height = "100%";
+    }
+    plotDivEl.style.display = "block";
+    // Ensure Plotly doesn't try to re-render on top of OL
+    plotDivEl.classList.remove("js-plotly-plot");
+  }
+
   // Remove any stale land layer and re-add if needed
   if (landTrace && desktopMapState.landLayer) {
     map.removeLayer(desktopMapState.landLayer);
@@ -1386,6 +1405,15 @@ async function renderDesktopFrame(frameMeta) {
   document.getElementById("plot").style.background = "";
 
   desktopMapState.ready = true;
+
+  // Show a small diagnostic text in the corner so we know OL path was entered
+  const diag = document.createElement("div");
+  diag.id = "ol-diagnostic";
+  diag.textContent = "Desktop OL active";
+  diag.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(0,128,0,0.7);padding:4px 8px;border-radius:4px;font-size:12px;pointer-events:none;";
+  document.body.appendChild(diag);
+  setTimeout(() => { const d = document.getElementById("ol-diagnostic"); if (d) d.remove(); }, 3000);
+
   return true;
 }
 
