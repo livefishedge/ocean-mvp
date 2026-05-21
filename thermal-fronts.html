@@ -316,16 +316,9 @@ function tracesForFrames(items, labelEveryFrame = true) {
     const age = formatAge(item.t, latestMs);
     const color = colorForAge(item.t, latestMs, oldestMs);
     const lineX = [], lineY = [], labelX = [], labelY = [], labels = [];
+    const textArr = []; // one entry per line point
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     const candidates = [];
-    for (const feature of features) {
-      const coords = feature?.geometry?.coordinates || [];
-      if (!Array.isArray(coords) || coords.length < 2) continue;
-      candidates.push({ coords, length: Number(feature?.properties?.length_km) || lineLength(coords), props: feature?.properties || {} });
-      appendSegmentedLine(lineX, lineY, coords);
-    }
-    // Build text for hover template
-    const textArr = [];
     for (const feature of features) {
       const coords = feature?.geometry?.coordinates || [];
       if (!Array.isArray(coords) || coords.length < 2) continue;
@@ -333,27 +326,24 @@ function tracesForFrames(items, labelEveryFrame = true) {
       const strengthStr = props.strength_median != null ? `${Number(props.strength_median).toFixed(2)} °C/km` : '';
       const lengthStr = props.length_km != null ? `${Number(props.length_km).toFixed(1)} km` : '';
       const segText = [strengthStr, lengthStr].filter(Boolean).join(' / ');
+      candidates.push({ coords, length: Number(props.length_km) || lineLength(coords), props });
+      let prev = null;
       for (const pt of coords) {
         if (!Array.isArray(pt) || pt.length < 2) continue;
-        textArr.push(segText);
+        const lon = Number(pt[0]);
+        const lat = Number(pt[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > 0.08) {
+          lineX.push(null); lineY.push(null); textArr.push(null);
+        }
+        lineX.push(lon); lineY.push(lat); textArr.push(segText);
+        prev = [lon, lat];
       }
-      textArr.push(null); // segment break
-    }
-    // customdata for readout
-    const customArr = [];
-    for (const feature of features) {
-      const props = feature?.properties || {};
-      customArr.push({
-        strength: props.strength_median ?? null,
-        strength_unit: props.strength_unit || '',
-        length_km: props.length_km ?? null,
-        _is_front: true
-      });
+      lineX.push(null); lineY.push(null); textArr.push(null);
     }
     traces.push({
       type:"scatter", mode:"lines", x:lineX, y:lineY,
       text: textArr,
-      customdata: customArr,
       line:{ color, width: labelEveryFrame ? 2.2 : 1.5 },
       hovertemplate:`<b>Thermal front</b><br>%{text}<br>${age}<extra></extra>`,
       showlegend:false
@@ -582,19 +572,11 @@ function installReadoutHandlers() {
   plot.addEventListener("plotly_hover", (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
-    const cd = p.customdata;
-    if (cd && cd._is_front) {
-      const parts = [];
-      if (cd.strength !== null && cd.strength !== undefined) {
-        const unit = cd.strength_unit ? cd.strength_unit.replace("degC", "°C/km") : "°C/km";
-        parts.push(`${Number(cd.strength).toFixed(2)} ${unit}`);
-      }
-      if (cd.length_km !== null && cd.length_km !== undefined) parts.push(`${Number(cd.length_km).toFixed(1)} km`);
-      setReadout(parts.length ? parts.join(" / ") : "Thermal front");
+    // text field carries "X.XX °C/km / Y.Y km" from our build
+    if (p.text && p._fullTrace && p._fullTrace.type === "scatter") {
+      setReadout(p.text);
     } else if (p.x != null && p.y != null) {
-      const lon = Number(p.x).toFixed(3);
-      const lat = Number(p.y).toFixed(3);
-      setReadout(`${lat}°N ${lon}°W`);
+      setReadout(`${Number(p.y).toFixed(3)}°N ${Number(p.x).toFixed(3)}°W`);
     }
   });
   plot.addEventListener("plotly_unhover", () => setReadout(""));
