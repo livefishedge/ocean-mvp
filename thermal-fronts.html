@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10, viewport-fit=cover" />
   <title>Thermal Front History</title>
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
   <style>
@@ -28,7 +28,7 @@
     #fronts-toggle{ display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:11px; font-weight:700; }
     #fronts-cb{ width:13px; height:13px; accent-color:#4d7dff; }
     #status{ color:#9fb0c3; font-size:12px; font-weight:700; white-space:nowrap; }
-    #plot{ width:100vw; height:100dvh; touch-action:pan-y; overflow:hidden; }
+    #plot{ width:100vw; height:100dvh; touch-action:pan-x pinch-zoom; overflow:hidden; }
     #legend{
       position:fixed; left:12px; bottom:12px; z-index:11;
       padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
@@ -572,37 +572,46 @@ function setReadout(txt) {
   readoutEl.style.display = txt ? "inline-block" : "none";
 }
 
+function onCursorMove(ev) {
+  const rect = plot.getBoundingClientRect();
+  const [w, s, e, n] = bbox;
+  const mouseLon = w + (ev.clientX - rect.left) / rect.width * (e - w);
+  const mouseLat = s + (ev.clientY - rect.top) / rect.height * (n - s);
+  let best = null;
+  let bestDist = Infinity;
+  for (const item of frames) {
+    const features = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      const props = feature?.properties || {};
+      for (const pt of coords) {
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const dist = Math.hypot(pt[0] - mouseLon, pt[1] - mouseLat);
+        if (dist < bestDist) { bestDist = dist; best = props; }
+      }
+    }
+  }
+  if (bestDist < 0.15) {
+    const g = best?.gradient_per_km;
+    setReadout(g != null ? `${Number(g).toFixed(3)} °C/km` : '');
+  } else {
+    setReadout(`${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`);
+  }
+}
+
 function installReadoutHandlers() {
   if (_readoutHooked) return;
   _readoutHooked = true;
   // Simple mousemove on the plot div — check proximity to front lines directly
-  plot.addEventListener('mousemove', (ev) => {
-    const rect = plot.getBoundingClientRect();
-    const [w, s, e, n] = bbox;
-    const mouseLon = w + (ev.clientX - rect.left) / rect.width * (e - w);
-    const mouseLat = s + (ev.clientY - rect.top) / rect.height * (n - s);
-    let best = null;
-    let bestDist = Infinity;
-    for (const item of frames) {
-      const features = Array.isArray(item.data?.features) ? item.data.features : [];
-      for (const feature of features) {
-        const coords = feature?.geometry?.coordinates || [];
-        const props = feature?.properties || {};
-        for (const pt of coords) {
-          if (!Array.isArray(pt) || pt.length < 2) continue;
-          const dist = Math.hypot(pt[0] - mouseLon, pt[1] - mouseLat);
-          if (dist < bestDist) { bestDist = dist; best = props; }
-        }
-      }
-    }
-    if (bestDist < 0.15) {
-      const g = best?.gradient_per_km;
-      setReadout(g != null ? `${Number(g).toFixed(3)} °C/km` : '');
-    } else {
-      setReadout(`${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`);
-    }
-  });
+  // Desktop: mousemove. Mobile: touchmove for continuous readout while dragging
+  plot.addEventListener('mousemove', onCursorMove);
+  plot.addEventListener('touchmove', (ev) => {
+    ev.preventDefault(); // prevent scroll while dragging on fronts
+    const touch = ev.touches[0];
+    if (touch) onCursorMove({ clientX: touch.clientX, clientY: touch.clientY });
+  }, { passive: false });
   plot.addEventListener('mouseleave', () => setReadout(''));
+  plot.addEventListener('touchend', () => setReadout(''));
 }
 
 init().catch(err => {
