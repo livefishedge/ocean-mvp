@@ -422,10 +422,10 @@
     /* Floating readout: fixed lower-right so it stays visible during map gestures. */
     #readout{
       position:fixed;
-      top:calc(6px + env(safe-area-inset-top, 0px));
+      top:auto;
       left:auto;
-      right:10px;
-      bottom:auto;
+      right:72px;
+      bottom:calc(12px + env(safe-area-inset-bottom, 0px));
       z-index:120;
       padding:4px 6px;
       background: rgba(255,255,255,0.50);
@@ -444,9 +444,7 @@
       display: inline-block;
     }
     body.mobile-device #readout,
-    body.portrait-mode #readout{
-      display:none !important;
-    }
+    body.portrait-mode #readout{ display:inline-block !important; }
 
     /* ======= Bottom ranges (sticky): Reduced Padding ======= */
     #ranges{
