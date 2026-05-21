@@ -1288,21 +1288,12 @@ function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
 function renderDesktopReadout(lon, lat) {
   // Guard: if no grid/data yet, show just coordinates
   if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
-    console.log("[readout] renderDesktopReadout", { lon, lat, hasGrid: !!desktopMapState.currentGridInfo, foundData: false });
     setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
     return;
   }
   const gridInfo = desktopMapState.currentGridInfo;
   const dataObj = desktopMapState.currentDataObj;
   const sample = sampleRasterValueAt(currentVar, gridInfo, dataObj, lon, lat);
-  console.log("[readout] renderDesktopReadout", {
-    lon,
-    lat,
-    hasGrid: true,
-    foundData: !!sample,
-    row: sample?.row,
-    col: sample?.col
-  });
   if (!sample) {
     setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
     return;
@@ -1325,7 +1316,6 @@ function installDesktopReadoutHandlersOnce(map) {
   if (map.__desktopReadoutInstalled) return;
   map.__desktopReadoutInstalled = true;
   map.on("pointermove", (ev) => {
-    console.log("[readout] pointermove fired, coordinate:", ev.coordinate);
     if (!ev.coordinate) return;
     renderDesktopReadout(ev.coordinate[0], ev.coordinate[1]);
   });
@@ -1339,15 +1329,21 @@ async function renderDesktopFrame(frameMeta) {
   try {
     console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "desktopMapState.ready:", desktopMapState.ready);
 
-    // Show "OL map loading" immediately so user knows something is happening
-    const loadDiv = document.createElement("div");
+  if (currentVar === "chl_front" || currentVar === "sst_front") return false;
+  const needsMapInit = !desktopMapState.map;
+  let loadDiv = null;
+  if (needsMapInit) {
+    loadDiv = document.createElement("div");
     loadDiv.id = "ol-loading";
-    loadDiv.textContent = "OpenLayers map loading...";
+    loadDiv.textContent = "Map loading...";
     loadDiv.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:998;color:#fff;background:rgba(0,80,128,0.85);padding:16px 24px;border-radius:8px;font-size:16px;text-align:center;";
     document.body.appendChild(loadDiv);
-  if (currentVar === "chl_front" || currentVar === "sst_front") return false;
+  }
   const map = await initDesktopMapIfNeeded();
-  if (!map) return false;
+  if (!map) {
+    if (loadDiv) loadDiv.remove();
+    return false;
+  }
 
   let dataObj, gridInfo;
   if (currentVar === "bathy") {
@@ -1378,14 +1374,14 @@ async function renderDesktopFrame(frameMeta) {
     console.error("[OL] imageloaderror fired!");
     throw new Error("Desktop OL image load failed");
   });
-  console.log("[OL] ImageStatic source created, about to create layer");
-  const layer = new ol.layer.Image({ source });
-  console.log("[OL] layer created");
-
-  if (desktopMapState.imageLayer) map.removeLayer(desktopMapState.imageLayer);
-  desktopMapState.imageLayer = layer;
-  map.addLayer(layer);
-  console.log("[OL] layer added to map");
+  if (desktopMapState.imageLayer) {
+    desktopMapState.imageLayer.setSource(source);
+    console.log("[OL] desktop image source updated");
+  } else {
+    desktopMapState.imageLayer = new ol.layer.Image({ source, zIndex: 10 });
+    map.addLayer(desktopMapState.imageLayer);
+    console.log("[OL] desktop image layer created");
+  }
 
   installDesktopReadoutHandlersOnce(map);
   console.log("[OL] readout handlers installed");
@@ -1434,22 +1430,17 @@ async function renderDesktopFrame(frameMeta) {
   document.getElementById("plot").style.background = "";
 
   // Remove loading banner on success
-  const loadDiv2 = document.getElementById("ol-loading");
+  const loadDiv2 = loadDiv || document.getElementById("ol-loading");
   if (loadDiv2) { loadDiv2.remove(); console.log("[OL] loading div removed"); }
-  else console.log("[OL] loading div NOT FOUND");
 
   desktopMapState.ready = true;
   console.log("[OL] renderDesktopFrame returning TRUE now");
 
-  const diag = document.createElement("div");
-  diag.textContent = "Desktop OL active";
-  diag.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(0,128,0,0.8);padding:6px 12px;border-radius:4px;font-size:14px;pointer-events:none;";
-  document.body.appendChild(diag);
-  setTimeout(() => { if (diag.parentNode) diag.remove(); }, 3000);
-
   return true;
 
   } catch(err) {
+    const staleLoadDiv = document.getElementById("ol-loading");
+    if (staleLoadDiv) staleLoadDiv.remove();
     const msg = (err && err.message) ? err.message : String(err);
     const errDiv = document.createElement("div");
     errDiv.textContent = "OL error: " + msg.slice(0, 100);
@@ -3317,15 +3308,16 @@ async function renderMobileFrame(frameMeta) {
     document.body.classList.remove("mobile-map-ready");
     showFrame();
   });
-  const layer = new ol.layer.Image({ source });
-
-  if (mobileMapState.imageLayer) map.removeLayer(mobileMapState.imageLayer);
   if (mobileMapState.imageUrl && mobileMapState.imageUrl.startsWith("blob:")) {
     URL.revokeObjectURL(mobileMapState.imageUrl);
   }
-  mobileMapState.imageLayer = layer;
   mobileMapState.imageUrl = url;
-  map.addLayer(layer);
+  if (mobileMapState.imageLayer) {
+    mobileMapState.imageLayer.setSource(source);
+  } else {
+    mobileMapState.imageLayer = new ol.layer.Image({ source, zIndex: 10 });
+    map.addLayer(mobileMapState.imageLayer);
+  }
   clearMobileUvArrowLayer(map);
   if (currentVar === "uv") {
     mobileMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
