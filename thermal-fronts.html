@@ -577,15 +577,10 @@ function installReadoutHandlers() {
   plot.addEventListener("plotly_hover", (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
-    // text carries "X.XX °C | Y.YYYY °C/km | Z.Z km" for front lines
-    if (p.text && p._fullTrace && p._fullTrace.type === "scatter") {
+    // front traces have text like "4.24 °C | 0.0697 °C/km | 60.8 km"
+    if (p.text && p.text.includes('°C/km')) {
       const parts = p.text.split(' | ');
-      // Show only gradient + length for brevity
-      if (parts.length >= 2) {
-        setReadout(parts.slice(1).join(' | '));
-      } else {
-        setReadout(p.text);
-      }
+      setReadout(parts.slice(1).join(' | '));
     } else if (p.x != null && p.y != null) {
       setReadout(`${Number(p.y).toFixed(3)}°N ${Number(p.x).toFixed(3)}°W`);
     }
