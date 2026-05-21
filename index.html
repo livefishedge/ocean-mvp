@@ -437,7 +437,9 @@
       pointer-events:none;
       white-space:nowrap;
       font-size:14px;
-      width:min(340px, calc(100vw - 96px));
+      width:max-content;
+      min-width:140px;
+      max-width:calc(100vw - 96px);
       text-align:left;
       user-select:none;
       cursor:default;
@@ -726,7 +728,9 @@
         top: auto;
         bottom: 12px;
         font-size: 11px;
-        width: min(320px, calc(100vw - 96px));
+        width: max-content;
+        min-width: 160px;
+        max-width: calc(100vw - 96px);
         padding: 4px 8px;
         z-index: 130;
         line-height: 1.5;
@@ -3500,8 +3504,8 @@ function updateReadoutPosition() {
   readoutDiv.style.top = "auto";
   readoutDiv.style.bottom = "12px";
   readoutDiv.style.right = "72px";
-  const compactReadout = document.body.classList.contains("mobile-device") || document.body.classList.contains("portrait-mode");
-  readoutDiv.style.width = compactReadout ? "min(320px, calc(100vw - 96px))" : "min(340px, calc(100vw - 96px))";
+  readoutDiv.style.width = "max-content";
+  readoutDiv.style.maxWidth = "calc(100vw - 96px)";
 }
 
 /* ========================= UI ========================= */

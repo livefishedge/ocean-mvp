@@ -281,6 +281,20 @@ function tracesForFrames(items, labelEveryFrame = true) {
       labelY.push(Number(pt[1]));
       labels.push(age);
     }
+    if (labelX.length) {
+      traces.push({
+        type:"scatter",
+        mode:"text",
+        x:labelX,
+        y:labelY,
+        text:labels,
+        textfont:{ color, size:12, family:"system-ui,-apple-system,Segoe UI,sans-serif" },
+        textposition:"middle center",
+        hoverinfo:"skip",
+        showlegend:false
+      });
+    }
+  }
   return traces;
 }
 function layout(title) {
