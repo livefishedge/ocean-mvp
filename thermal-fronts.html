@@ -324,22 +324,27 @@ function tracesForFrames(items, labelEveryFrame = true) {
       candidates.push({ coords, length: Number(feature?.properties?.length_km) || lineLength(coords), props: feature?.properties || {} });
       appendSegmentedLine(lineX, lineY, coords);
     }
-    // customdata for readout
-    const customArr = [];
+    // Build text for hover template
+    const textArr = [];
     for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      if (!Array.isArray(coords) || coords.length < 2) continue;
       const props = feature?.properties || {};
-      customArr.push({
-        strength: props.strength_median ?? null,
-        strength_unit: props.strength_unit || '',
-        length_km: props.length_km ?? null,
-        _is_front: true
-      });
+      const strengthStr = props.strength_median != null ? `${Number(props.strength_median).toFixed(2)} °C/km` : '';
+      const lengthStr = props.length_km != null ? `${Number(props.length_km).toFixed(1)} km` : '';
+      const segText = [strengthStr, lengthStr].filter(Boolean).join(' / ');
+      for (const pt of coords) {
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        textArr.push(segText);
+      }
+      textArr.push(null); // segment break
     }
     traces.push({
       type:"scatter", mode:"lines", x:lineX, y:lineY,
+      text: textArr,
       customdata: customArr,
       line:{ color, width: labelEveryFrame ? 2.2 : 1.5 },
-      hovertemplate:`<b>Thermal front</b><br>%{customdata[0].strength} %{customdata[0].strength_unit}<br>%{customdata[0].length_km} km<br>${age}<extra></extra>`,
+      hovertemplate:`<b>Thermal front</b><br>%{text}<br>${age}<extra></extra>`,
       showlegend:false
     });
   }
@@ -563,14 +568,13 @@ function setReadout(txt) {
 function installReadoutHandlers() {
   if (_readoutHooked) return;
   _readoutHooked = true;
-  plot.on("plotly_hover", (ev) => {
+  plot.addEventListener("plotly_hover", (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
     const cd = p.customdata;
     if (cd && cd._is_front) {
       const parts = [];
       if (cd.strength !== null && cd.strength !== undefined) {
-        // strength_unit from data is "degC" but it's a gradient per km — display as °C/km
         const unit = cd.strength_unit ? cd.strength_unit.replace("degC", "°C/km") : "°C/km";
         parts.push(`${Number(cd.strength).toFixed(2)} ${unit}`);
       }
@@ -582,7 +586,7 @@ function installReadoutHandlers() {
       setReadout(`${lat}°N ${lon}°W`);
     }
   });
-  plot.on("plotly_unhover", () => setReadout(""));
+  plot.addEventListener("plotly_unhover", () => setReadout(""));
 }
 
 init().catch(err => {
