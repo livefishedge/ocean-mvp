@@ -167,6 +167,7 @@ let dailyFrames = []; // {date: "YYYY-MM-DD", t: ms, item}[]
 
 const plot = document.getElementById("plot");
 const statusEl = document.getElementById("status");
+const readoutEl = document.getElementById("readout");
 const regionSelect = document.getElementById("region-select");
 const animationBtn = document.getElementById("mode-animation");
 const dailyBtn = document.getElementById("mode-daily");
@@ -323,23 +324,6 @@ function tracesForFrames(items, labelEveryFrame = true) {
       candidates.push({ coords, length: Number(feature?.properties?.length_km) || lineLength(coords), props: feature?.properties || {} });
       appendSegmentedLine(lineX, lineY, coords);
     }
-    // Build text array matching line points (for hover template)
-    const textArr = [];
-    let featIdx = 0;
-    for (const feature of features) {
-      const coords = feature?.geometry?.coordinates || [];
-      if (!Array.isArray(coords) || coords.length < 2) continue;
-      const props = feature?.properties || {};
-      const strength = props.strength_median != null ? `${Number(props.strength_median).toFixed(2)} ${props.strength_unit || ''}` : '';
-      const length = props.length_km != null ? `${Number(props.length_km).toFixed(1)} km` : '';
-      const segText = [strength, length].filter(Boolean).join(' / ');
-      for (const pt of coords) {
-        if (!Array.isArray(pt) || pt.length < 2) continue;
-        textArr.push(segText);
-      }
-      textArr.push(null); // end of segment
-      featIdx++;
-    }
     // customdata for readout
     const customArr = [];
     for (const feature of features) {
@@ -353,10 +337,9 @@ function tracesForFrames(items, labelEveryFrame = true) {
     }
     traces.push({
       type:"scatter", mode:"lines", x:lineX, y:lineY,
-      text: textArr,
       customdata: customArr,
       line:{ color, width: labelEveryFrame ? 2.2 : 1.5 },
-      hovertemplate:`<b>Thermal front</b><br>%{text}<br>${age}<extra></extra>`,
+      hovertemplate:`<b>Thermal front</b><br>%{customdata[0].strength} %{customdata[0].strength_unit}<br>%{customdata[0].length_km} km<br>${age}<extra></extra>`,
       showlegend:false
     });
   }
@@ -569,7 +552,6 @@ if (dailySliderEl) {
   });
 }
 window.addEventListener("resize", () => { try { Plotly.Plots.resize(plot); } catch(_){} });
-const plotEl = document.getElementById("plot");
 let _readoutHooked = false;
 
 function setReadout(txt) {
@@ -581,20 +563,26 @@ function setReadout(txt) {
 function installReadoutHandlers() {
   if (_readoutHooked) return;
   _readoutHooked = true;
-  plotEl.on("plotly_hover", (ev) => {
+  plot.on("plotly_hover", (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
     const cd = p.customdata;
     if (cd && cd._is_front) {
       const parts = [];
-      if (cd.strength !== null && cd.strength !== undefined) parts.push(`${Number(cd.strength).toFixed(2)} ${cd.strength_unit || ""}`);
+      if (cd.strength !== null && cd.strength !== undefined) {
+        // strength_unit from data is "degC" but it's a gradient per km — display as °C/km
+        const unit = cd.strength_unit ? cd.strength_unit.replace("degC", "°C/km") : "°C/km";
+        parts.push(`${Number(cd.strength).toFixed(2)} ${unit}`);
+      }
       if (cd.length_km !== null && cd.length_km !== undefined) parts.push(`${Number(cd.length_km).toFixed(1)} km`);
       setReadout(parts.length ? parts.join(" / ") : "Thermal front");
-    } else {
-      setReadout("");
+    } else if (p.x != null && p.y != null) {
+      const lon = Number(p.x).toFixed(3);
+      const lat = Number(p.y).toFixed(3);
+      setReadout(`${lat}°N ${lon}°W`);
     }
   });
-  plotEl.on("plotly_unhover", () => setReadout(""));
+  plot.on("plotly_unhover", () => setReadout(""));
 }
 
 init().catch(err => {
