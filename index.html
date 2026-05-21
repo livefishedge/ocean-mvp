@@ -297,8 +297,7 @@
     #plot{
       width:100%;
       height: 100dvh;
-      /* Key: allow 1-finger vertical page scrolling */
-      touch-action: pan-y;
+      touch-action: none;
     }
     #mobile-map{
       display:none;
@@ -1255,9 +1254,17 @@ async function initDesktopMapIfNeeded() {
   view.on("change:rotation", () => {
     if (view.getRotation()) view.setRotation(0);
   });
-  // Let OL handle all zoom/pan natively — no custom wheel handler needed
+  // Let OL handle zoom/pan natively. Keep zoom interactions explicit so
+  // touch and wheel zoom stay enabled across OpenLayers defaults changes.
   const desktopInteractions = (ol.interaction && typeof ol.interaction.defaults === "function")
-    ? ol.interaction.defaults({ altShiftDragRotate: false, pinchRotate: false })
+    ? ol.interaction.defaults({
+        altShiftDragRotate: false,
+        doubleClickZoom: true,
+        dragPan: true,
+        mouseWheelZoom: true,
+        pinchRotate: false,
+        pinchZoom: true
+      })
     : undefined;
   desktopMapState.map = new ol.Map({
     target,
@@ -3264,7 +3271,14 @@ function initMobileMapIfNeeded() {
     if (view.getRotation()) view.setRotation(0);
   });
   const mobileInteractions = (ol.interaction && typeof ol.interaction.defaults === "function")
-    ? ol.interaction.defaults({ altShiftDragRotate: false, pinchRotate: false })
+    ? ol.interaction.defaults({
+        altShiftDragRotate: false,
+        doubleClickZoom: true,
+        dragPan: true,
+        mouseWheelZoom: true,
+        pinchRotate: false,
+        pinchZoom: true
+      })
     : undefined;
   mobileMapState.map = new ol.Map({
     target,
