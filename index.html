@@ -1222,9 +1222,10 @@ let desktopMapState = {
 };
 
 function isDesktopMapMode() {
-  // Desktop = any non-touch device (mouse/trackpad). Screen size does not matter.
-  if (IS_TOUCH) return false;
-  return true;
+  // Desktop = non-touch pointer device. Window size does NOT exclude laptops.
+  // isMobileDevice() size check is WRONG for desktop — excludes compact windows.
+  // A non-touch browser on ANY screen size gets OL desktop path.
+  return !IS_TOUCH;
 }
 
 async function initDesktopMapIfNeeded() {
