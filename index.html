@@ -1251,13 +1251,13 @@ async function initDesktopMapIfNeeded() {
     ? ol.interaction.defaults({ altShiftDragRotate: false, pinchRotate: false })
     : undefined;
   desktopMapState.map = new ol.Map({
-  console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
     target,
     layers: [],
     view,
     controls: [],
     interactions: desktopInteractions
   });
+  console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
   return desktopMapState.map;
 }
 
