@@ -126,14 +126,36 @@
       font-weight:800;
     }
 
-    #frame-slider{ flex:1; min-width:220px; height:24px; }
+    #frame-slider{ flex:1; min-width:120px; height:24px; }
+    #frame-slider::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
+    }
+    #frame-slider::-moz-range-track {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
+    }
+    #frame-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #333;
+      margin-top: -5px;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
     #frame-label{
-      min-width:240px;
+      min-width:0;
       text-align:right;
-      font-size:20px;
+      font-size:18px;
       font-weight:800;
       font-variant-numeric: tabular-nums;
       white-space:nowrap;
+      flex-shrink:0;
     }
 
 
@@ -958,7 +980,7 @@
         <button id="play-btn">Play</button>
         <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
       </div>
-      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" style="flex:1;min-width:160px;" />
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" style="flex:1;min-width:80px;" />
       <label id="speed-wrap">
         <select id="speed-select" title="Animation speed">
           <option value="0.25">1⁄4×</option>
@@ -2709,7 +2731,13 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
       lineX.push(lon);
       lineY.push(lat);
       text.push(String(props.strength_median ?? "") + " " + (props.strength_unit || "") + "<br>" + String(props.length_km ?? "") + " km");
-      custom.push(props);
+      custom.push({
+        strength: props.strength_median ?? null,
+        strength_unit: props.strength_unit || "",
+        length_km: props.length_km ?? null,
+        time_iso: props.time_iso || null,
+        _is_front: true
+      });
       prev = [lon, lat];
     }
     lineX.push(null);
@@ -3550,6 +3578,20 @@ function renderReadoutFromPoint(p) {
     setReadout(base);
     return;
   }
+
+  // Handle front data (customdata with _is_front flag)
+  if (cd._is_front) {
+    const parts = [];
+    if (cd.strength !== null && cd.strength !== undefined) {
+      parts.push(`${Number(cd.strength).toFixed(2)} ${cd.strength_unit || ""}`);
+    }
+    if (cd.length_km !== null && cd.length_km !== undefined) {
+      parts.push(`${Number(cd.length_km).toFixed(1)} km`);
+    }
+    setReadout(parts.length ? `${base} ${parts.join(" / ")}` : base);
+    return;
+  }
+
   const val = Number(cd);
   if (!isFinite(val) || isNaN(val)) {
     setReadout(base);
@@ -3695,8 +3737,7 @@ async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
       trace.hovertemplate = label ? `<b>Thermal front</b><br>${label}<extra></extra>` : trace.hovertemplate;
     }
     fig.data.push(...frontFig.data);
-    const labelTrace = frontLabelTrace(frontData, label);
-    if (labelTrace) fig.data.push(labelTrace);
+
   } catch (e) {
     console.error(`${frontVar} overlay failed:`, e);
   }
