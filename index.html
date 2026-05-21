@@ -1236,6 +1236,30 @@ function isDesktopMapMode() {
   return !IS_TOUCH;
 }
 
+function installOlGestureZoomFallback(map, target) {
+  if (!map || !target || target.__olGestureZoomFallbackInstalled) return;
+  target.__olGestureZoomFallbackInstalled = true;
+  let gestureStartResolution = null;
+  target.addEventListener("gesturestart", (event) => {
+    event.preventDefault();
+    gestureStartResolution = map.getView().getResolution();
+  }, { passive: false });
+  target.addEventListener("gesturechange", (event) => {
+    if (!gestureStartResolution || !event.scale) return;
+    event.preventDefault();
+    const view = map.getView();
+    const nextResolution = gestureStartResolution / Math.max(0.05, Number(event.scale));
+    if (typeof view.getConstrainedResolution === "function") {
+      view.setResolution(view.getConstrainedResolution(nextResolution));
+    } else {
+      view.setResolution(nextResolution);
+    }
+  }, { passive: false });
+  target.addEventListener("gestureend", () => {
+    gestureStartResolution = null;
+  }, { passive: false });
+}
+
 async function initDesktopMapIfNeeded() {
   if (desktopMapState.map) {
     desktopMapState.map.updateSize();
@@ -1273,6 +1297,7 @@ async function initDesktopMapIfNeeded() {
     controls: [],
     interactions: desktopInteractions
   });
+  installOlGestureZoomFallback(desktopMapState.map, target);
   console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
   return desktopMapState.map;
 }
@@ -3287,6 +3312,7 @@ function initMobileMapIfNeeded() {
     controls: [],
     interactions: mobileInteractions
   });
+  installOlGestureZoomFallback(mobileMapState.map, target);
   document.body.classList.add("mobile-map-ready");
   return mobileMapState.map;
 }
