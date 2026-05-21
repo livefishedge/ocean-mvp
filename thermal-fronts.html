@@ -323,12 +323,12 @@ function tracesForFrames(items, labelEveryFrame = true) {
       const coords = feature?.geometry?.coordinates || [];
       if (!Array.isArray(coords) || coords.length < 2) continue;
       const props = feature?.properties || {};
-      const strength = props.strength_median != null ? Number(props.strength_median) : null;
+      const gradient = props.gradient_per_km != null ? Number(props.gradient_per_km) : null;
       const lengthKm = props.length_km != null ? Number(props.length_km) : null;
-      // strength_median is already the gradient in °C/km (stored as degC by algorithm convention)
-      // length_km is the front line length
+      // gradient_per_km is the physically correct perpendicular SST gradient (°C/km)
+      // Computed from raw SST: step-function ΔSST / front_cross_distance
       const parts = [];
-      if (strength != null) parts.push(`${strength.toFixed(3)} °C/km`);
+      if (gradient != null) parts.push(`${gradient.toFixed(3)} °C/km`);
       if (lengthKm != null) parts.push(`${lengthKm.toFixed(1)} km`);
       const segText = parts.join(' | ');
       candidates.push({ coords, length: lengthKm || lineLength(coords), props });
@@ -580,8 +580,8 @@ function installReadoutHandlers() {
     if (!p) { console.log('[hover] no point', Object.keys(ev)); return; }
     console.log('[hover] text:', p.text, 'x:', p.x, 'y:', p.y);
     if (p.text && p.text.includes('°C/km')) {
-      const parts = p.text.split(' | ');
-      setReadout(parts.slice(1).join(' | '));
+      // text = "X.XXX °C/km | Y.Y km" — show gradient in readout
+      setReadout(p.text);
     } else if (p.x != null && p.y != null) {
       setReadout(`${Number(p.y).toFixed(3)}°N ${Number(p.x).toFixed(3)}°W`);
     }
