@@ -323,10 +323,15 @@ function tracesForFrames(items, labelEveryFrame = true) {
       const coords = feature?.geometry?.coordinates || [];
       if (!Array.isArray(coords) || coords.length < 2) continue;
       const props = feature?.properties || {};
-      const strengthStr = props.strength_median != null ? `${Number(props.strength_median).toFixed(2)} °C/km` : '';
-      const lengthStr = props.length_km != null ? `${Number(props.length_km).toFixed(1)} km` : '';
-      const segText = [strengthStr, lengthStr].filter(Boolean).join(' / ');
-      candidates.push({ coords, length: Number(props.length_km) || lineLength(coords), props });
+      const strength = props.strength_median != null ? Number(props.strength_median) : null;
+      const strengthUnit = props.strength_unit || '°C';
+      const lengthKm = props.length_km != null ? Number(props.length_km) : null;
+      const gradientKm = (strength != null && lengthKm != null && lengthKm > 0) ? (strength / lengthKm) : null;
+      const parts = [];
+      if (strength != null) parts.push(`${strength.toFixed(2)} ${strengthUnit}`);
+      if (gradientKm !== null) parts.push(`${gradientKm.toFixed(4)} °C/km`);
+      const segText = parts.join(' | ');
+      candidates.push({ coords, length: lengthKm || lineLength(coords), props });
       let prev = null;
       for (const pt of coords) {
         if (!Array.isArray(pt) || pt.length < 2) continue;
@@ -572,9 +577,15 @@ function installReadoutHandlers() {
   plot.addEventListener("plotly_hover", (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
-    // text field carries "X.XX °C/km / Y.Y km" from our build
+    // text carries "X.XX °C | Y.YYYY °C/km | Z.Z km" for front lines
     if (p.text && p._fullTrace && p._fullTrace.type === "scatter") {
-      setReadout(p.text);
+      const parts = p.text.split(' | ');
+      // Show only gradient + length for brevity
+      if (parts.length >= 2) {
+        setReadout(parts.slice(1).join(' | '));
+      } else {
+        setReadout(p.text);
+      }
     } else if (p.x != null && p.y != null) {
       setReadout(`${Number(p.y).toFixed(3)}°N ${Number(p.x).toFixed(3)}°W`);
     }
