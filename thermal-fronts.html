@@ -324,12 +324,12 @@ function tracesForFrames(items, labelEveryFrame = true) {
       if (!Array.isArray(coords) || coords.length < 2) continue;
       const props = feature?.properties || {};
       const strength = props.strength_median != null ? Number(props.strength_median) : null;
-      const strengthUnit = props.strength_unit || '°C';
       const lengthKm = props.length_km != null ? Number(props.length_km) : null;
-      const gradientKm = (strength != null && lengthKm != null && lengthKm > 0) ? (strength / lengthKm) : null;
+      // strength_median is already the gradient in °C/km (stored as degC by algorithm convention)
+      // length_km is the front line length
       const parts = [];
-      if (strength != null) parts.push(`${strength.toFixed(2)} ${strengthUnit}`);
-      if (gradientKm !== null) parts.push(`${gradientKm.toFixed(4)} °C/km`);
+      if (strength != null) parts.push(`${strength.toFixed(3)} °C/km`);
+      if (lengthKm != null) parts.push(`${lengthKm.toFixed(1)} km`);
       const segText = parts.join(' | ');
       candidates.push({ coords, length: lengthKm || lineLength(coords), props });
       let prev = null;
@@ -574,10 +574,12 @@ function setReadout(txt) {
 function installReadoutHandlers() {
   if (_readoutHooked) return;
   _readoutHooked = true;
-  plot.addEventListener("plotly_hover", (ev) => {
+  // Use Plotly's event system (plot.on) which is the documented Plotly event API
+  // plot = DOM element, Plotly wraps it internally
+  plot.on('plotly_hover', (ev) => {
     const p = ev.points && ev.points[0];
-    if (!p) return;
-    // front traces have text like "4.24 °C | 0.0697 °C/km | 60.8 km"
+    if (!p) { console.log('[hover] no point', ev); return; }
+    console.log('[hover] text:', p.text, 'x:', p.x, 'y:', p.y, 'data:', JSON.stringify(p.data).slice(0,100));
     if (p.text && p.text.includes('°C/km')) {
       const parts = p.text.split(' | ');
       setReadout(parts.slice(1).join(' | '));
@@ -585,7 +587,7 @@ function installReadoutHandlers() {
       setReadout(`${Number(p.y).toFixed(3)}°N ${Number(p.x).toFixed(3)}°W`);
     }
   });
-  plot.addEventListener("plotly_unhover", () => setReadout(""));
+  plot.on('plotly_unhover', () => { console.log('[unhover]'); setReadout(''); });
 }
 
 init().catch(err => {
