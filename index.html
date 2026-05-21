@@ -2728,16 +2728,21 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
         text.push(null);
         custom.push(null);
       }
-      lineX.push(lon);
-      lineY.push(lat);
-      text.push(String(props.strength_median ?? "") + " " + (props.strength_unit || "") + "<br>" + String(props.length_km ?? "") + " km");
-      custom.push({
-        strength: props.strength_median ?? null,
-        strength_unit: props.strength_unit || "",
-        length_km: props.length_km ?? null,
+      const grad = props.gradient_per_km ?? null;
+      const gradUnit = '°C/km';
+      const lenKm = props.length_km ?? null;
+      const textVal = grad != null ? `${grad.toFixed(3)} ${gradUnit}` : '';
+      const customEntry = {
+        gradient: grad,
+        gradient_unit: gradUnit,
+        length_km: lenKm,
         time_iso: props.time_iso || null,
         _is_front: true
-      });
+      };
+      lineX.push(lon);
+      lineY.push(lat);
+      text.push(textVal + (lenKm != null ? `<br>${lenKm.toFixed(1)} km` : ''));
+      custom.push(customEntry);
       prev = [lon, lat];
     }
     lineX.push(null);
