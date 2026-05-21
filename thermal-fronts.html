@@ -569,7 +569,7 @@ if (dailySliderEl) {
   });
 }
 window.addEventListener("resize", () => { try { Plotly.Plots.resize(plot); } catch(_){} });
-const readoutEl = document.getElementById("readout");
+const plotEl = document.getElementById("plot");
 let _readoutHooked = false;
 
 function setReadout(txt) {
@@ -581,7 +581,7 @@ function setReadout(txt) {
 function installReadoutHandlers() {
   if (_readoutHooked) return;
   _readoutHooked = true;
-  plot.on("plotly_hover", (ev) => {
+  plotEl.on("plotly_hover", (ev) => {
     const p = ev.points && ev.points[0];
     if (!p) return;
     const cd = p.customdata;
@@ -594,7 +594,7 @@ function installReadoutHandlers() {
       setReadout("");
     }
   });
-  plot.on("plotly_unhover", () => setReadout(""));
+  plotEl.on("plotly_unhover", () => setReadout(""));
 }
 
 init().catch(err => {
