@@ -1240,6 +1240,19 @@ function installOlGestureZoomFallback(map, target) {
   if (!map || !target || target.__olGestureZoomFallbackInstalled) return;
   target.__olGestureZoomFallbackInstalled = true;
   let gestureStartResolution = null;
+  let touchStartResolution = null;
+  let touchStartDistance = null;
+  const constrainedResolution = (view, resolution) => (
+    typeof view.getConstrainedResolution === "function"
+      ? view.getConstrainedResolution(resolution)
+      : resolution
+  );
+  const touchDistance = (touches) => {
+    if (!touches || touches.length < 2) return null;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  };
   target.addEventListener("gesturestart", (event) => {
     event.preventDefault();
     gestureStartResolution = map.getView().getResolution();
@@ -1249,15 +1262,32 @@ function installOlGestureZoomFallback(map, target) {
     event.preventDefault();
     const view = map.getView();
     const nextResolution = gestureStartResolution / Math.max(0.05, Number(event.scale));
-    if (typeof view.getConstrainedResolution === "function") {
-      view.setResolution(view.getConstrainedResolution(nextResolution));
-    } else {
-      view.setResolution(nextResolution);
-    }
+    view.setResolution(constrainedResolution(view, nextResolution));
   }, { passive: false });
   target.addEventListener("gestureend", () => {
     gestureStartResolution = null;
   }, { passive: false });
+  target.addEventListener("touchstart", (event) => {
+    if (!event.touches || event.touches.length !== 2) return;
+    event.preventDefault();
+    touchStartDistance = touchDistance(event.touches);
+    touchStartResolution = map.getView().getResolution();
+  }, { passive: false });
+  target.addEventListener("touchmove", (event) => {
+    if (!touchStartResolution || !touchStartDistance || !event.touches || event.touches.length !== 2) return;
+    const distance = touchDistance(event.touches);
+    if (!distance) return;
+    event.preventDefault();
+    const scale = Math.max(0.05, distance / touchStartDistance);
+    const view = map.getView();
+    view.setResolution(constrainedResolution(view, touchStartResolution / scale));
+  }, { passive: false });
+  const clearTouchPinch = () => {
+    touchStartDistance = null;
+    touchStartResolution = null;
+  };
+  target.addEventListener("touchend", clearTouchPinch, { passive: false });
+  target.addEventListener("touchcancel", clearTouchPinch, { passive: false });
 }
 
 async function initDesktopMapIfNeeded() {
