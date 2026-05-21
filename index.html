@@ -1264,7 +1264,7 @@ async function initDesktopMapIfNeeded() {
 function renderDesktopReadout(lon, lat) {
   // Guard: if no grid/data yet, show just coordinates
   if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
-    setReadout(formatCoord(lon, lat));
+    setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
     return;
   }
   const gridInfo = desktopMapState.currentGridInfo;
@@ -1293,18 +1293,18 @@ function renderDesktopReadout(lon, lat) {
   const z = mobileZForVar(currentVar, dataObj);
   if (!z || !z[row] || !Number.isFinite(z[row][col])) {
     // NaN / no-data area: show just lat/lon, no 0, no value
-    setReadout(formatCoord(lon, lat));
+    setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
     return;
   }
   const value = z[row][col];
-  const base = formatCoord(lon, lat);
+  const base = `${toDDM(lon)} ${toDDM(lat)}`;
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(value)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${value.toFixed(0)}m`);
   else if (currentVar === "uv") {
     const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
     const adt = d?.adt?.[row]?.[col];
     if (Number.isFinite(adt)) setReadout(`${base}, ADT ${adt.toFixed(3)}m`);
-    else setReadout(formatCoord(lon, lat));
+    else setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
   } else {
     setReadout(`${base} ${value.toFixed(3)} mg/m3`);
   }
