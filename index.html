@@ -1324,7 +1324,8 @@ function installDesktopReadoutHandlersOnce(map) {
 }
 
 async function renderDesktopFrame(frameMeta) {
-  console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "desktopMapState.ready:", desktopMapState.ready);
+  try {
+    console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "desktopMapState.ready:", desktopMapState.ready);
   if (currentVar === "chl_front" || currentVar === "sst_front") return false;
   const map = await initDesktopMapIfNeeded();
   if (!map) return false;
@@ -1406,15 +1407,22 @@ async function renderDesktopFrame(frameMeta) {
 
   desktopMapState.ready = true;
 
-  // Show a small diagnostic text in the corner so we know OL path was entered
   const diag = document.createElement("div");
-  diag.id = "ol-diagnostic";
   diag.textContent = "Desktop OL active";
-  diag.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(0,128,0,0.7);padding:4px 8px;border-radius:4px;font-size:12px;pointer-events:none;";
+  diag.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(0,128,0,0.8);padding:6px 12px;border-radius:4px;font-size:14px;pointer-events:none;";
   document.body.appendChild(diag);
-  setTimeout(() => { const d = document.getElementById("ol-diagnostic"); if (d) d.remove(); }, 3000);
+  setTimeout(() => { if (diag.parentNode) diag.remove(); }, 3000);
 
   return true;
+
+  } catch(err) {
+    const msg = (err && err.message) ? err.message : String(err);
+    const errDiv = document.createElement("div");
+    errDiv.textContent = "OL error: " + msg.slice(0, 100);
+    errDiv.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(200,0,0,0.9);padding:8px 14px;border-radius:4px;font-size:14px;max-width:80vw;word-break:break-all;";
+    document.body.appendChild(errDiv);
+    console.error("[OL] renderDesktopFrame failed:", err);
+  }
 }
 
 /* ============================================================ */
