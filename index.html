@@ -428,6 +428,7 @@
       bottom:calc(12px + env(safe-area-inset-bottom, 0px));
       z-index:120;
       padding:4px 6px;
+      box-sizing:border-box;
       background: rgba(255,255,255,0.50);
       color:#000;
       border:1px solid rgba(0,0,0,0.12);
@@ -436,7 +437,7 @@
       pointer-events:none;
       white-space:nowrap;
       font-size:14px;
-      min-width:140px;
+      width:min(340px, calc(100vw - 96px));
       text-align:left;
       user-select:none;
       cursor:default;
@@ -725,7 +726,7 @@
         top: auto;
         bottom: 12px;
         font-size: 11px;
-        min-width: 160px;
+        width: min(320px, calc(100vw - 96px));
         padding: 4px 8px;
         z-index: 130;
         line-height: 1.5;
@@ -1112,9 +1113,15 @@ let userRanges = {
 let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
 function cToF(c) { return c * 9 / 5 + 32; }
 function tempUnitLabel() { return tempUnit === "F" ? "°F" : "°C"; }
+function formatSigValue(value, digits) {
+  if (!Number.isFinite(value)) return "";
+  return Number(value.toPrecision(digits)).toString();
+}
+function formatChlValue(value) { return `${value.toFixed(2)} mg/m3`; }
+function formatSshValue(value) { return `${value.toFixed(3)}m`; }
 function formatSstValue(celsius) {
   const value = tempUnit === "F" ? cToF(celsius) : celsius;
-  return `${value.toFixed(2)}${tempUnitLabel()}`;
+  return `${formatSigValue(value, 4)}${tempUnitLabel()}`;
 }
 function sstTickText(values) {
   return values.map(v => tempUnit === "F" ? String(Math.round(cToF(v))) : String(v));
@@ -1304,11 +1311,11 @@ function renderDesktopReadout(lon, lat) {
   else if (currentVar === "bathy") setReadout(`${base}, ${value.toFixed(0)}m`);
   else if (currentVar === "uv") {
     const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
-    const adt = d?.adt?.[row]?.[col];
-    if (Number.isFinite(adt)) setReadout(`${base}, ADT ${adt.toFixed(3)}m`);
+    const adt = Number(d?.adt?.[row]?.[col]);
+    if (Number.isFinite(adt)) setReadout(`${base}, SSH ${formatSshValue(adt)}`);
     else setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
   } else {
-    setReadout(`${base} ${value.toFixed(3)} mg/m3`);
+    setReadout(`${base} ${formatChlValue(value)}`);
   }
 }
 
@@ -3163,7 +3170,8 @@ function renderMobileReadout(lon, lat) {
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else setReadout(`${base} ${val.toFixed(3)}${unit}`);
+  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshValue(val)}`);
+  else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
 function installMobileReadoutOnce(map) {
@@ -3477,7 +3485,8 @@ function renderReadoutFromPoint(p) {
 
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else setReadout(`${base} ${val.toFixed(3)}${unit}`);
+  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshValue(val)}`);
+  else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
 /* move plotly modebar into #modebar-host */
@@ -3491,7 +3500,8 @@ function updateReadoutPosition() {
   readoutDiv.style.top = "auto";
   readoutDiv.style.bottom = "12px";
   readoutDiv.style.right = "72px";
-  readoutDiv.style.maxWidth = "160px";
+  const compactReadout = document.body.classList.contains("mobile-device") || document.body.classList.contains("portrait-mode");
+  readoutDiv.style.width = compactReadout ? "min(320px, calc(100vw - 96px))" : "min(340px, calc(100vw - 96px))";
 }
 
 /* ========================= UI ========================= */
