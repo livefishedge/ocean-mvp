@@ -339,6 +339,17 @@ function tracesForFrames(items, labelEveryFrame = true) {
       }
       textArr.push(null); // segment break
     }
+    // customdata for readout
+    const customArr = [];
+    for (const feature of features) {
+      const props = feature?.properties || {};
+      customArr.push({
+        strength: props.strength_median ?? null,
+        strength_unit: props.strength_unit || '',
+        length_km: props.length_km ?? null,
+        _is_front: true
+      });
+    }
     traces.push({
       type:"scatter", mode:"lines", x:lineX, y:lineY,
       text: textArr,
