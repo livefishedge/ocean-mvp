@@ -327,9 +327,10 @@ function tracesForFrames(items, labelEveryFrame = true) {
       const lengthKm = props.length_km != null ? Number(props.length_km) : null;
       // gradient_per_km is the physically correct perpendicular SST gradient (°C/km)
       // Computed from raw SST: step-function ΔSST / front_cross_distance
+      // gradient_per_km is the perpendicular SST gradient in °C/km (computed from step-function cross-section)
+      // length_km not shown per Mike's request
       const parts = [];
       if (gradient != null) parts.push(`${gradient.toFixed(3)} °C/km`);
-      if (lengthKm != null) parts.push(`${lengthKm.toFixed(1)} km`);
       const segText = parts.join(' | ');
       candidates.push({ coords, length: lengthKm || lineLength(coords), props });
       let prev = null;
@@ -574,19 +575,34 @@ function setReadout(txt) {
 function installReadoutHandlers() {
   if (_readoutHooked) return;
   _readoutHooked = true;
-  // plot = DOM element; Plotly.on() takes (domEl, eventName, handler)
-  Plotly.on(plot, 'plotly_hover', (ev) => {
-    const p = ev.points && ev.points[0];
-    if (!p) { console.log('[hover] no point', Object.keys(ev)); return; }
-    console.log('[hover] text:', p.text, 'x:', p.x, 'y:', p.y);
-    if (p.text && p.text.includes('°C/km')) {
-      // text = "X.XXX °C/km | Y.Y km" — show gradient in readout
-      setReadout(p.text);
-    } else if (p.x != null && p.y != null) {
-      setReadout(`${Number(p.y).toFixed(3)}°N ${Number(p.x).toFixed(3)}°W`);
+  // Simple mousemove on the plot div — check proximity to front lines directly
+  plot.addEventListener('mousemove', (ev) => {
+    const rect = plot.getBoundingClientRect();
+    const [w, s, e, n] = bbox;
+    const mouseLon = w + (ev.clientX - rect.left) / rect.width * (e - w);
+    const mouseLat = s + (ev.clientY - rect.top) / rect.height * (n - s);
+    let best = null;
+    let bestDist = Infinity;
+    for (const item of frames) {
+      const features = Array.isArray(item.data?.features) ? item.data.features : [];
+      for (const feature of features) {
+        const coords = feature?.geometry?.coordinates || [];
+        const props = feature?.properties || {};
+        for (const pt of coords) {
+          if (!Array.isArray(pt) || pt.length < 2) continue;
+          const dist = Math.hypot(pt[0] - mouseLon, pt[1] - mouseLat);
+          if (dist < bestDist) { bestDist = dist; best = props; }
+        }
+      }
+    }
+    if (bestDist < 0.15) {
+      const g = best?.gradient_per_km;
+      setReadout(g != null ? `${Number(g).toFixed(3)} °C/km` : '');
+    } else {
+      setReadout(`${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`);
     }
   });
-  Plotly.on(plot, 'plotly_unhover', () => { console.log('[unhover]'); setReadout(''); });
+  plot.addEventListener('mouseleave', () => setReadout(''));
 }
 
 init().catch(err => {
