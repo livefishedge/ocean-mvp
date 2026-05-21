@@ -1329,6 +1329,7 @@ async function renderDesktopFrame(frameMeta) {
 
     // Show "OL map loading" immediately so user knows something is happening
     const loadDiv = document.createElement("div");
+    loadDiv.id = "ol-loading";
     loadDiv.textContent = "OpenLayers map loading...";
     loadDiv.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:998;color:#fff;background:rgba(0,80,128,0.85);padding:16px 24px;border-radius:8px;font-size:16px;text-align:center;";
     document.body.appendChild(loadDiv);
@@ -1421,7 +1422,7 @@ async function renderDesktopFrame(frameMeta) {
   document.getElementById("plot").style.background = "";
 
   // Remove loading banner on success
-  const loadDiv2 = document.querySelector('div[style*="OpenLayers map loading"]');
+  const loadDiv2 = document.getElementById("ol-loading");
   if (loadDiv2) { loadDiv2.remove(); console.log("[OL] loading div removed"); }
   else console.log("[OL] loading div NOT FOUND");
 
