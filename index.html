@@ -1223,7 +1223,9 @@ let desktopMapState = {
 
 function isDesktopMapMode() {
   // Use OpenLayers on desktop (non-touch) devices
-  return !IS_TOUCH && !isMobileDevice();
+  const val = !IS_TOUCH && !isMobileDevice();
+  console.log('[OL] isDesktopMapMode:', val, 'IS_TOUCH:', IS_TOUCH, 'isMobileDevice():', isMobileDevice());
+  return val;
 }
 
 async function initDesktopMapIfNeeded() {
@@ -1231,7 +1233,7 @@ async function initDesktopMapIfNeeded() {
     desktopMapState.map.updateSize();
     return desktopMapState.map;
   }
-  const target = document.getElementById("plot-div");
+  const target = document.getElementById("plot");
   if (!target || !window.ol) return null;
   const view = new ol.View({
     projection: "EPSG:4326",
@@ -1317,6 +1319,7 @@ function installDesktopReadoutHandlersOnce(map) {
 }
 
 async function renderDesktopFrame(frameMeta) {
+  console.log("[OL] renderDesktopFrame called, currentVar:", currentVar);
   if (currentVar === "chl_front" || currentVar === "sst_front") return false;
   const map = await initDesktopMapIfNeeded();
   if (!map) return false;
@@ -1378,7 +1381,7 @@ async function renderDesktopFrame(frameMeta) {
   if (cbar) cbar.style.display = "none";
   const cbFig = document.getElementById("cb-figure");
   if (cbFig) cbFig.style.display = "none";
-  document.getElementById("plot-div").style.background = "";
+  document.getElementById("plot").style.background = "";
 
   desktopMapState.ready = true;
   return true;
