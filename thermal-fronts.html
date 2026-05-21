@@ -52,6 +52,58 @@
       min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
       color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
     }
+    /* Readout — fixed lower-right */
+    #readout{
+      position:fixed;
+      right:12px;
+      bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+      z-index:15;
+      padding:5px 8px;
+      background:rgba(5,11,16,0.82);
+      border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px;
+      font-size:13px;
+      font-variant-numeric:tabular-nums;
+      pointer-events:none;
+      white-space:nowrap;
+      color:#e0e6ee;
+      line-height:1.45;
+      display:none;
+    }
+    /* Daily slider */
+    #daily-slider-row{
+      display:none;
+      align-items:center;
+      gap:6px;
+    }
+    #daily-slider-row.visible{ display:flex; }
+    #daily-slider{
+      flex:1;
+      min-width:100px;
+      height:20px;
+      accent-color:#ff7c7c;
+    }
+    #daily-slider::-webkit-slider-runnable-track{
+      height:6px;
+      border-radius:3px;
+      background:linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
+    }
+    #daily-slider::-moz-range-track{
+      height:6px;
+      border-radius:3px;
+      background:linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
+    }
+    #daily-slider::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:16px;
+      height:16px;
+      border-radius:50%;
+      background:#fff;
+      border:2px solid #333;
+      margin-top:-5px;
+      cursor:pointer;
+      box-shadow:0 1px 4px rgba(0,0,0,0.3);
+    }
     @media (max-width:720px){
       #toolbar{ gap:6px; }
       #region-select{ min-width:0; flex:1 1 100%; }
@@ -68,6 +120,10 @@
       <span id="frame-time"></span>
       <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
     </span>
+    <div id="daily-slider-row">
+      <span style="font-size:11px;font-weight:700;color:#9fb0c3;">Daily</span>
+      <input id="daily-slider" type="range" min="0" max="0" step="1" value="0" />
+    </div>
     <label id="fronts-toggle">
       <input id="fronts-cb" type="checkbox" checked />
       <span id="fronts-label">Fronts</span>
@@ -83,7 +139,8 @@
     <span id="status"></span>
   </div>
   <div id="plot"></div>
-  <div id="legend">Color by age: newer fronts are warmer. Labels show age in minutes/hours.</div>
+  <div id="readout"></div>
+  <div id="legend">Color = age: blue (oldest) → red (newest). Hover for strength & details.</div>
   <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
   <div id="menu-panel">
     <label>Region<select id="menu-region-select"><option value="usec_south">South-Atlantic</option><option value="usec_md">Mid-Atlantic</option></select></label>
@@ -263,37 +320,45 @@ function tracesForFrames(items, labelEveryFrame = true) {
     for (const feature of features) {
       const coords = feature?.geometry?.coordinates || [];
       if (!Array.isArray(coords) || coords.length < 2) continue;
-      candidates.push({ coords, length: Number(feature?.properties?.length_km) || lineLength(coords) });
+      candidates.push({ coords, length: Number(feature?.properties?.length_km) || lineLength(coords), props: feature?.properties || {} });
       appendSegmentedLine(lineX, lineY, coords);
+    }
+    // Build text array matching line points (for hover template)
+    const textArr = [];
+    let featIdx = 0;
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      if (!Array.isArray(coords) || coords.length < 2) continue;
+      const props = feature?.properties || {};
+      const strength = props.strength_median != null ? `${Number(props.strength_median).toFixed(2)} ${props.strength_unit || ''}` : '';
+      const length = props.length_km != null ? `${Number(props.length_km).toFixed(1)} km` : '';
+      const segText = [strength, length].filter(Boolean).join(' / ');
+      for (const pt of coords) {
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        textArr.push(segText);
+      }
+      textArr.push(null); // end of segment
+      featIdx++;
+    }
+    // customdata for readout
+    const customArr = [];
+    for (const feature of features) {
+      const props = feature?.properties || {};
+      customArr.push({
+        strength: props.strength_median ?? null,
+        strength_unit: props.strength_unit || '',
+        length_km: props.length_km ?? null,
+        _is_front: true
+      });
     }
     traces.push({
       type:"scatter", mode:"lines", x:lineX, y:lineY,
+      text: textArr,
+      customdata: customArr,
       line:{ color, width: labelEveryFrame ? 2.2 : 1.5 },
-      hovertemplate:`<b>Thermal front</b><br>${new Date(item.t).toLocaleString()}<br>${age}<extra></extra>`,
+      hovertemplate:`<b>Thermal front</b><br>%{text}<br>${age}<extra></extra>`,
       showlegend:false
     });
-    candidates.sort((a,b) => b.length - a.length);
-    const labelCount = labelEveryFrame ? Math.min(5, candidates.length) : Math.min(2, candidates.length);
-    for (const c of candidates.slice(0, labelCount)) {
-      const pt = labelPoint(c.coords);
-      if (!pt) continue;
-      labelX.push(Number(pt[0]));
-      labelY.push(Number(pt[1]));
-      labels.push(age);
-    }
-    if (labelX.length) {
-      traces.push({
-        type:"scatter",
-        mode:"text",
-        x:labelX,
-        y:labelY,
-        text:labels,
-        textfont:{ color, size:12, family:"system-ui,-apple-system,Segoe UI,sans-serif" },
-        textposition:"middle center",
-        hoverinfo:"skip",
-        showlegend:false
-      });
-    }
   }
   return traces;
 }
@@ -304,10 +369,10 @@ function layout(title) {
     paper_bgcolor:"#050b10",
     plot_bgcolor:"#f8fbff",
     font:{ color:"#e0e6ee" },
-    xaxis:{ range:[bbox[0], bbox[2]], showgrid:false, zeroline:false },
-    yaxis:{ range:[bbox[1], bbox[3]], scaleanchor:"x", scaleratio:1, showgrid:false, zeroline:false },
+    xaxis:{ range:[bbox[0], bbox[2]], showgrid:false, zeroline:false, fixedrange:false },
+    yaxis:{ range:[bbox[1], bbox[3]], showgrid:false, zeroline:false, fixedrange:false },
     dragmode:"pan",
-    uirevision:"thermal-front-history"
+    uirevision:false
   };
 }
 function plotConfig() {
@@ -345,6 +410,7 @@ async function prepareLandMask(indexMeta) {
   }
 }
 async function render() {
+  installReadoutHandlers();
   const basemap = baseTraces();
   if (!frameData.length) {
     statusEl.textContent = "No thermal-front frames available for this region.";
@@ -385,6 +451,11 @@ function setMode(next) {
   overlayBtn.classList.toggle("active", mode === "overlay");
   playBtn.disabled = mode !== "animation" || frameData.length <= 1;
   if (mode !== "animation") setPlaying(false);
+  document.getElementById("daily-slider-row").classList.toggle("visible", mode === "daily");
+  if (mode === "daily") {
+    buildDailyFrames();
+    updateDailySlider();
+  }
   render();
   updateNavBar();
 }
@@ -410,6 +481,15 @@ function updateNavBar() {
     frontsLabel.textContent = `Fronts ${formatAge(latestFrame.t, latestMs)}`;
   }
 }
+const dailySliderEl = document.getElementById("daily-slider");
+
+function updateDailySlider() {
+  if (!dailySliderEl || !dailyFrames.length) return;
+  dailySliderEl.min = 0;
+  dailySliderEl.max = dailyFrames.length - 1;
+  dailySliderEl.value = frameIdx;
+}
+
 function buildDailyFrames() {
   dailyFrames = [];
   const seen = new Set();
@@ -479,7 +559,44 @@ overlayBtn.addEventListener("click", () => setMode("overlay"));
 playBtn.addEventListener("click", () => setPlaying(!playing));
 if (prevBtn) prevBtn.addEventListener("click", () => { setPlaying(false); step(-1); });
 if (nextBtn) nextBtn.addEventListener("click", () => { setPlaying(false); step(+1); });
+if (dailySliderEl) {
+  dailySliderEl.addEventListener("input", () => {
+    const idx = Number(dailySliderEl.value);
+    frameIdx = idx;
+    setPlaying(false);
+    render();
+    updateNavBar();
+  });
+}
 window.addEventListener("resize", () => { try { Plotly.Plots.resize(plot); } catch(_){} });
+const readoutEl = document.getElementById("readout");
+let _readoutHooked = false;
+
+function setReadout(txt) {
+  if (!readoutEl) return;
+  readoutEl.textContent = txt || "";
+  readoutEl.style.display = txt ? "inline-block" : "none";
+}
+
+function installReadoutHandlers() {
+  if (_readoutHooked) return;
+  _readoutHooked = true;
+  plot.on("plotly_hover", (ev) => {
+    const p = ev.points && ev.points[0];
+    if (!p) return;
+    const cd = p.customdata;
+    if (cd && cd._is_front) {
+      const parts = [];
+      if (cd.strength !== null && cd.strength !== undefined) parts.push(`${Number(cd.strength).toFixed(2)} ${cd.strength_unit || ""}`);
+      if (cd.length_km !== null && cd.length_km !== undefined) parts.push(`${Number(cd.length_km).toFixed(1)} km`);
+      setReadout(parts.length ? parts.join(" / ") : "Thermal front");
+    } else {
+      setReadout("");
+    }
+  });
+  plot.on("plotly_unhover", () => setReadout(""));
+}
+
 init().catch(err => {
   console.error(err);
   statusEl.textContent = err.message;
