@@ -1251,6 +1251,7 @@ async function initDesktopMapIfNeeded() {
     ? ol.interaction.defaults({ altShiftDragRotate: false, pinchRotate: false })
     : undefined;
   desktopMapState.map = new ol.Map({
+  console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
     target,
     layers: [],
     view,
@@ -1319,7 +1320,7 @@ function installDesktopReadoutHandlersOnce(map) {
 }
 
 async function renderDesktopFrame(frameMeta) {
-  console.log("[OL] renderDesktopFrame called, currentVar:", currentVar);
+  console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "desktopMapState.ready:", desktopMapState.ready);
   if (currentVar === "chl_front" || currentVar === "sst_front") return false;
   const map = await initDesktopMapIfNeeded();
   if (!map) return false;
@@ -1338,6 +1339,7 @@ async function renderDesktopFrame(frameMeta) {
   // Build raster canvas
   const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
   const url = canvas.toDataURL("image/png");
+  console.log("[OL] canvas encoded, url starts:", url ? url.slice(0,30) : "empty");
   if (!url || !url.startsWith("data:image/png")) throw new Error("Could not encode desktop raster");
 
   const extent = frameExtentFromGrid(gridInfo);
