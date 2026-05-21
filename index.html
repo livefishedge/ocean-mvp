@@ -1354,6 +1354,7 @@ async function renderDesktopFrame(frameMeta) {
   if (!url || !url.startsWith("data:image/png")) throw new Error("Could not encode desktop raster");
 
   const extent = frameExtentFromGrid(gridInfo);
+  console.log("[OL] extent:", extent);
   const source = new ol.source.ImageStatic({
     url,
     imageExtent: extent,
@@ -1361,16 +1362,20 @@ async function renderDesktopFrame(frameMeta) {
     interpolate: false
   });
   source.on("imageloaderror", () => {
-    console.error("Desktop OL image layer failed to load.");
+    console.error("[OL] imageloaderror fired!");
     throw new Error("Desktop OL image load failed");
   });
+  console.log("[OL] ImageStatic source created, about to create layer");
   const layer = new ol.layer.Image({ source });
+  console.log("[OL] layer created");
 
   if (desktopMapState.imageLayer) map.removeLayer(desktopMapState.imageLayer);
   desktopMapState.imageLayer = layer;
   map.addLayer(layer);
+  console.log("[OL] layer added to map");
 
   installDesktopReadoutHandlersOnce(map);
+  console.log("[OL] readout handlers installed");
 
   // Hide Plotly div completely when OL is rendering (avoid visual overlap)
   const plotDivEl = document.getElementById("plot");
@@ -1396,12 +1401,16 @@ async function renderDesktopFrame(frameMeta) {
   // Fit view to extent
   const view = map.getView();
   const size = map.getSize();
+  console.log("[OL] view fit - size:", size, "extent:", extent);
   if (size && size[0] > 0 && size[1] > 0) {
     const widthRes = Math.abs(extent[2] - extent[0]) / size[0];
     const heightRes = Math.abs(extent[3] - extent[1]) / size[1];
     const res = Math.max(widthRes, heightRes);
     view.setResolution(res);
     view.setCenter([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
+    console.log("[OL] view centered, res:", res);
+  } else {
+    console.log("[OL] view fit SKIPPED - size is", size);
   }
 
   // Hide the Plotly color bar (we'll manage it separately)
@@ -1413,9 +1422,11 @@ async function renderDesktopFrame(frameMeta) {
 
   // Remove loading banner on success
   const loadDiv2 = document.querySelector('div[style*="OpenLayers map loading"]');
-  if (loadDiv2) loadDiv2.remove();
+  if (loadDiv2) { loadDiv2.remove(); console.log("[OL] loading div removed"); }
+  else console.log("[OL] loading div NOT FOUND");
 
   desktopMapState.ready = true;
+  console.log("[OL] renderDesktopFrame returning TRUE now");
 
   const diag = document.createElement("div");
   diag.textContent = "Desktop OL active";
