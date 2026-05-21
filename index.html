@@ -4043,27 +4043,11 @@ async function showFrame() {
     }
   }
 
-  // If OL fails on desktop, show a clear error — do NOT fall back to Plotly
-  let fig = null;
-
-  if (currentVar === "bathy") {
-    const bathy = await loadBathymetryJson(BATHY_JSON_URL);
-    fig = buildBathy(bathy);
-  } else {
-    const dataObj = await fetchFrameData(currentVar, frameMeta);
-    const gridInfo = await loadGridForVar(currentVar, dataObj);
-    fig = buildForVar(currentVar, gridInfo, dataObj);
-  }
-
-  injectMarkers(fig);
-
-  if (landTrace) {
-    fig.data.push(landTrace);
-  }
-  injectPlaceLabels(fig);
-  await addNearestFrontOverlay(fig, currentVar, frameMeta);
-
-  await Plotly.react(plotDiv, fig.data, fig.layout, plotConfig());
+  // If both OL paths fail, show a clear error — do NOT fall back to Plotly
+  const noOlDiv = document.createElement("div");
+  noOlDiv.textContent = "Map failed to load. Please refresh.";
+  noOlDiv.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:997;color:#fff;background:rgba(80,0,0,0.9);padding:20px 30px;border-radius:8px;font-size:16px;text-align:center;";
+  document.body.appendChild(noOlDiv);
   await renderFooterColorbar(currentVar);
   // Also render colorbar inside the portrait hamburger panel
   const hCbar = document.getElementById("hamburger-cbar");
