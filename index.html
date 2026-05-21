@@ -1326,6 +1326,12 @@ function installDesktopReadoutHandlersOnce(map) {
 async function renderDesktopFrame(frameMeta) {
   try {
     console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "desktopMapState.ready:", desktopMapState.ready);
+
+    // Show "OL map loading" immediately so user knows something is happening
+    const loadDiv = document.createElement("div");
+    loadDiv.textContent = "OpenLayers map loading...";
+    loadDiv.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:998;color:#fff;background:rgba(0,80,128,0.85);padding:16px 24px;border-radius:8px;font-size:16px;text-align:center;";
+    document.body.appendChild(loadDiv);
   if (currentVar === "chl_front" || currentVar === "sst_front") return false;
   const map = await initDesktopMapIfNeeded();
   if (!map) return false;
@@ -1404,6 +1410,10 @@ async function renderDesktopFrame(frameMeta) {
   const cbFig = document.getElementById("cb-figure");
   if (cbFig) cbFig.style.display = "none";
   document.getElementById("plot").style.background = "";
+
+  // Remove loading banner on success
+  const loadDiv2 = document.querySelector('div[style*="OpenLayers map loading"]');
+  if (loadDiv2) loadDiv2.remove();
 
   desktopMapState.ready = true;
 
@@ -4007,9 +4017,11 @@ async function showFrame() {
       const renderedMobile = await renderMobileFrame(frameMeta);
       if (renderedMobile) return;
     } catch (e) {
-      console.error("Mobile map render failed; falling back to Plotly.", e);
-      mobileMapState.disabled = true;
-      document.body.classList.remove("mobile-map-ready");
+      console.error("Mobile OL render failed:", e);
+      const errDiv = document.createElement("div");
+      errDiv.textContent = "Mobile OL error: " + ((e && e.message) ? e.message.slice(0,80) : String(e).slice(0,80));
+      errDiv.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(200,50,0,0.9);padding:8px 14px;border-radius:4px;font-size:14px;max-width:80vw;";
+      document.body.appendChild(errDiv);
     }
   }
 
@@ -4023,10 +4035,15 @@ async function showFrame() {
         return;
       }
     } catch (e) {
-      console.error("Desktop OL render failed; falling back to Plotly.", e);
+      console.error("Desktop OL render failed:", e);
+      const errDiv = document.createElement("div");
+      errDiv.textContent = "Desktop OL error: " + ((e && e.message) ? e.message.slice(0,80) : String(e).slice(0,80));
+      errDiv.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(200,50,0,0.9);padding:8px 14px;border-radius:4px;font-size:14px;max-width:80vw;";
+      document.body.appendChild(errDiv);
     }
   }
 
+  // If OL fails on desktop, show a clear error — do NOT fall back to Plotly
   let fig = null;
 
   if (currentVar === "bathy") {
