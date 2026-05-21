@@ -1259,43 +1259,55 @@ async function initDesktopMapIfNeeded() {
   return desktopMapState.map;
 }
 
+function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
+  if (!gridInfo || !dataObj || !isFinite(lon) || !isFinite(lat)) return null;
+  const z = mobileZForVar(varKey, dataObj);
+  if (!is2D(z)) return null;
+  const xAxis = gridInfo.xAxis || [];
+  const yAxis = gridInfo.yAxis || [];
+  if (xAxis.length < 2 || yAxis.length < 2) return null;
+  const nx = xAxis.length;
+  const ny = yAxis.length;
+  const xAsc = xAxis[0] <= xAxis[nx - 1];
+  const yAsc = yAxis[0] <= yAxis[ny - 1];
+  const xMin = Math.min(xAxis[0], xAxis[nx - 1]);
+  const xMax = Math.max(xAxis[0], xAxis[nx - 1]);
+  const yMin = Math.min(yAxis[0], yAxis[ny - 1]);
+  const yMax = Math.max(yAxis[0], yAxis[ny - 1]);
+  if (lon < xMin || lon > xMax || lat < yMin || lat > yMax) return null;
+  const iFrac = xAsc ? (lon - xAxis[0]) / (xAxis[nx - 1] - xAxis[0]) : (xAxis[0] - lon) / (xAxis[0] - xAxis[nx - 1]);
+  const jFrac = yAsc ? (lat - yAxis[0]) / (yAxis[ny - 1] - yAxis[0]) : (yAxis[0] - lat) / (yAxis[0] - yAxis[ny - 1]);
+  const col = Math.max(0, Math.min(nx - 1, Math.round(iFrac * (nx - 1))));
+  const row = Math.max(0, Math.min(ny - 1, Math.round(jFrac * (ny - 1))));
+  const rawValue = z[row]?.[col];
+  const value = Number(rawValue);
+  if (isMobileMissingValue(varKey, rawValue, value)) return null;
+  return { value, row, col };
+}
+
 function renderDesktopReadout(lon, lat) {
-  console.log("[readout] renderDesktopReadout called, coord:", lon, lat, "grid:", !!desktopMapState.currentGridInfo, "data:", !!desktopMapState.currentDataObj);
   // Guard: if no grid/data yet, show just coordinates
   if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
+    console.log("[readout] renderDesktopReadout", { lon, lat, hasGrid: !!desktopMapState.currentGridInfo, foundData: false });
     setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
     return;
   }
   const gridInfo = desktopMapState.currentGridInfo;
   const dataObj = desktopMapState.currentDataObj;
-
-  // Bilinear-like sampling: find nearest grid cell
-  const nx = gridInfo.xAxis.length;
-  const ny = gridInfo.yAxis.length;
-  if (nx === 0 || ny === 0) return;
-
-  // Find nearest column
-  let col = 0;
-  let minDistX = Infinity;
-  for (let c = 0; c < nx; c++) {
-    const d = Math.abs(gridInfo.xAxis[c] - lon);
-    if (d < minDistX) { minDistX = d; col = c; }
-  }
-  // Find nearest row
-  let row = 0;
-  let minDistY = Infinity;
-  for (let r = 0; r < ny; r++) {
-    const d = Math.abs(gridInfo.yAxis[r] - lat);
-    if (d < minDistY) { minDistY = d; row = r; }
-  }
-
-  const z = mobileZForVar(currentVar, dataObj);
-  if (!z || !z[row] || !Number.isFinite(z[row][col])) {
-    // NaN / no-data area: show just lat/lon, no 0, no value
+  const sample = sampleRasterValueAt(currentVar, gridInfo, dataObj, lon, lat);
+  console.log("[readout] renderDesktopReadout", {
+    lon,
+    lat,
+    hasGrid: true,
+    foundData: !!sample,
+    row: sample?.row,
+    col: sample?.col
+  });
+  if (!sample) {
     setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
     return;
   }
-  const value = z[row][col];
+  const { value, row, col } = sample;
   const base = `${toDDM(lon)} ${toDDM(lat)}`;
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(value)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${value.toFixed(0)}m`);
@@ -3141,32 +3153,7 @@ function updateMobileCursor(lon, lat) {
 }
 
 function sampleMobileValueAt(lon, lat) {
-  const gridInfo = mobileMapState.currentGridInfo;
-  const dataObj = mobileMapState.currentDataObj;
-  if (!gridInfo || !dataObj) return null;
-  const z = mobileZForVar(currentVar, dataObj);
-  if (!is2D(z)) return null;
-  const xAxis = gridInfo.xAxis || [];
-  const yAxis = gridInfo.yAxis || [];
-  if (xAxis.length < 2 || yAxis.length < 2) return null;
-  const nx = xAxis.length;
-  const ny = yAxis.length;
-  const xAsc = xAxis[0] <= xAxis[nx - 1];
-  const yAsc = yAxis[0] <= yAxis[ny - 1];
-  const xMin = Math.min(xAxis[0], xAxis[nx - 1]);
-  const xMax = Math.max(xAxis[0], xAxis[nx - 1]);
-  const yMin = Math.min(yAxis[0], yAxis[ny - 1]);
-  const yMax = Math.max(yAxis[0], yAxis[ny - 1]);
-  if (lon < xMin || lon > xMax || lat < yMin || lat > yMax) return null;
-  const iFrac = xAsc ? (lon - xAxis[0]) / (xAxis[nx - 1] - xAxis[0]) : (xAxis[0] - lon) / (xAxis[0] - xAxis[nx - 1]);
-  const jFrac = yAsc ? (lat - yAxis[0]) / (yAxis[ny - 1] - yAxis[0]) : (yAxis[0] - lat) / (yAxis[0] - yAxis[ny - 1]);
-  const i = Math.max(0, Math.min(nx - 1, Math.round(iFrac * (nx - 1))));
-  const j = Math.max(0, Math.min(ny - 1, Math.round(jFrac * (ny - 1))));
-  const value = z[j]?.[i];
-  if (value === null || value === undefined || value === "" || Number.isNaN(value)) return null;
-  const num = Number(value);
-  if (!Number.isFinite(num)) return null;
-  return num;
+  return sampleRasterValueAt(currentVar, mobileMapState.currentGridInfo, mobileMapState.currentDataObj, lon, lat)?.value ?? null;
 }
 
 function renderMobileReadout(lon, lat) {
