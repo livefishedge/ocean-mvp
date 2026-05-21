@@ -1262,6 +1262,7 @@ async function initDesktopMapIfNeeded() {
 }
 
 function renderDesktopReadout(lon, lat) {
+  console.log("[readout] renderDesktopReadout called, coord:", lon, lat, "grid:", !!desktopMapState.currentGridInfo, "data:", !!desktopMapState.currentDataObj);
   // Guard: if no grid/data yet, show just coordinates
   if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
     setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
@@ -1314,6 +1315,7 @@ function installDesktopReadoutHandlersOnce(map) {
   if (map.__desktopReadoutInstalled) return;
   map.__desktopReadoutInstalled = true;
   map.on("pointermove", (ev) => {
+    console.log("[readout] pointermove fired, coordinate:", ev.coordinate);
     if (!ev.coordinate) return;
     renderDesktopReadout(ev.coordinate[0], ev.coordinate[1]);
   });
