@@ -574,12 +574,11 @@ function setReadout(txt) {
 function installReadoutHandlers() {
   if (_readoutHooked) return;
   _readoutHooked = true;
-  // Use Plotly's event system (plot.on) which is the documented Plotly event API
-  // plot = DOM element, Plotly wraps it internally
-  plot.on('plotly_hover', (ev) => {
+  // plot = DOM element; Plotly.on() takes (domEl, eventName, handler)
+  Plotly.on(plot, 'plotly_hover', (ev) => {
     const p = ev.points && ev.points[0];
-    if (!p) { console.log('[hover] no point', ev); return; }
-    console.log('[hover] text:', p.text, 'x:', p.x, 'y:', p.y, 'data:', JSON.stringify(p.data).slice(0,100));
+    if (!p) { console.log('[hover] no point', Object.keys(ev)); return; }
+    console.log('[hover] text:', p.text, 'x:', p.x, 'y:', p.y);
     if (p.text && p.text.includes('°C/km')) {
       const parts = p.text.split(' | ');
       setReadout(parts.slice(1).join(' | '));
@@ -587,7 +586,7 @@ function installReadoutHandlers() {
       setReadout(`${Number(p.y).toFixed(3)}°N ${Number(p.x).toFixed(3)}°W`);
     }
   });
-  plot.on('plotly_unhover', () => { console.log('[unhover]'); setReadout(''); });
+  Plotly.on(plot, 'plotly_unhover', () => { console.log('[unhover]'); setReadout(''); });
 }
 
 init().catch(err => {
