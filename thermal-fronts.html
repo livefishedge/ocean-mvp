@@ -99,7 +99,6 @@
 </head>
 <body>
   <div id="toolbar">
-    <a id="map-link" href="index.html">Map</a>
     <span id="nav-bar">
       <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
       <span id="frame-time"></span>
@@ -129,7 +128,7 @@
       <option value="usec_south">South-Atlantic</option>
       <option value="usec_md">Mid-Atlantic</option>
     </select>
-    <button id="mode-animation" class="active" type="button">Anim</button>
+    <button id="mode-animation" class="active" type="button">Hourly</button>
     <button id="mode-daily" type="button">Daily</button>
     <button id="mode-overlay" type="button">All</button>
     <button id="play-btn" type="button">Play</button>
@@ -611,7 +610,7 @@ async function render() {
   }
   renderFrontLayer();
   if (mode === "overlay") {
-    statusEl.textContent = `${frameData.length} front-bearing frames across ${Math.round((frames.at(-1).t - frames[0].t)/864e5)||1} days`;
+
   } else if (mode === "daily") {
     if (!dailyFrames.length) buildDailyFrames();
     frameIdx = Math.max(0, Math.min(frameIdx, dailyFrames.length - 1));
@@ -620,7 +619,7 @@ async function render() {
   } else {
     frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
     const item = frameData[frameIdx];
-    statusEl.textContent = `${frameIdx + 1}/${frameData.length} front-bearing • ${new Date(item.t).toLocaleString()} • ${formatAge(item.t, frames.at(-1).t)} before latest`;
+
   }
   updateNavBar();
 }
