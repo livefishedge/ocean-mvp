@@ -1620,6 +1620,7 @@ function syncViewportClasses() {
   if (!document.body) return;
   document.body.classList.toggle("mobile-device", isMobileDevice());
   if (document.body) document.body.classList.toggle("portrait-mode", isPortrait());
+  if (document.body) document.body.classList.toggle("desktop-mode", !isMobileDevice() && !isPortrait());
 }
 syncViewportClasses();
 
