@@ -108,7 +108,7 @@
   </div>
   <div id="plot"></div>
   <div id="readout"></div>
-  <div id="legend">Color = age: blue (oldest) -> red (newest). Tap for gradient.</div>
+  <div id="legend" style="display:none"></div>
   <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
   <div id="menu-panel">
     <label>Region<select id="region-select">
@@ -715,6 +715,9 @@ async function init() {
   }));
   frameData = frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
   frameIdx = closestFrameIndex(frameData, requestedTimeFromParams());
+  const hasMultiDay = frameData.length > 1 && (frameData.at(-1)?.t ?? 0) - (frameData[0]?.t ?? 0) > 864e5;
+  const legendEl = document.getElementById('legend');
+  if (legendEl) { legendEl.style.display = hasMultiDay ? '' : 'none'; legendEl.textContent = hasMultiDay ? 'Color = age: blue (oldest) -> red (newest)' : ''; }
   window.__thermalFrontsState = { frames, frameData, map };
   await render();
 }
