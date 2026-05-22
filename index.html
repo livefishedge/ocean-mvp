@@ -1148,6 +1148,9 @@ function formatSstValue(celsius) {
   const value = tempUnit === "F" ? cToF(celsius) : celsius;
   return `${formatSigValue(value, 4)}${tempUnitLabel()}`;
 }
+function formatReadoutCoords(lon, lat) {
+  return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+}
 function sstTickText(values) {
   return values.map(v => tempUnit === "F" ? String(Math.round(cToF(v))) : String(v));
 }
@@ -1221,6 +1224,63 @@ let _readoutHooked = false;
 let _relayoutHooked = false;
 
 let viewState = { hasRange:false, xRange:null, yRange:null };
+function viewportFromParams(params = QUERY_PARAMS) {
+  const x0 = Number(params.get("x0"));
+  const x1 = Number(params.get("x1"));
+  const y0 = Number(params.get("y0"));
+  const y1 = Number(params.get("y1"));
+  if (![x0, x1, y0, y1].every(Number.isFinite)) return null;
+  const xRange = [Math.min(x0, x1), Math.max(x0, x1)];
+  const yRange = [Math.min(y0, y1), Math.max(y0, y1)];
+  if (xRange[1] <= xRange[0] || yRange[1] <= yRange[0]) return null;
+  return { xRange, yRange };
+}
+function applyInitialViewportParams() {
+  const vp = viewportFromParams();
+  if (!vp) return;
+  viewState = { hasRange: true, xRange: vp.xRange, yRange: vp.yRange };
+}
+function mapViewportRanges(map) {
+  if (!map) return null;
+  const size = map.getSize();
+  if (!size || size[0] <= 0 || size[1] <= 0) return null;
+  const extent = map.getView().calculateExtent(size);
+  if (!extent || extent.length < 4 || !extent.every(Number.isFinite)) return null;
+  return { xRange: [extent[0], extent[2]], yRange: [extent[1], extent[3]] };
+}
+function currentViewportRanges() {
+  return mapViewportRanges(mobileMapState.map)
+    || mapViewportRanges(desktopMapState.map)
+    || (viewState.hasRange && viewState.xRange && viewState.yRange
+      ? { xRange: viewState.xRange, yRange: viewState.yRange }
+      : null);
+}
+function appendViewportParams(url) {
+  const vp = currentViewportRanges();
+  if (!vp) return url;
+  url.searchParams.set("x0", Number(vp.xRange[0]).toFixed(6));
+  url.searchParams.set("x1", Number(vp.xRange[1]).toFixed(6));
+  url.searchParams.set("y0", Number(vp.yRange[0]).toFixed(6));
+  url.searchParams.set("y1", Number(vp.yRange[1]).toFixed(6));
+  return url;
+}
+function syncViewStateFromOlMap(map) {
+  const vp = mapViewportRanges(map);
+  if (!vp) return;
+  viewState.hasRange = true;
+  viewState.xRange = vp.xRange;
+  viewState.yRange = vp.yRange;
+}
+function applyViewStateToOlMap(map, fallbackExtent) {
+  if (!map) return;
+  const extent = viewState.hasRange && viewState.xRange && viewState.yRange
+    ? [viewState.xRange[0], viewState.yRange[0], viewState.xRange[1], viewState.yRange[1]]
+    : fallbackExtent;
+  const size = map.getSize();
+  if (!extent || !size || size[0] <= 0 || size[1] <= 0) return;
+  map.getView().fit(extent, { size, nearest: true });
+}
+applyInitialViewportParams();
 let landTrace = null;
 let showChlFrontOverlay = false;
 let showSstFrontOverlay = false;
@@ -1349,6 +1409,7 @@ async function initDesktopMapIfNeeded() {
     controls: [],
     interactions: desktopInteractions
   });
+  desktopMapState.map.on("moveend", () => syncViewStateFromOlMap(desktopMapState.map));
   installOlGestureZoomFallback(desktopMapState.map, target);
   console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
   return desktopMapState.map;
@@ -1383,25 +1444,25 @@ function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
 function renderDesktopReadout(lon, lat) {
   // Guard: if no grid/data yet, show just coordinates
   if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
-    setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
+    setReadout(formatReadoutCoords(lon, lat));
     return;
   }
   const gridInfo = desktopMapState.currentGridInfo;
   const dataObj = desktopMapState.currentDataObj;
   const sample = sampleRasterValueAt(currentVar, gridInfo, dataObj, lon, lat);
   if (!sample) {
-    setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
+    setReadout(formatReadoutCoords(lon, lat));
     return;
   }
   const { value, row, col } = sample;
-  const base = `${toDDM(lon)} ${toDDM(lat)}`;
+  const base = formatReadoutCoords(lon, lat);
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(value)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${value.toFixed(0)}m`);
   else if (currentVar === "uv") {
     const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
     const adt = Number(d?.adt?.[row]?.[col]);
     if (Number.isFinite(adt)) setReadout(`${base}, SSH ${formatSshValue(adt)}`);
-    else setReadout(`${toDDM(lon)} ${toDDM(lat)}`);
+    else setReadout(formatReadoutCoords(lon, lat));
   } else {
     setReadout(`${base} ${formatChlValue(value)}`);
   }
@@ -1502,20 +1563,9 @@ async function renderDesktopFrame(frameMeta) {
     desktopMapState.landLayer = null;
   }
 
-  // Fit view to extent
-  const view = map.getView();
-  const size = map.getSize();
-  console.log("[OL] view fit - size:", size, "extent:", extent);
-  if (size && size[0] > 0 && size[1] > 0) {
-    const widthRes = Math.abs(extent[2] - extent[0]) / size[0];
-    const heightRes = Math.abs(extent[3] - extent[1]) / size[1];
-    const res = Math.max(widthRes, heightRes);
-    view.setResolution(res);
-    view.setCenter([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
-    console.log("[OL] view centered, res:", res);
-  } else {
-    console.log("[OL] view fit SKIPPED - size is", size);
-  }
+  // Preserve an existing viewport when switching pages/products; otherwise fit to data.
+  console.log("[OL] view fit - size:", map.getSize(), "extent:", extent, "locked:", viewState.hasRange);
+  applyViewStateToOlMap(map, extent);
 
   // Hide the Plotly color bar (we'll manage it separately)
   const cbar = document.getElementById("colorbar-svg");
@@ -3256,7 +3306,7 @@ function sampleMobileValueAt(lon, lat) {
 function renderMobileReadout(lon, lat) {
   if (!isFinite(lon) || !isFinite(lat)) return;
   updateMobileCursor(lon, lat);
-  const base = `${toDDM(lon)} ${toDDM(lat)}`;
+  const base = formatReadoutCoords(lon, lat);
   const val = sampleMobileValueAt(lon, lat);
   if (val === null || val === undefined) {
     setReadout(base);
@@ -3375,6 +3425,7 @@ function initMobileMapIfNeeded() {
     controls: [],
     interactions: mobileInteractions
   });
+  mobileMapState.map.on("moveend", () => syncViewStateFromOlMap(mobileMapState.map));
   installOlGestureZoomFallback(mobileMapState.map, target);
   document.body.classList.add("mobile-map-ready");
   return mobileMapState.map;
@@ -3445,7 +3496,8 @@ async function renderMobileFrame(frameMeta) {
 
   const regionKey = `${REGION_ID}:${currentVar}`;
   if (mobileMapState.fittedRegion !== regionKey) {
-    fitMobileMapWidth(map, extent);
+    if (viewState.hasRange) applyViewStateToOlMap(map, extent);
+    else fitMobileMapWidth(map, extent);
     mobileMapState.fittedRegion = regionKey;
   }
 
@@ -3575,8 +3627,7 @@ function renderReadoutFromPoint(p) {
   const lat = Number(p.y);
   if (!isFinite(lon) || !isFinite(lat)) return;
 
-  // CHANGED: Use DDM format
-  const base = `${toDDM(lon)} ${toDDM(lat)}`;
+  const base = formatReadoutCoords(lon, lat);
 
   const cd = p.customdata;
   if (cd === null || cd === undefined) {
@@ -4193,7 +4244,7 @@ varSelect.addEventListener("change", () => {
   if (varSelect.value === "thermal_fronts") {
     const url = new URL("thermal-fronts.html", location.href);
     url.searchParams.set("region", REGION_ID);
-    location.href = url.toString();
+    location.href = appendViewportParams(url).toString();
     return;
   }
   setPlaying(false);

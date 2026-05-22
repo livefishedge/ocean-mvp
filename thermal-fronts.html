@@ -70,20 +70,6 @@
       line-height:1.45;
       display:none;
     }
-    #cursor-ring{
-      position:fixed;
-      top:-100px; left:-100px;
-      width:18px; height:18px;
-      border-radius:50%;
-      background:rgba(160,190,210,0.22);
-      border:2px solid rgba(100,210,255,0.88);
-      pointer-events:none;
-      z-index:9999;
-      display:none;
-      transform:translate(-50%,-50%);
-      will-change:left,top;
-      box-shadow:0 0 5px rgba(100,210,255,0.35);
-    }
     #daily-slider-row{ display:none; align-items:center; gap:6px; }
     #daily-slider-row.visible{ display:flex; }
     #daily-slider{ flex:1; min-width:100px; height:20px; accent-color:#ff7c7c; }
@@ -112,7 +98,7 @@
 </head>
 <body>
   <div id="toolbar">
-    <a href="index.html">Map</a>
+    <a id="map-link" href="index.html">Map</a>
     <span id="nav-bar">
       <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
       <span id="frame-time"></span>
@@ -138,7 +124,6 @@
   </div>
   <div id="plot"></div>
   <div id="readout"></div>
-  <div id="cursor-ring"></div>
   <div id="legend">Color = age: blue (oldest) -> red (newest). Tap for gradient.</div>
   <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
   <div id="menu-panel">
@@ -172,7 +157,7 @@ let cursorFeature = null;
 const plot = document.getElementById("plot");
 const statusEl = document.getElementById("status");
 const readoutEl = document.getElementById("readout");
-const cursorRing = document.getElementById("cursor-ring");
+const mapLink = document.getElementById("map-link");
 const regionSelect = document.getElementById("region-select");
 const animationBtn = document.getElementById("mode-animation");
 const dailyBtn = document.getElementById("mode-daily");
@@ -258,9 +243,37 @@ function numericOrNull(value) {
   return Number.isFinite(n) ? n : null;
 }
 function formatLonLat(lat, lon) {
-  const ns = lat >= 0 ? "N" : "S";
-  const ew = lon >= 0 ? "E" : "W";
-  return `Lat ${Math.abs(lat).toFixed(3)}°${ns} · Lon ${Math.abs(lon).toFixed(3)}°${ew}`;
+  return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+}
+function viewportFromParams(params = new URLSearchParams(location.search)) {
+  const x0 = Number(params.get("x0"));
+  const x1 = Number(params.get("x1"));
+  const y0 = Number(params.get("y0"));
+  const y1 = Number(params.get("y1"));
+  if (![x0, x1, y0, y1].every(Number.isFinite)) return null;
+  const west = Math.min(x0, x1);
+  const east = Math.max(x0, x1);
+  const south = Math.min(y0, y1);
+  const north = Math.max(y0, y1);
+  if (east <= west || north <= south) return null;
+  return [west, south, east, north];
+}
+function currentMapExtent() {
+  if (!map) return null;
+  const size = map.getSize();
+  if (!size || size[0] <= 0 || size[1] <= 0) return null;
+  const extent = map.getView().calculateExtent(size);
+  if (!extent || extent.length < 4 || !extent.every(Number.isFinite)) return null;
+  return extent;
+}
+function appendViewportParams(url) {
+  const extent = currentMapExtent();
+  if (!extent) return url;
+  url.searchParams.set("x0", extent[0].toFixed(6));
+  url.searchParams.set("x1", extent[2].toFixed(6));
+  url.searchParams.set("y0", extent[1].toFixed(6));
+  url.searchParams.set("y1", extent[3].toFixed(6));
+  return url;
 }
 function placeInRegion(p) {
   const [w, s, e, n] = bbox.map(Number);
@@ -474,17 +487,33 @@ function renderFrontLayer() {
     map.addLayer(frontLayer);
   }
 }
+function gradientForFeaturePoint(props, index) {
+  const gradMap = Array.isArray(props?.gradient_map) ? props.gradient_map : null;
+  if (gradMap && index < gradMap.length) {
+    const exact = numericOrNull(gradMap[index]);
+    if (Number.isFinite(exact)) return exact;
+    for (let offset = 1; offset < gradMap.length; offset++) {
+      const left = index - offset;
+      const right = index + offset;
+      const leftValue = left >= 0 ? numericOrNull(gradMap[left]) : null;
+      if (Number.isFinite(leftValue)) return leftValue;
+      const rightValue = right < gradMap.length ? numericOrNull(gradMap[right]) : null;
+      if (Number.isFinite(rightValue)) return rightValue;
+    }
+  }
+  return numericOrNull(props?.gradient_per_km);
+}
 function nearestGradient(coord) {
   const lon = coord[0];
   const lat = coord[1];
   let bestDist = Infinity;
   let bestGrad = null;
+  let bestPoint = null;
   for (const item of activeFrontItems()) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
       const coords = feature?.geometry?.coordinates || [];
       const props = feature?.properties || {};
-      const gradMap = Array.isArray(props?.gradient_map) ? props.gradient_map : null;
       for (let i = 0; i < coords.length; i++) {
         const pt = coords[i];
         if (!Array.isArray(pt) || pt.length < 2) continue;
@@ -494,32 +523,38 @@ function nearestGradient(coord) {
         const d = Math.hypot(ptLon - lon, ptLat - lat);
         if (d < bestDist) {
           bestDist = d;
-          bestGrad = gradMap && i < gradMap.length ? numericOrNull(gradMap[i]) : numericOrNull(props?.gradient_per_km);
+          bestPoint = [ptLon, ptLat];
+          bestGrad = gradientForFeaturePoint(props, i);
         }
       }
     }
   }
-  return { dist: bestDist, gradient: bestGrad };
+  return { dist: bestDist, gradient: bestGrad, point: bestPoint };
 }
 function setReadout(txt) {
   readoutEl.textContent = txt || "";
   readoutEl.style.display = txt ? "inline-block" : "none";
 }
-function showCursorRing(pixel) {
-  const viewport = map.getViewport().getBoundingClientRect();
-  cursorRing.style.left = `${viewport.left + pixel[0]}px`;
-  cursorRing.style.top = `${viewport.top + pixel[1]}px`;
-  cursorRing.style.display = "block";
-}
 function renderReadout(coord, pixel, persist) {
   if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) return;
-  if (cursorFeature) cursorFeature.getGeometry().setCoordinates(coord);
-  if (pixel) showCursorRing(pixel);
-  const base = formatLonLat(coord[1], coord[0]);
+  let cursorCoord = coord;
+  let readoutCoord = coord;
+  let gradient = null;
   const hit = nearestGradient(coord);
-  const resolution = map.getView().getResolution() || 0.02;
-  const threshold = Math.max(0.025, Math.min(0.5, resolution * 40));
-  if (hit.dist <= threshold && Number.isFinite(hit.gradient)) setReadout(`${base} · ${hit.gradient.toFixed(3)} °C/km`);
+  if (pixel && hit.point && Number.isFinite(hit.gradient)) {
+    const hitPixel = map.getPixelFromCoordinate(hit.point);
+    if (hitPixel) {
+      const pixelDist = Math.hypot(hitPixel[0] - pixel[0], hitPixel[1] - pixel[1]);
+      if (pixelDist <= 14) {
+        cursorCoord = hit.point;
+        readoutCoord = hit.point;
+        gradient = hit.gradient;
+      }
+    }
+  }
+  if (cursorFeature) cursorFeature.getGeometry().setCoordinates(cursorCoord);
+  const base = formatLonLat(readoutCoord[1], readoutCoord[0]);
+  if (Number.isFinite(gradient)) setReadout(`${base}, ${gradient.toFixed(3)} °C/km`);
   else setReadout(base);
   if (!persist && pixel && !frontsCb.checked) setReadout(base);
 }
@@ -622,7 +657,8 @@ async function init() {
   initMap();
   await ensureLandLayer(idx);
   ensurePlaceLayer();
-  map.getView().fit(bbox, { size: map.getSize(), padding: [58, 0, 0, 0], nearest: true });
+  const requestedViewport = viewportFromParams();
+  map.getView().fit(requestedViewport || bbox, { size: map.getSize(), padding: [58, 0, 0, 0], nearest: true });
   frames = ((idx.frames || idx.frames_by_var || {}).sst_front || [])
     .map(f => ({ ...f, t: parseFrameTime(f) }))
     .filter(f => Number.isFinite(f.t))
@@ -656,7 +692,13 @@ productSelect.addEventListener("change", () => {
   const url = new URL("index.html", location.href);
   url.searchParams.set("region", regionId);
   url.searchParams.set("var", productSelect.value);
-  location.href = url.toString();
+  location.href = appendViewportParams(url).toString();
+});
+mapLink.addEventListener("click", (event) => {
+  event.preventDefault();
+  const url = new URL("index.html", location.href);
+  url.searchParams.set("region", regionId);
+  location.href = appendViewportParams(url).toString();
 });
 animationBtn.addEventListener("click", () => setMode("animation"));
 dailyBtn.addEventListener("click", () => setMode("daily"));
