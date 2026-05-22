@@ -73,16 +73,20 @@
     /* Transparent cursor ring for mobile and desktop */
     #cursor-ring{
       position:fixed;
-      top:0; left:0;
-      width:40px; height:40px;
+      top:-100px; left:-100px;
+      width:44px; height:44px;
       border-radius:50%;
-      background:rgba(180,200,220,0.25);
-      border:1.5px solid rgba(180,200,220,0.55);
+      background:rgba(160,190,210,0.18);
+      border:2px solid rgba(160,190,210,0.60);
       pointer-events:none;
-      z-index:20;
-      display:none;
+      z-index:9999;
+      display:block; /* default visible, JS can hide */
       transform:translate(-50%,-50%);
-      transition:opacity 0.1s;
+      transition:opacity 0.15s, left 0s, top 0s;
+      /* Force GPU acceleration for smooth following */
+      will-change:left,top;
+      -webkit-backface-visibility:hidden;
+      backface-visibility:hidden;
     }
     /* Daily slider */
     #daily-slider-row{
@@ -154,7 +158,7 @@
   </div>
   <div id="plot"></div>
   <div id="readout"></div>
-  <div id="cursor-ring" style="display:none;"></div>
+  <div id="cursor-ring"></div>
   <div id="legend">Color = age: blue (oldest) → red (newest). Tap for gradient.</div>
   <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
   <div id="menu-panel">
