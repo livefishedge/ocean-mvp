@@ -795,7 +795,7 @@
         padding:0;
       }
       #ranges-hamburger-panel{
-        display:none; position:absolute; top:40px; left:0;
+        display:none; position:absolute; top:58px; right:8px; left:auto;
         background:var(--panel); border:1px solid var(--border);
         border-radius:10px; padding:8px 10px;
         flex-direction:column; min-width:200px; max-width:calc(100vw - 24px);
@@ -1309,6 +1309,7 @@ let desktopMapState = {
   map: null,
   imageLayer: null,
   landLayer: null,
+  placeLayer: null,
   arrowLayer: null,
   currentGridInfo: null,
   currentDataObj: null,
@@ -1567,6 +1568,7 @@ async function renderDesktopFrame(frameMeta) {
     desktopMapState.landLayer = null;
   }
   await ensureDesktopLandLayer(map);
+  await ensureDesktopPlaceLayer(map);
 
   // Preserve an existing viewport when switching pages/products; otherwise fit to data.
   console.log("[OL] view fit - size:", map.getSize(), "extent:", extent, "locked:", viewState.hasRange);
@@ -3238,6 +3240,27 @@ async function ensureDesktopLandLayer(map) {
   });
   desktopMapState.landLayer = new ol.layer.Image({ source, zIndex: 20 });
   map.addLayer(desktopMapState.landLayer);
+}
+
+async function ensureDesktopPlaceLayer(map) {
+  if (!map || desktopMapState.placeLayer) return;
+  const features = PLACE_LABELS
+    .filter(placeInRegion)
+    .map(p => new ol.Feature({
+      geometry: new ol.geom.Point([p.lon, p.lat]),
+      name: p.name,
+      type: p.type
+    }));
+  const source = new ol.source.Vector({ features });
+  const layer = new ol.layer.Vector({
+    source,
+    style: mobilePlaceStyle,
+    zIndex: 30,
+    declutter: true
+  });
+  if (desktopMapState.placeLayer) map.removeLayer(desktopMapState.placeLayer);
+  desktopMapState.placeLayer = layer;
+  map.addLayer(layer);
 }
 
 async function ensureMobileLandLayer(map) {
