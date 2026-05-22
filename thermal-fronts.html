@@ -3,8 +3,9 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10, viewport-fit=cover" />
-  <title>[df2b25e1] Thermal Front History</title>
-  <script src="https://cdn.plot.ly/plotly-2.34.0.min.js?v=238b703e"></script>
+  <title>Thermal Front History</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.4.0/ol.css">
+  <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
   <style>
     :root{ --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.90); --border:#1b2836; }
     html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
@@ -28,7 +29,7 @@
     #fronts-toggle{ display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:11px; font-weight:700; }
     #fronts-cb{ width:13px; height:13px; accent-color:#4d7dff; }
     #status{ color:#9fb0c3; font-size:12px; font-weight:700; white-space:nowrap; }
-    #plot{ width:100vw; height:100vh; min-height:100vh; touch-action:none; overflow:hidden; cursor:none; aspect-ratio:auto; }
+    #plot{ width:100vw; height:100vh; min-height:100vh; touch-action:none; overflow:hidden; cursor:crosshair; background:#f8fbff; }
     #legend{
       position:fixed; left:12px; bottom:12px; z-index:11;
       padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
@@ -52,7 +53,6 @@
       min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
       color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
     }
-    /* Readout — fixed lower-right */
     #readout{
       position:fixed;
       right:12px;
@@ -70,63 +70,43 @@
       line-height:1.45;
       display:none;
     }
-    /* Transparent cursor ring for mobile and desktop */
     #cursor-ring{
       position:fixed;
       top:-100px; left:-100px;
-      width:44px; height:44px;
+      width:18px; height:18px;
       border-radius:50%;
-      background:rgba(160,190,210,0.30);
-      border:3px solid rgba(100,210,255,0.90);
+      background:rgba(160,190,210,0.22);
+      border:2px solid rgba(100,210,255,0.88);
       pointer-events:none;
       z-index:9999;
-      display:block;
-      transform:translate(-50%,-50%);
-      transition:opacity 0.1s;
-      will-change:left,top;
-      -webkit-backface-visibility:hidden;
-      backface-visibility:hidden;
-      box-shadow: 0 0 8px rgba(100,210,255,0.4);
-    }
-    /* Daily slider */
-    #daily-slider-row{
       display:none;
-      align-items:center;
-      gap:6px;
+      transform:translate(-50%,-50%);
+      will-change:left,top;
+      box-shadow:0 0 5px rgba(100,210,255,0.35);
     }
+    #daily-slider-row{ display:none; align-items:center; gap:6px; }
     #daily-slider-row.visible{ display:flex; }
-    #daily-slider{
-      flex:1;
-      min-width:100px;
-      height:20px;
-      accent-color:#ff7c7c;
-    }
+    #daily-slider{ flex:1; min-width:100px; height:20px; accent-color:#ff7c7c; }
     #daily-slider::-webkit-slider-runnable-track{
-      height:6px;
-      border-radius:3px;
+      height:6px; border-radius:3px;
       background:linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
     }
     #daily-slider::-moz-range-track{
-      height:6px;
-      border-radius:3px;
+      height:6px; border-radius:3px;
       background:linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
     }
     #daily-slider::-webkit-slider-thumb{
-      -webkit-appearance:none;
-      width:16px;
-      height:16px;
-      border-radius:50%;
-      background:#fff;
-      border:2px solid #333;
-      margin-top:-5px;
-      cursor:pointer;
+      -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+      background:#fff; border:2px solid #333; margin-top:-5px; cursor:pointer;
       box-shadow:0 1px 4px rgba(0,0,0,0.3);
     }
+    .ol-viewport{ background:#f8fbff; }
     @media (max-width:720px){
       #toolbar{ gap:6px; }
       #region-select{ min-width:0; flex:1 1 100%; }
       #status{ flex:1 1 100%; white-space:normal; }
       #legend{ font-size:11px; max-width:calc(100vw - 44px); }
+      #readout{ right:8px; max-width:calc(100vw - 16px); overflow:hidden; text-overflow:ellipsis; }
     }
   </style>
 </head>
@@ -159,7 +139,7 @@
   <div id="plot"></div>
   <div id="readout"></div>
   <div id="cursor-ring"></div>
-  <div id="legend">Color = age: blue (oldest) → red (newest). Tap for gradient.</div>
+  <div id="legend">Color = age: blue (oldest) -> red (newest). Tap for gradient.</div>
   <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
   <div id="menu-panel">
     <label>Region<select id="menu-region-select"><option value="usec_south">South-Atlantic</option><option value="usec_md">Mid-Atlantic</option></select></label>
@@ -177,12 +157,17 @@ let bbox = [-81,31,-71,40];
 let frames = [];
 let frameData = [];
 let sourceFrameCount = 0;
-let landTrace = null;
 let mode = "animation";
 let playing = false;
 let playTimer = null;
 let frameIdx = 0;
-let dailyFrames = []; // {date: "YYYY-MM-DD", t: ms, item}[]
+let dailyFrames = [];
+let map = null;
+let frontLayer = null;
+let landLayer = null;
+let placeLayer = null;
+let cursorLayer = null;
+let cursorFeature = null;
 
 const plot = document.getElementById("plot");
 const statusEl = document.getElementById("status");
@@ -198,9 +183,11 @@ const prevBtn = document.getElementById("prev-btn");
 const nextBtn = document.getElementById("next-btn");
 const frameTimeEl = document.getElementById("frame-time");
 const frontsLabel = document.getElementById("fronts-label");
+const frontsCb = document.getElementById("fronts-cb");
 const menuPanel = document.getElementById("menu-panel");
 const menuRegionSelect = document.getElementById("menu-region-select");
 const productSelect = document.getElementById("product-select");
+const dailySliderEl = document.getElementById("daily-slider");
 regionSelect.value = regionId;
 menuRegionSelect.value = regionId;
 productSelect.value = "thermal_fronts";
@@ -264,9 +251,24 @@ function colorForAge(ms, latestMs, oldestMs) {
   const span = Math.max(1, latestMs - oldestMs);
   const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
   const hue = 210 - 190 * t;
-  return `hsl(${hue}, 92%, 56%)`;
+  return `hsl(${hue}, 92%, 46%)`;
 }
-function appendSegmentedLine(lineX, lineY, coords, maxJumpDeg = 0.08) {
+function numericOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function formatLonLat(lat, lon) {
+  const ns = lat >= 0 ? "N" : "S";
+  const ew = lon >= 0 ? "E" : "W";
+  return `Lat ${Math.abs(lat).toFixed(3)}°${ns} · Lon ${Math.abs(lon).toFixed(3)}°${ew}`;
+}
+function placeInRegion(p) {
+  const [w, s, e, n] = bbox.map(Number);
+  return p.lon >= w && p.lon <= e && p.lat >= s && p.lat <= n;
+}
+function segmentedLineStrings(coords, maxJumpDeg = 0.08) {
+  const segments = [];
+  let segment = [];
   let prev = null;
   for (const pt of coords) {
     if (!Array.isArray(pt) || pt.length < 2) continue;
@@ -274,189 +276,273 @@ function appendSegmentedLine(lineX, lineY, coords, maxJumpDeg = 0.08) {
     const lat = Number(pt[1]);
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
     if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) {
-      lineX.push(null);
-      lineY.push(null);
+      if (segment.length >= 2) segments.push(segment);
+      segment = [];
     }
-    lineX.push(lon);
-    lineY.push(lat);
+    segment.push([lon, lat]);
     prev = [lon, lat];
   }
-  lineX.push(null);
-  lineY.push(null);
+  if (segment.length >= 2) segments.push(segment);
+  return segments;
 }
-function lineLength(coords) {
-  let d = 0;
-  for (let i = 1; i < coords.length; i++) {
-    const a = coords[i - 1], b = coords[i];
-    if (!Array.isArray(a) || !Array.isArray(b)) continue;
-    d += Math.hypot(Number(b[0]) - Number(a[0]), Number(b[1]) - Number(a[1]));
+function activeFrontItems() {
+  if (!frontsCb.checked) return [];
+  if (mode === "animation") {
+    const item = frameData[frameIdx];
+    return item ? [item] : [];
   }
-  return d;
-}
-function labelPoint(coords) {
-  if (!coords.length) return null;
-  return coords[Math.floor(coords.length / 2)];
-}
-function placeInRegion(p) {
-  const [w, s, e, n] = bbox.map(Number);
-  return p.lon >= w && p.lon <= e && p.lat >= s && p.lat <= n;
-}
-function placeTrace(type) {
-  const pts = PLACE_LABELS.filter(p => p.type === type && placeInRegion(p));
-  const isPort = type === "port";
-  const isSpot = type === "spot";
-  return {
-    type:"scatter",
-    mode:"markers+text",
-    x: pts.map(p => p.lon),
-    y: pts.map(p => p.lat),
-    text: pts.map(p => p.name),
-    textposition: isSpot ? "top center" : isPort ? "bottom center" : "top center",
-    textfont:{ size:13, color:isSpot ? "#ffb000" : isPort ? "#ffe066" : "#ffffff" },
-    marker:{ size:isSpot ? 10 : isPort ? 8 : 7, color:isSpot ? "#ff6b35" : isPort ? "#ffb000" : "#7bdff2", symbol:isSpot ? "star" : isPort ? "diamond" : "circle", line:{ color:"#000", width:2 } },
-    hovertemplate:"%{text}<extra></extra>",
-    showlegend:false,
-    name:type
-  };
-}
-function baseTraces() {
-  const traces = [];
-  if (landTrace) traces.push(landTrace);
-  for (const type of ["city", "port", "spot"]) {
-    const trace = placeTrace(type);
-    if (trace.x.length) traces.push(trace);
-  }
-  return traces;
-}
-function tracesForFrames(items, labelEveryFrame = true) {
-  const latestMs = frames.at(-1)?.t ?? Date.now();
-  const oldestMs = frames[0]?.t ?? latestMs;
-  const traces = [];
-  for (const item of items) {
-    const age = formatAge(item.t, latestMs);
-    const color = colorForAge(item.t, latestMs, oldestMs);
-    const lineX = [], lineY = [], labelX = [], labelY = [], labels = [];
-    const textArr = []; // one entry per line point
-    const features = Array.isArray(item.data?.features) ? item.data.features : [];
-    const candidates = [];
-    for (const feature of features) {
-      const coords = feature?.geometry?.coordinates || [];
-      if (!Array.isArray(coords) || coords.length < 2) continue;
-      const props = feature?.properties || {};
-      const gradient = props.gradient_per_km != null ? Number(props.gradient_per_km) : null;
-      const lengthKm = props.length_km != null ? Number(props.length_km) : null;
-      // gradient_per_km is the physically correct perpendicular SST gradient (°C/km)
-      // Computed from raw SST: step-function ΔSST / front_cross_distance
-      // gradient_per_km is the perpendicular SST gradient in °C/km (computed from step-function cross-section)
-      // length_km not shown per Mike's request
-      const parts = [];
-      if (gradient != null) parts.push(`${gradient.toFixed(3)} °C/km`);
-      const segText = parts.join(' | ');
-      candidates.push({ coords, length: lengthKm || lineLength(coords), props });
-      let prev = null;
-      for (const pt of coords) {
-        if (!Array.isArray(pt) || pt.length < 2) continue;
-        const lon = Number(pt[0]);
-        const lat = Number(pt[1]);
-        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-        if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > 0.08) {
-          lineX.push(null); lineY.push(null); textArr.push(null);
-        }
-        lineX.push(lon); lineY.push(lat); textArr.push(segText);
-        prev = [lon, lat];
-      }
-      lineX.push(null); lineY.push(null); textArr.push(null);
-    }
-    traces.push({
-      type:"scatter", mode:"lines", x:lineX, y:lineY,
-      text: textArr,
-      line:{ color, width: labelEveryFrame ? 2.2 : 1.5 },
-      hovertemplate:`%{text}<extra></extra>`,
-      showlegend:false
+  if (mode === "daily") {
+    const dayItem = dailyFrames[frameIdx];
+    if (!dayItem) return [];
+    return frameData.filter(item => {
+      const d = new Date(item.t);
+      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+      return dateStr === dayItem.date;
     });
   }
-  return traces;
+  return frameData;
 }
-function layout(title) {
-  return {
-    title:{ text:title, x:0.5, font:{ size:16, color:"#e0e6ee" } },
-    margin:{ l:0, r:0, t:58, b:0 },
-    paper_bgcolor:"#050b10",
-    plot_bgcolor:"#f8fbff",
-    font:{ color:"#e0e6ee" },
-    xaxis:{ range:[bbox[0], bbox[2]], showgrid:false, zeroline:false, fixedrange:false },
-    yaxis:{ range:[bbox[1], bbox[3]], showgrid:false, zeroline:false, fixedrange:false },
-    dragmode:"pan",
-    uirevision:false
-  };
+function styleForPlace(feature) {
+  const type = feature.get("type");
+  const isSpot = type === "spot";
+  const isPort = type === "port";
+  return new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: isSpot ? 5 : isPort ? 4 : 3,
+      fill: new ol.style.Fill({ color: isSpot ? "#ff6b35" : isPort ? "#ffb000" : "#7bdff2" }),
+      stroke: new ol.style.Stroke({ color: "#050b10", width: 1.5 })
+    }),
+    text: new ol.style.Text({
+      text: feature.get("name"),
+      offsetY: isSpot ? -13 : isPort ? 15 : -11,
+      font: "700 12px system-ui, -apple-system, Segoe UI, sans-serif",
+      fill: new ol.style.Fill({ color: isSpot ? "#ffb000" : isPort ? "#846000" : "#163248" }),
+      stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.92)", width: 3 })
+    })
+  });
 }
-function plotConfig() {
-  return {
-    responsive:true,
-    displayModeBar:true,
-    displaylogo:false,
-    scrollZoom:true,
-    doubleClick:"reset",
-    modeBarButtonsToRemove:["lasso2d", "select2d"]
-  };
+function ensurePlaceLayer() {
+  if (!map) return;
+  const features = PLACE_LABELS.filter(placeInRegion).map(p => new ol.Feature({
+    geometry: new ol.geom.Point([p.lon, p.lat]),
+    name: p.name,
+    type: p.type
+  }));
+  if (placeLayer) map.removeLayer(placeLayer);
+  placeLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({ features }),
+    style: styleForPlace,
+    zIndex: 20,
+    declutter: true
+  });
+  map.addLayer(placeLayer);
 }
-async function prepareLandMask(indexMeta) {
+async function ensureLandLayer(indexMeta) {
+  if (!map) return;
   try {
     const path = indexMeta?.region_meta?.bathy_path || "gebco_bath_latest/gebco_bathy.json";
     const res = await fetch(`data/${regionId}/${path}?t=${Date.now()}`);
     if (!res.ok) return;
     const bathy = await res.json();
+    const xAxis = bathy.xAxis || bathy.x || [];
+    const yAxis = bathy.yAxis || bathy.y || [];
     const depth = bathy.depth || bathy.z || [];
-    const zMask = depth.map(row => row.map(v => Number.isFinite(Number(v)) && Number(v) <= 0 ? 1 : null));
-    landTrace = {
-      type:"heatmap",
-      x:bathy.xAxis || bathy.x || [],
-      y:bathy.yAxis || bathy.y || [],
-      z:zMask,
-      colorscale:[[0, "#c9d0d6"], [1, "#c9d0d6"]],
-      zmin:0,
-      zmax:1,
-      showscale:false,
-      hoverinfo:"skip",
-      name:"Land"
-    };
+    if (!xAxis.length || !yAxis.length || !Array.isArray(depth)) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = xAxis.length;
+    canvas.height = yAxis.length;
+    const ctx = canvas.getContext("2d");
+    const img = ctx.createImageData(canvas.width, canvas.height);
+    const yAsc = yAxis[0] <= yAxis[yAxis.length - 1];
+    for (let row = 0; row < canvas.height; row++) {
+      const srcRow = yAsc ? canvas.height - 1 - row : row;
+      for (let col = 0; col < canvas.width; col++) {
+        const k = (row * canvas.width + col) * 4;
+        const v = Number(depth[srcRow]?.[col]);
+        if (Number.isFinite(v) && v <= 0) {
+          img.data[k] = 201; img.data[k + 1] = 208; img.data[k + 2] = 214; img.data[k + 3] = 255;
+        } else {
+          img.data[k + 3] = 0;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const extent = [
+      Math.min(xAxis[0], xAxis.at(-1)),
+      Math.min(yAxis[0], yAxis.at(-1)),
+      Math.max(xAxis[0], xAxis.at(-1)),
+      Math.max(yAxis[0], yAxis.at(-1))
+    ];
+    if (landLayer) map.removeLayer(landLayer);
+    landLayer = new ol.layer.Image({
+      source: new ol.source.ImageStatic({
+        url: canvas.toDataURL("image/png"),
+        imageExtent: extent,
+        projection: "EPSG:4326",
+        interpolate: false
+      }),
+      zIndex: 5
+    });
+    map.addLayer(landLayer);
   } catch (err) {
     console.warn("Land mask failed", err);
   }
 }
+function ensureCursorLayer() {
+  if (!map || cursorLayer) return;
+  cursorFeature = new ol.Feature({ geometry: new ol.geom.Point([(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]) });
+  cursorFeature.setStyle(new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: 3,
+      fill: new ol.style.Fill({ color: "rgba(255,255,255,0.45)" }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.55)", width: 1 })
+    })
+  }));
+  cursorLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({ features: [cursorFeature] }),
+    zIndex: 60
+  });
+  map.addLayer(cursorLayer);
+}
+function initMap() {
+  const defaultInteractionsFactory = typeof ol.interaction?.defaults === "function"
+    ? ol.interaction.defaults
+    : ol.interaction?.defaults?.defaults;
+  map = new ol.Map({
+    target: plot,
+    layers: [],
+    controls: [],
+    interactions: typeof defaultInteractionsFactory === "function" ? defaultInteractionsFactory({
+      altShiftDragRotate: false,
+      doubleClickZoom: true,
+      dragPan: true,
+      mouseWheelZoom: true,
+      pinchRotate: false,
+      pinchZoom: true
+    }) : undefined,
+    view: new ol.View({
+      projection: "EPSG:4326",
+      center: [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2],
+      zoom: 6,
+      minZoom: 4,
+      maxZoom: 13,
+      enableRotation: false
+    })
+  });
+  ensureCursorLayer();
+  map.on("pointermove", ev => renderReadout(ev.coordinate, ev.pixel, false));
+  map.on("click", ev => renderReadout(ev.coordinate, ev.pixel, true));
+}
+function featureStyle(feature) {
+  return new ol.style.Style({
+    stroke: new ol.style.Stroke({
+      color: feature.get("color") || "#111",
+      width: feature.get("lineWidth") || 2,
+      lineCap: "round",
+      lineJoin: "round"
+    })
+  });
+}
+function renderFrontLayer() {
+  if (!map) return;
+  const latestMs = frames.at(-1)?.t ?? Date.now();
+  const oldestMs = frames[0]?.t ?? latestMs;
+  const features = [];
+  for (const item of activeFrontItems()) {
+    const color = colorForAge(item.t, latestMs, oldestMs);
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sourceFeature of sourceFeatures) {
+      const coords = sourceFeature?.geometry?.coordinates || [];
+      const props = sourceFeature?.properties || {};
+      for (const segment of segmentedLineStrings(coords)) {
+        const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
+        feature.setProperties({
+          sourceProps: props,
+          sourceCoords: coords,
+          frameTime: item.t,
+          color,
+          lineWidth: mode === "animation" ? 2.6 : 1.6
+        });
+        features.push(feature);
+      }
+    }
+  }
+  const source = new ol.source.Vector({ features });
+  if (frontLayer) frontLayer.setSource(source);
+  else {
+    frontLayer = new ol.layer.Vector({ source, style: featureStyle, zIndex: 30, updateWhileAnimating: true, updateWhileInteracting: true });
+    map.addLayer(frontLayer);
+  }
+}
+function nearestGradient(coord) {
+  const lon = coord[0];
+  const lat = coord[1];
+  let bestDist = Infinity;
+  let bestGrad = null;
+  for (const item of activeFrontItems()) {
+    const features = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      const props = feature?.properties || {};
+      const gradMap = Array.isArray(props?.gradient_map) ? props.gradient_map : null;
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const ptLon = Number(pt[0]);
+        const ptLat = Number(pt[1]);
+        if (!Number.isFinite(ptLon) || !Number.isFinite(ptLat)) continue;
+        const d = Math.hypot(ptLon - lon, ptLat - lat);
+        if (d < bestDist) {
+          bestDist = d;
+          bestGrad = gradMap && i < gradMap.length ? numericOrNull(gradMap[i]) : numericOrNull(props?.gradient_per_km);
+        }
+      }
+    }
+  }
+  return { dist: bestDist, gradient: bestGrad };
+}
+function setReadout(txt) {
+  readoutEl.textContent = txt || "";
+  readoutEl.style.display = txt ? "inline-block" : "none";
+}
+function showCursorRing(pixel) {
+  const viewport = map.getViewport().getBoundingClientRect();
+  cursorRing.style.left = `${viewport.left + pixel[0]}px`;
+  cursorRing.style.top = `${viewport.top + pixel[1]}px`;
+  cursorRing.style.display = "block";
+}
+function renderReadout(coord, pixel, persist) {
+  if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) return;
+  if (cursorFeature) cursorFeature.getGeometry().setCoordinates(coord);
+  if (pixel) showCursorRing(pixel);
+  const base = formatLonLat(coord[1], coord[0]);
+  const hit = nearestGradient(coord);
+  const resolution = map.getView().getResolution() || 0.02;
+  const threshold = Math.max(0.025, Math.min(0.5, resolution * 40));
+  if (hit.dist <= threshold && Number.isFinite(hit.gradient)) setReadout(`${base} · ${hit.gradient.toFixed(3)} °C/km`);
+  else setReadout(base);
+  if (!persist && pixel && !frontsCb.checked) setReadout(base);
+}
 async function render() {
-  installReadoutHandlers();
-  const basemap = baseTraces();
+  if (!map) initMap();
   if (!frameData.length) {
     statusEl.textContent = "No thermal-front frames available for this region.";
-    await Plotly.react(plot, basemap, layout("Thermal fronts"), plotConfig());
+    renderFrontLayer();
     return;
   }
+  renderFrontLayer();
   if (mode === "overlay") {
-    const traces = basemap.concat(tracesForFrames(frameData, false));
     statusEl.textContent = `${frameData.length} front-bearing frames across ${Math.round((frames.at(-1).t - frames[0].t)/864e5)||1} days`;
-    await Plotly.react(plot, traces, layout("Thermal fronts: all available frames"), plotConfig());
-    return;
-  }
-  if (mode === "daily") {
+  } else if (mode === "daily") {
     if (!dailyFrames.length) buildDailyFrames();
     frameIdx = Math.max(0, Math.min(frameIdx, dailyFrames.length - 1));
     const dayItem = dailyFrames[frameIdx];
-    const allThatDay = frameData.filter(item => {
-      const d = new Date(item.t);
-      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
-      return dateStr === dayItem.date;
-    });
-    const traces = basemap.concat(tracesForFrames(allThatDay, false));
-    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem.date}`;
-    await Plotly.react(plot, traces, layout(`Thermal fronts: ${dayItem.date}`), plotConfig());
-    return;
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""}`;
+  } else {
+    frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
+    const item = frameData[frameIdx];
+    statusEl.textContent = `${frameIdx + 1}/${frameData.length} front-bearing • ${new Date(item.t).toLocaleString()} • ${formatAge(item.t, frames.at(-1).t)} before latest`;
   }
-  frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
-  const item = frameData[frameIdx];
-  const traces = basemap.concat(tracesForFrames([item], true));
-  statusEl.textContent = `${frameIdx + 1}/${frameData.length} front-bearing • ${new Date(item.t).toLocaleString()} • ${formatAge(item.t, frames.at(-1).t)} before latest`;
-  await Plotly.react(plot, traces, layout("Thermal fronts: animation"), plotConfig());
   updateNavBar();
 }
 function setMode(next) {
@@ -472,15 +558,14 @@ function setMode(next) {
     updateDailySlider();
   }
   render();
-  updateNavBar();
 }
 function updateNavBar() {
   const latestMs = frames.at(-1)?.t ?? Date.now();
   if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
     frameTimeEl.textContent = dayItem ? dayItem.date : "";
-    prevBtn.disabled = frameData.length <= 1;
-    nextBtn.disabled = frameData.length <= 1;
+    prevBtn.disabled = dailyFrames.length <= 1;
+    nextBtn.disabled = dailyFrames.length <= 1;
   } else if (mode === "animation") {
     const item = frameData[frameIdx];
     frameTimeEl.textContent = item ? new Date(item.t).toLocaleString(undefined, {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : "";
@@ -495,16 +580,14 @@ function updateNavBar() {
     const latestFrame = frames.at(-1);
     frontsLabel.textContent = `Fronts ${formatAge(latestFrame.t, latestMs)}`;
   }
+  updateDailySlider();
 }
-const dailySliderEl = document.getElementById("daily-slider");
-
 function updateDailySlider() {
   if (!dailySliderEl || !dailyFrames.length) return;
   dailySliderEl.min = 0;
   dailySliderEl.max = dailyFrames.length - 1;
   dailySliderEl.value = frameIdx;
 }
-
 function buildDailyFrames() {
   dailyFrames = [];
   const seen = new Set();
@@ -519,8 +602,9 @@ function buildDailyFrames() {
   }
 }
 function step(delta) {
-  if (!frameData.length) return;
-  frameIdx = (frameIdx + delta + frameData.length) % frameData.length;
+  const list = mode === "daily" ? dailyFrames : frameData;
+  if (!list.length) return;
+  frameIdx = (frameIdx + delta + list.length) % list.length;
   render();
 }
 function setPlaying(on) {
@@ -530,11 +614,15 @@ function setPlaying(on) {
   playTimer = playing ? setInterval(() => step(1), 750) : null;
 }
 async function init() {
+  if (!window.ol) throw new Error("OpenLayers failed to load");
   const idxRes = await fetch(REGIONS[regionId].index + "?t=" + Date.now());
   if (!idxRes.ok) throw new Error(`Failed to load ${REGIONS[regionId].index}`);
   const idx = await idxRes.json();
   if (idx.region_meta?.bbox?.length >= 4) bbox = idx.region_meta.bbox.map(Number);
-  await prepareLandMask(idx);
+  initMap();
+  await ensureLandLayer(idx);
+  ensurePlaceLayer();
+  map.getView().fit(bbox, { size: map.getSize(), padding: [58, 0, 0, 0], nearest: true });
   frames = ((idx.frames || idx.frames_by_var || {}).sst_front || [])
     .map(f => ({ ...f, t: parseFrameTime(f) }))
     .filter(f => Number.isFinite(f.t))
@@ -543,13 +631,15 @@ async function init() {
   if (latest) frames = frames.filter(f => latest - f.t <= 21 * 864e5);
   sourceFrameCount = frames.length;
   frameData = await Promise.all(frames.map(async f => {
-    const res = await fetch(framePathOf(f));
+    const res = await fetch(framePathOf(f) + "?t=" + Date.now());
     return { meta:f, t:f.t, data: res.ok ? await res.json() : { features:[] } };
   }));
   frameData = frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
   frameIdx = Math.max(0, frameData.length - 1);
+  window.__thermalFrontsState = { frames, frameData, map };
   await render();
 }
+
 regionSelect.addEventListener("change", () => {
   const url = new URL(location.href);
   url.searchParams.set("region", regionSelect.value);
@@ -571,137 +661,24 @@ productSelect.addEventListener("change", () => {
 animationBtn.addEventListener("click", () => setMode("animation"));
 dailyBtn.addEventListener("click", () => setMode("daily"));
 overlayBtn.addEventListener("click", () => setMode("overlay"));
+frontsCb.addEventListener("change", () => render());
 playBtn.addEventListener("click", () => setPlaying(!playing));
 if (prevBtn) prevBtn.addEventListener("click", () => { setPlaying(false); step(-1); });
 if (nextBtn) nextBtn.addEventListener("click", () => { setPlaying(false); step(+1); });
 if (dailySliderEl) {
   dailySliderEl.addEventListener("input", () => {
-    const idx = Number(dailySliderEl.value);
-    frameIdx = idx;
+    frameIdx = Number(dailySliderEl.value);
     setPlaying(false);
     render();
-    updateNavBar();
   });
 }
-window.addEventListener("resize", () => { try { Plotly.Plots.resize(plot); } catch(_){} });
-window.addEventListener("orientationchange", () => { setTimeout(() => { try { Plotly.Plots.resize(plot); } catch(_){} }, 150); });
-let _readoutHooked = false;
-
-function setReadout(txt) {
-  if (!readoutEl) return;
-  readoutEl.textContent = txt || "";
-  readoutEl.style.display = txt ? "inline-block" : "none";
-}
-
-function onCursorMove(ev) {
-  const rect = plot.getBoundingClientRect();
-  const [w, s, e, n] = bbox;
-  const mouseLon = w + (ev.clientX - rect.left) / rect.width * (e - w);
-  const mouseLat = s + (ev.clientY - rect.top) / rect.height * (n - s);
-  let bestGrad = null;
-  let bestDist = Infinity;
-
-  for (const item of frames) {
-    const features = Array.isArray(item.data?.features) ? item.data.features : [];
-    for (const feature of features) {
-      const coords = feature?.geometry?.coordinates || [];
-      const props = feature?.properties || {};
-      const gradMap = props?.gradient_map;
-      const segCount = coords.length - 1;
-
-      for (let i = 0; i < coords.length; i++) {
-        const pt = coords[i];
-        if (!Array.isArray(pt) || pt.length < 2) continue;
-        const dist = Math.hypot(pt[0] - mouseLon, pt[1] - mouseLat);
-        if (dist < bestDist) {
-          bestDist = dist;
-          // Try to get per-point gradient from gradient_map
-          if (gradMap && Array.isArray(gradMap) && i < gradMap.length) {
-            const g = gradMap[i];
-            if (g != null) bestGrad = g;
-            else bestGrad = null;
-          } else {
-            // Fall back to single median value
-            bestGrad = props?.gradient_per_km ?? null;
-          }
-        }
-      }
-    }
-  }
-
-  const latLonStr = `${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`;
-  const THRESH = 0.50; // degrees — ~55km; generous for front proximity
-  if (bestDist < THRESH) {
-    if (bestGrad != null) {
-      setReadout(`${latLonStr} · ${Number(bestGrad).toFixed(3)} °C/km`);
-    } else {
-      setReadout(latLonStr);
-    }
-  } else {
-    setReadout(latLonStr);
-  }
-}
-
-function showCursorRing(clientX, clientY) {
-  if (!cursorRing) return;
-  cursorRing.style.left = clientX + 'px';
-  cursorRing.style.top = clientY + 'px';
-  cursorRing.style.display = 'block';
-}
-
-function installReadoutHandlers() {
-  if (_readoutHooked) return;
-  _readoutHooked = true;
-
-  // Show ring cursor on desktop
-  plot.addEventListener('mousemove', (ev) => {
-    showCursorRing(ev.clientX, ev.clientY);
-    onCursorMove(ev);
-  });
-  plot.addEventListener('mouseleave', () => {
-    if (cursorRing) cursorRing.style.display = 'none';
-    setReadout('');
-  });
-
-  // Mobile: tap = show readout + cursor ring
-  plot.addEventListener('touchstart', (ev) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    const touch = ev.touches[0];
-    if (touch) {
-      // Move ring to touch point immediately (before potential scroll)
-      const ring = cursorRing;
-      if (ring) {
-        ring.style.left = touch.clientX + 'px';
-        ring.style.top = touch.clientY + 'px';
-        ring.style.display = 'block';
-      }
-      // Fire readout update
-      onCursorMove({ clientX: touch.clientX, clientY: touch.clientY });
-    }
-  }, { passive: false });
-
-  // Mobile: touchmove for continuous readout while dragging
-  plot.addEventListener('touchmove', (ev) => {
-    ev.preventDefault();
-    const touch = ev.touches[0];
-    if (touch) {
-      showCursorRing(touch.clientX, touch.clientY);
-      onCursorMove({ clientX: touch.clientX, clientY: touch.clientY });
-    }
-  }, { passive: false });
-
-  plot.addEventListener('touchend', () => {
-    // Keep BOTH cursor ring and readout visible after tap — they persist
-    // (we no longer hide either)
-  });
-}
+window.addEventListener("resize", () => { if (map) setTimeout(() => map.updateSize(), 50); });
+window.addEventListener("orientationchange", () => { if (map) setTimeout(() => map.updateSize(), 150); });
 
 init().catch(err => {
   console.error(err);
   statusEl.textContent = err.message;
 });
 </script>
-<!-- deployed: fix-touchend-persist-cursor -->
 </body>
 </html>
