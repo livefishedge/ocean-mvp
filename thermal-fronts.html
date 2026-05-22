@@ -613,7 +613,11 @@ function onCursorMove(ev) {
   }
   if (bestDist < 0.15) {
     const g = best?.gradient_per_km;
-    setReadout(g != null ? `${Number(g).toFixed(3)} °C/km` : '');
+    if (g != null) {
+      setReadout(`${Number(g).toFixed(3)} °C/km`);
+    } else {
+      setReadout(`${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`);
+    }
   } else {
     setReadout(`${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`);
   }
