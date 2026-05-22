@@ -1257,11 +1257,15 @@ function currentViewportRanges() {
 }
 function appendViewportParams(url) {
   const vp = currentViewportRanges();
-  if (!vp) return url;
-  url.searchParams.set("x0", Number(vp.xRange[0]).toFixed(6));
-  url.searchParams.set("x1", Number(vp.xRange[1]).toFixed(6));
-  url.searchParams.set("y0", Number(vp.yRange[0]).toFixed(6));
-  url.searchParams.set("y1", Number(vp.yRange[1]).toFixed(6));
+  if (vp) {
+    url.searchParams.set("x0", Number(vp.xRange[0]).toFixed(6));
+    url.searchParams.set("x1", Number(vp.xRange[1]).toFixed(6));
+    url.searchParams.set("y0", Number(vp.yRange[0]).toFixed(6));
+    url.searchParams.set("y1", Number(vp.yRange[1]).toFixed(6));
+  }
+  const frame = framesByVar[currentVar]?.[currentFrameIdx] || null;
+  const t = frame ? epochMsForFrame(currentVar, frame) : null;
+  if (Number.isFinite(t)) url.searchParams.set("t", String(Math.round(t)));
   return url;
 }
 function syncViewStateFromOlMap(map) {
@@ -2414,6 +2418,10 @@ function closestDaytimeIndex(varKey, times, frames, targetMs) {
     if (d < bestDist){ bestDist = d; best = i; }
   }
   return best >= 0 ? best : 0;
+}
+function requestedTimeFromParams(params = QUERY_PARAMS) {
+  const t = Number(params.get("t"));
+  return Number.isFinite(t) ? t : null;
 }
 
 /* ========================= VIEW SYNC ========================= */
@@ -4442,7 +4450,12 @@ async function loadCaptainBriefing() {
         frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f));
       }
     }
-    currentFrameIdx = Math.max(0, (framesByVar[currentVar]?.length || 1) - 1);
+    const initialT = requestedTimeFromParams();
+    const initialFrames = framesByVar[currentVar] || [];
+    const initialTimes = frameTimesByVar[currentVar] || [];
+    currentFrameIdx = initialFrames.length && initialT !== null
+      ? closestDaytimeIndex(currentVar, initialTimes, initialFrames, initialT)
+      : Math.max(0, (initialFrames.length || 1) - 1);
     syncRangeInputsToVar();
     updateSliderUI();
     syncTimeControls();

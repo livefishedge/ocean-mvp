@@ -49,10 +49,12 @@
     }
     #menu-panel.open{ display:flex; }
     #menu-panel label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:800; color:#9fb0c3; }
-    #menu-panel select{
+    #menu-panel select, #menu-panel button{
       min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
       color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
     }
+    #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
+    #menu-panel #fronts-toggle{ font-size:13px; }
     #readout{
       position:fixed;
       right:12px;
@@ -89,7 +91,6 @@
     .ol-viewport{ background:#f8fbff; }
     @media (max-width:720px){
       #toolbar{ gap:6px; }
-      #region-select{ min-width:0; flex:1 1 100%; }
       #status{ flex:1 1 100%; white-space:normal; }
       #legend{ font-size:11px; max-width:calc(100vw - 44px); }
       #readout{ right:8px; max-width:calc(100vw - 16px); overflow:hidden; text-overflow:ellipsis; }
@@ -104,6 +105,18 @@
       <span id="frame-time"></span>
       <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
     </span>
+    <span id="status"></span>
+  </div>
+  <div id="plot"></div>
+  <div id="readout"></div>
+  <div id="legend">Color = age: blue (oldest) -> red (newest). Tap for gradient.</div>
+  <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
+  <div id="menu-panel">
+    <label>Region<select id="region-select">
+      <option value="usec_south">South-Atlantic</option>
+      <option value="usec_md">Mid-Atlantic</option>
+    </select></label>
+    <label>Product<select id="product-select"><option value="chl">Chlorophyll</option><option value="sst">Sea surface temperature</option><option value="uv">Currents/SSH</option><option value="bathy">Bathymetry</option><option value="thermal_fronts">Thermal Fronts</option></select></label>
     <div id="daily-slider-row">
       <span style="font-size:11px;font-weight:700;color:#9fb0c3;">Daily</span>
       <input id="daily-slider" type="range" min="0" max="0" step="1" value="0" />
@@ -120,15 +133,6 @@
     <button id="mode-daily" type="button">Daily</button>
     <button id="mode-overlay" type="button">All</button>
     <button id="play-btn" type="button">Play</button>
-    <span id="status"></span>
-  </div>
-  <div id="plot"></div>
-  <div id="readout"></div>
-  <div id="legend">Color = age: blue (oldest) -> red (newest). Tap for gradient.</div>
-  <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
-  <div id="menu-panel">
-    <label>Region<select id="menu-region-select"><option value="usec_south">South-Atlantic</option><option value="usec_md">Mid-Atlantic</option></select></label>
-    <label>Product<select id="product-select"><option value="chl">Chlorophyll</option><option value="sst">Sea surface temperature</option><option value="uv">Currents/SSH</option><option value="bathy">Bathymetry</option><option value="thermal_fronts">Thermal Fronts</option></select></label>
   </div>
 
 <script>
@@ -170,11 +174,9 @@ const frameTimeEl = document.getElementById("frame-time");
 const frontsLabel = document.getElementById("fronts-label");
 const frontsCb = document.getElementById("fronts-cb");
 const menuPanel = document.getElementById("menu-panel");
-const menuRegionSelect = document.getElementById("menu-region-select");
 const productSelect = document.getElementById("product-select");
 const dailySliderEl = document.getElementById("daily-slider");
 regionSelect.value = regionId;
-menuRegionSelect.value = regionId;
 productSelect.value = "thermal_fronts";
 
 const PLACE_LABELS = [
@@ -239,6 +241,7 @@ function colorForAge(ms, latestMs, oldestMs) {
   return `hsl(${hue}, 92%, 46%)`;
 }
 function numericOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
@@ -268,12 +271,39 @@ function currentMapExtent() {
 }
 function appendViewportParams(url) {
   const extent = currentMapExtent();
-  if (!extent) return url;
-  url.searchParams.set("x0", extent[0].toFixed(6));
-  url.searchParams.set("x1", extent[2].toFixed(6));
-  url.searchParams.set("y0", extent[1].toFixed(6));
-  url.searchParams.set("y1", extent[3].toFixed(6));
+  if (extent) {
+    url.searchParams.set("x0", extent[0].toFixed(6));
+    url.searchParams.set("x1", extent[2].toFixed(6));
+    url.searchParams.set("y0", extent[1].toFixed(6));
+    url.searchParams.set("y1", extent[3].toFixed(6));
+  }
+  const t = currentFrameTime();
+  if (Number.isFinite(t)) url.searchParams.set("t", String(Math.round(t)));
   return url;
+}
+function requestedTimeFromParams(params = new URLSearchParams(location.search)) {
+  const t = Number(params.get("t"));
+  return Number.isFinite(t) ? t : null;
+}
+function currentFrameTime() {
+  if (mode === "daily") return dailyFrames[frameIdx]?.t ?? null;
+  if (mode === "animation") return frameData[frameIdx]?.t ?? null;
+  return frameData.at(-1)?.t ?? null;
+}
+function closestFrameIndex(items, targetMs) {
+  if (!items.length || !Number.isFinite(targetMs)) return Math.max(0, items.length - 1);
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < items.length; i++) {
+    const t = Number(items[i]?.t);
+    if (!Number.isFinite(t)) continue;
+    const d = Math.abs(t - targetMs);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
 }
 function placeInRegion(p) {
   const [w, s, e, n] = bbox.map(Number);
@@ -503,12 +533,20 @@ function gradientForFeaturePoint(props, index) {
   }
   return numericOrNull(props?.gradient_per_km);
 }
+function deltaSstForFeature(props) {
+  const median = numericOrNull(props?.strength_median);
+  const max = numericOrNull(props?.strength_max);
+  if (Number.isFinite(median)) return { label: "ΔSST", value: median };
+  if (Number.isFinite(max)) return { label: "ΔSST max", value: max };
+  return null;
+}
 function nearestGradient(coord) {
   const lon = coord[0];
   const lat = coord[1];
   let bestDist = Infinity;
   let bestGrad = null;
   let bestPoint = null;
+  let bestDelta = null;
   for (const item of activeFrontItems()) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
@@ -525,11 +563,12 @@ function nearestGradient(coord) {
           bestDist = d;
           bestPoint = [ptLon, ptLat];
           bestGrad = gradientForFeaturePoint(props, i);
+          bestDelta = deltaSstForFeature(props);
         }
       }
     }
   }
-  return { dist: bestDist, gradient: bestGrad, point: bestPoint };
+  return { dist: bestDist, gradient: bestGrad, point: bestPoint, deltaSst: bestDelta };
 }
 function setReadout(txt) {
   readoutEl.textContent = txt || "";
@@ -540,6 +579,7 @@ function renderReadout(coord, pixel, persist) {
   let cursorCoord = coord;
   let readoutCoord = coord;
   let gradient = null;
+  let deltaSst = null;
   const hit = nearestGradient(coord);
   if (pixel && hit.point && Number.isFinite(hit.gradient)) {
     const hitPixel = map.getPixelFromCoordinate(hit.point);
@@ -549,13 +589,17 @@ function renderReadout(coord, pixel, persist) {
         cursorCoord = hit.point;
         readoutCoord = hit.point;
         gradient = hit.gradient;
+        deltaSst = hit.deltaSst;
       }
     }
   }
   if (cursorFeature) cursorFeature.getGeometry().setCoordinates(cursorCoord);
   const base = formatLonLat(readoutCoord[1], readoutCoord[0]);
-  if (Number.isFinite(gradient)) setReadout(`${base}, ${gradient.toFixed(3)} °C/km`);
-  else setReadout(base);
+  if (Number.isFinite(gradient)) {
+    const parts = [`${gradient.toFixed(3)} °C/km`];
+    if (deltaSst && Number.isFinite(deltaSst.value)) parts.push(`${deltaSst.label} ${deltaSst.value.toFixed(2)}°C`);
+    setReadout(`${base}, ${parts.join(", ")}`);
+  } else setReadout(base);
   if (!persist && pixel && !frontsCb.checked) setReadout(base);
 }
 async function render() {
@@ -671,7 +715,7 @@ async function init() {
     return { meta:f, t:f.t, data: res.ok ? await res.json() : { features:[] } };
   }));
   frameData = frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
-  frameIdx = Math.max(0, frameData.length - 1);
+  frameIdx = closestFrameIndex(frameData, requestedTimeFromParams());
   window.__thermalFrontsState = { frames, frameData, map };
   await render();
 }
@@ -679,14 +723,9 @@ async function init() {
 regionSelect.addEventListener("change", () => {
   const url = new URL(location.href);
   url.searchParams.set("region", regionSelect.value);
-  location.href = url.toString();
+  location.href = appendViewportParams(url).toString();
 });
 hamburgerBtn.addEventListener("click", () => menuPanel.classList.toggle("open"));
-menuRegionSelect.addEventListener("change", () => {
-  const url = new URL(location.href);
-  url.searchParams.set("region", menuRegionSelect.value);
-  location.href = url.toString();
-});
 productSelect.addEventListener("change", () => {
   if (productSelect.value === "thermal_fronts") return;
   const url = new URL("index.html", location.href);
