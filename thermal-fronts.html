@@ -76,17 +76,17 @@
       top:-100px; left:-100px;
       width:44px; height:44px;
       border-radius:50%;
-      background:rgba(160,190,210,0.18);
-      border:2px solid rgba(160,190,210,0.60);
+      background:rgba(160,190,210,0.30);
+      border:3px solid rgba(100,210,255,0.90);
       pointer-events:none;
       z-index:9999;
-      display:block; /* default visible, JS can hide */
+      display:block;
       transform:translate(-50%,-50%);
-      transition:opacity 0.15s, left 0s, top 0s;
-      /* Force GPU acceleration for smooth following */
+      transition:opacity 0.1s;
       will-change:left,top;
       -webkit-backface-visibility:hidden;
       backface-visibility:hidden;
+      box-shadow: 0 0 8px rgba(100,210,255,0.4);
     }
     /* Daily slider */
     #daily-slider-row{
@@ -611,15 +611,16 @@ function onCursorMove(ev) {
       }
     }
   }
+  const latLonStr = `${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`;
   if (bestDist < 0.15) {
     const g = best?.gradient_per_km;
     if (g != null) {
-      setReadout(`${Number(g).toFixed(3)} °C/km`);
+      setReadout(`${latLonStr} · ${Number(g).toFixed(3)} °C/km`);
     } else {
-      setReadout(`${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`);
+      setReadout(latLonStr);
     }
   } else {
-    setReadout(`${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`);
+    setReadout(latLonStr);
   }
 }
 
