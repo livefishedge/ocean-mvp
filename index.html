@@ -650,11 +650,14 @@
       justify-content: center;
       box-shadow:0 3px 12px rgba(0,0,0,0.5);
     }
+    #controls-hamburger-toggle-btn{ display: flex !important; }
+    body.desktop-mode #ranges-hamburger{ display: flex !important; }
     #ranges-hamburger{ display: none; }
     #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
-      #controls-hamburger-toggle-btn{ display: flex !important; }
+      #controls-hamburger-toggle-btn{ display: none !important; }
+      body.desktop-mode #ranges-hamburger{ display: none !important; }
       /* In portrait, the existing controls bar becomes the hamburger panel. */
       #controls{
         display: none;
@@ -670,7 +673,6 @@
         overflow-y: auto;
       }
       #controls.open{ display: flex; }
-      /* Desktop landscape: use floating dropdown instead of full-screen */
       body.desktop-mode #controls{ display:none !important; }
       #row-region-and-var{ display:flex; flex-wrap:nowrap; gap:8px; width:100%; }
       #row-region, #row-var{ flex:1 1 50%; }
