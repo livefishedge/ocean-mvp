@@ -1,15 +1,4 @@
-#!/usr/bin/env python3
-"""Recompute SST front intensity as gradient (°C/km) from raw SST cross-sections.
-
-For each front point:
-  1. Find perpendicular direction to the front
-  2. Sample raw SST at ±1..±10km perpendicular to the front
-  3. Fit a step-function model: cold_mean at negative distances, warm_mean at positive
-  4. gradient = |warm_mean - cold_mean| / (2 * d_step)
-     where d_step = distance where SST first reaches the midpoint between warm_mean and cold_mean
-
-This is the actual physical gradient at the front boundary.
-"""
+"""Enhance recompute_sst_front_gradient.py to store per-point gradient arrays."""
 import json, math, numpy as np, argparse
 from pathlib import Path
 
@@ -28,34 +17,16 @@ def lonlat_to_yx(lon, lat, bbox, ny, nx):
     y = (max_lat - lat) / (max_lat - min_lat) * (ny - 1)
     return round(y), round(x)
 
-def km_per_px_at(y, x, bbox, ny, nx):
+def perp_gradient_at(z, bbox, ny, nx, lon, lat, prev_coord, next_coord):
+    y, x = lonlat_to_yx(lon, lat, bbox, ny, nx)
+    if not (0 <= y < ny and 0 <= x < nx): return None
     min_lon, min_lat, max_lon, max_lat = bbox
-    lat = max_lat - (y / (ny - 1)) * (max_lat - min_lat)
+    lat_val = max_lat - (y / (ny - 1)) * (max_lat - min_lat)
     deg_per_px_x = (max_lon - min_lon) / (nx - 1)
     deg_per_px_y = (max_lat - min_lat) / (ny - 1)
-    kmx = deg_per_px_x * 111.0 * math.cos(math.radians(lat))
-    kmy = deg_per_px_y * KM_PER_DEG_LAT
-    return math.sqrt(kmx**2 + kmy**2)
-
-def perp_gradient_at(z, bbox, ny, nx, lon, lat, prev_coord, next_coord):
-    """Compute perpendicular SST gradient at a single front point.
     
-    Args:
-        z: SST array (ny x nx)
-        bbox, ny, nx: SST metadata
-        lon, lat: front point coordinates
-        prev_coord, next_coord: neighboring coords to determine tangent direction
-    
-    Returns:
-        gradient_C_km or None if computation fails
-    """
-    y, x = lonlat_to_yx(lon, lat, bbox, ny, nx)
-    kp = km_per_px_at(y, x, bbox, ny, nx)
-    
-    # Tangent direction from neighboring points
     if prev_coord and next_coord:
-        dx = next_coord[0] - prev_coord[0]
-        dy = next_coord[1] - prev_coord[1]
+        dx = next_coord[0] - prev_coord[0]; dy = next_coord[1] - prev_coord[1]
     elif prev_coord:
         dx = lon - prev_coord[0]; dy = lat - prev_coord[1]
     elif next_coord:
@@ -64,13 +35,7 @@ def perp_gradient_at(z, bbox, ny, nx, lon, lat, prev_coord, next_coord):
         return None
     tlen = math.hypot(dx, dy)
     if tlen < 1e-10: return None
-    pn_x = -dy / tlen  # perpendicular unit vector
-    pn_y = dx / tlen
-    
-    min_lon, min_lat, max_lon, max_lat = bbox
-    lat_val = max_lat - (y / (ny - 1)) * (max_lat - min_lat)
-    deg_per_px_x = (max_lon - min_lon) / (nx - 1)
-    deg_per_px_y = (max_lat - min_lat) / (ny - 1)
+    pn_x = -dy / tlen; pn_y = dx / tlen
     
     warm_sst = []; cold_sst = []
     for sign in (1, -1):
@@ -86,101 +51,57 @@ def perp_gradient_at(z, bbox, ny, nx, lon, lat, prev_coord, next_coord):
                     else: cold_sst.append(v)
     
     if len(warm_sst) < 3 or len(cold_sst) < 3: return None
-    
-    # Step-function model:
-    # cold_mean = mean of closest cold-side samples
-    # warm_mean = mean of closest warm-side samples
-    # midpoint = (cold_mean + warm_mean) / 2
-    # Find d_cold where SST first rises above midpoint (from cold side)
-    # Find d_warm where SST first rises above midpoint (from warm side)
-    # front_width = d_cold + d_warm
-    # gradient = |warm_mean - cold_mean| / front_width
-    
-    # Use closest 3 samples on each side as "near-front" values
-    cold_mean = np.mean(cold_sst[:3])
-    warm_mean = np.mean(warm_sst[:3])
+    cold_mean = np.mean(cold_sst[:3]); warm_mean = np.mean(warm_sst[:3])
     delta = abs(warm_mean - cold_mean)
     if delta < 0.1: return None
-    
-    # midpoint between the two means
     midpoint = (cold_mean + warm_mean) / 2.0
-    
-    # Find transition distance on cold side (how far to reach midpoint from cold water)
-    d_cold = None
-    for v, d in zip(cold_sst, range(1, len(cold_sst)+1)):
-        if v >= midpoint:
-            d_cold = d
-            break
-    # Find transition distance on warm side
-    d_warm = None
-    for v, d in zip(warm_sst, range(1, len(warm_sst)+1)):
-        if v >= midpoint:
-            d_warm = d
-            break
-    
-    if d_cold is not None and d_warm is not None:
-        front_width_km = d_cold + d_warm
-    elif d_cold is not None:
-        front_width_km = 2 * d_cold
-    elif d_warm is not None:
-        front_width_km = 2 * d_warm
-    else:
-        # Fallback: use total sampling extent
-        front_width_km = len(cold_sst) + len(warm_sst)
-    
-    if front_width_km < 0.5: return None
-    return delta / front_width_km
-
+    d_cold = next((d for v, d in zip(cold_sst, range(1, len(cold_sst)+1)) if v >= midpoint), None)
+    d_warm = next((d for v, d in zip(warm_sst, range(1, len(warm_sst)+1)) if v >= midpoint), None)
+    if d_cold is not None and d_warm is not None: fw = d_cold + d_warm
+    elif d_cold is not None: fw = 2 * d_cold
+    elif d_warm is not None: fw = 2 * d_warm
+    else: fw = len(cold_sst) + len(warm_sst)
+    if fw < 0.5: return None
+    return delta / fw
 
 def process_front_file(front_path, sst_dir, out_path=None):
-    """Process one front JSON file, computing gradient from companion SST."""
     with open(front_path) as f:
         front = json.load(f)
     
-    # Find companion SST file
-    stem = Path(front_path).stem
-    # front stem like: sstfront_usec_south_2026139_20260519_07_g19
-    # SST stem like: sst_usec_south_2026139_20260519_07_g19
-    # Use source_frame from front JSON metadata — it's the exact companion SST filename
     source_frame = front.get('source_frame')
     if source_frame:
         sst_path = Path(sst_dir) / source_frame
     else:
-        # Fallback: parse filename
-        parts = stem.split('_')
-        sat_str = parts[-1]
-        hour_str = parts[4]
-        sst_stem = f"sst_{'_'.join(parts[1:5])}_{hour_str}_{sat_str}"
-        sst_path = Path(sst_dir) / f"{sst_stem}.json"
+        parts = Path(front_path).stem.split('_')
+        sst_path = Path(sst_dir) / f"sst_{'_'.join(parts[1:5])}_{parts[4]}_{parts[-1]}.json"
     
     if not sst_path.exists():
         print(f"  SST not found: {sst_path}")
-        return None
+        return 0
     
     z, bbox, ny, nx = load_sst(sst_path)
-    min_lon, min_lat, max_lon, max_lat = bbox
-    
     updated = 0
     for feat in front.get('features', []):
         coords = feat.get('geometry', {}).get('coordinates', [])
         if not coords: continue
         
-        gradients = []
+        per_point = []
         for i, coord in enumerate(coords):
             lon, lat = coord[0], coord[1]
             prev_c = coords[i-1] if i > 0 else None
             next_c = coords[i+1] if i < len(coords)-1 else None
-            
             g = perp_gradient_at(z, bbox, ny, nx, lon, lat, prev_c, next_c)
-            if g is not None:
-                gradients.append(g)
+            per_point.append(round(g, 4) if g is not None else None)
         
-        if gradients:
-            median_grad = float(np.median(gradients))
-            feat['properties']['gradient_per_km'] = round(median_grad, 4)
-            updated += 1
+        valid = [g for g in per_point if g is not None]
+        if valid:
+            feat['properties']['gradient_per_km'] = round(float(np.median(valid)), 4)
+            feat['properties']['gradient_map'] = per_point  # NEW: per-point array
         else:
             feat['properties']['gradient_per_km'] = None
+            feat['properties']['gradient_map'] = [None] * len(coords)
+        
+        updated += 1
     
     front['algorithm']['gradient_unit'] = '°C/km'
     front['algorithm']['gradient_method'] = 'step_function_sst_cross_section'
@@ -192,20 +113,17 @@ def process_front_file(front_path, sst_dir, out_path=None):
     
     return updated
 
-
 def main():
     parser = argparse.ArgumentParser(description='Recompute SST front gradient from raw SST')
     parser.add_argument('front_glob', help='Front JSON path or glob pattern')
     parser.add_argument('--sst-dir', required=True, help='Directory containing SST JSON files')
     parser.add_argument('--out-dir', help='Output directory (default: overwrite in place)')
     args = parser.parse_args()
-    
     import glob
     files = glob.glob(args.front_glob)
     if not files:
         print(f"No files match: {args.front_glob}")
         return
-    
     for fpath in sorted(files):
         out = None
         if args.out_dir:
@@ -213,8 +131,7 @@ def main():
         print(f"Processing: {fpath}")
         n = process_front_file(fpath, args.sst_dir, out)
         if n:
-            print(f"  Updated {n} features with gradient_per_km")
-
+            print(f"  Updated {n} features with gradient_per_km + gradient_map")
 
 if __name__ == '__main__':
     main()

@@ -597,28 +597,40 @@ function onCursorMove(ev) {
   const [w, s, e, n] = bbox;
   const mouseLon = w + (ev.clientX - rect.left) / rect.width * (e - w);
   const mouseLat = s + (ev.clientY - rect.top) / rect.height * (n - s);
-  let best = null;
+  let bestGrad = null;
   let bestDist = Infinity;
+
   for (const item of frames) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
       const coords = feature?.geometry?.coordinates || [];
       const props = feature?.properties || {};
-      for (const pt of coords) {
+      const gradMap = props?.gradient_map;
+      const segCount = coords.length - 1;
+
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
         if (!Array.isArray(pt) || pt.length < 2) continue;
         const dist = Math.hypot(pt[0] - mouseLon, pt[1] - mouseLat);
-        if (dist < bestDist) { bestDist = dist; best = props; }
+        if (dist < bestDist) {
+          bestDist = dist;
+          // Try to get per-point gradient from gradient_map
+          if (gradMap && Array.isArray(gradMap) && i < gradMap.length) {
+            const g = gradMap[i];
+            if (g != null) bestGrad = g;
+            else bestGrad = null;
+          } else {
+            // Fall back to single median value
+            bestGrad = props?.gradient_per_km ?? null;
+          }
+        }
       }
     }
   }
+
   const latLonStr = `${mouseLat.toFixed(3)}°N ${mouseLon.toFixed(3)}°W`;
-  if (bestDist < 0.15) {
-    const g = best?.gradient_per_km;
-    if (g != null) {
-      setReadout(`${latLonStr} · ${Number(g).toFixed(3)} °C/km`);
-    } else {
-      setReadout(latLonStr);
-    }
+  if (bestDist < 0.15 && bestGrad != null) {
+    setReadout(`${latLonStr} · ${Number(bestGrad).toFixed(3)} °C/km`);
   } else {
     setReadout(latLonStr);
   }
