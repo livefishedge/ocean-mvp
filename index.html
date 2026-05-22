@@ -651,13 +651,14 @@
       box-shadow:0 3px 12px rgba(0,0,0,0.5);
     }
     #controls-hamburger-toggle-btn{ display: flex !important; }
-    body.desktop-mode #hamburger-btn{ display: flex !important; }
-    #hamburger-btn{ display: none; }
+    #hamburger-btn{ display: flex; }
+    body.portrait-mode #hamburger-btn,
+    body.mobile-device #hamburger-btn{ display: none; }
     #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
       #controls-hamburger-toggle-btn{ display: none !important; }
-      body.desktop-mode #hamburger-btn{ display: none !important; }
+      /* no desktop-mode override needed - base rule handles portrait/mobile hiding */
       /* In portrait, the existing controls bar becomes the hamburger panel. */
       #controls{
         display: none;
@@ -782,8 +783,8 @@
       #hamburger-btn{
         display:none;
         position:fixed;
-        bottom:calc(12px + env(safe-area-inset-bottom, 0px));
-        left:12px;
+        top:8px;
+        right:8px;
         z-index:200;
         flex-direction:column;
         align-items:flex-start;
@@ -800,7 +801,7 @@
         padding:0;
       }
       #menu-panel{
-        display:none; position:absolute; top:58px; right:8px; left:auto;
+        display:none; position:fixed; top:58px; right:8px; z-index:31; width:min(320px, calc(100vw - 16px));
         background:var(--panel); border:1px solid var(--border);
         border-radius:10px; padding:8px 10px;
         flex-direction:column; min-width:200px; max-width:calc(100vw - 24px);
