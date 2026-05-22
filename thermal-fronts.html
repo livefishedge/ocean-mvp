@@ -28,7 +28,7 @@
     #fronts-toggle{ display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:11px; font-weight:700; }
     #fronts-cb{ width:13px; height:13px; accent-color:#4d7dff; }
     #status{ color:#9fb0c3; font-size:12px; font-weight:700; white-space:nowrap; }
-    #plot{ width:100vw; height:100dvh; touch-action:pan-x pinch-zoom; overflow:hidden; cursor:none; }
+    #plot{ width:100vw; height:100dvh; touch-action:none; overflow:hidden; cursor:none; }
     #legend{
       position:fixed; left:12px; bottom:12px; z-index:11;
       padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
@@ -154,7 +154,7 @@
   </div>
   <div id="plot"></div>
   <div id="readout"></div>
-  <div id="cursor-ring"></div>
+  <div id="cursor-ring" style="display:none;"></div>
   <div id="legend">Color = age: blue (oldest) → red (newest). Tap for gradient.</div>
   <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
   <div id="menu-panel">
@@ -639,6 +639,7 @@ function installReadoutHandlers() {
   // Mobile: touchstart = tap (show readout at touch point)
   plot.addEventListener('touchstart', (ev) => {
     ev.preventDefault();
+    console.log('[touchstart] fired, touch count:', ev.touches.length);
     const touch = ev.touches[0];
     if (touch) {
       showCursorRing(touch.clientX, touch.clientY);
