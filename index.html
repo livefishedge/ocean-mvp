@@ -670,6 +670,8 @@
         overflow-y: auto;
       }
       #controls.open{ display: flex; }
+      /* Desktop landscape: use floating dropdown instead of full-screen */
+      body.desktop-mode #controls{ display:none !important; }
       #row-region-and-var{ display:flex; flex-wrap:nowrap; gap:8px; width:100%; }
       #row-region, #row-var{ flex:1 1 50%; }
       #row-fronts-overlay{ width:100%; padding:0 2px; }
@@ -1714,8 +1716,11 @@ function updateControlsHamburgerVisibility() {
   const isMobile = isMobileDevice();
   const btn = document.getElementById("controls-hamburger-toggle-btn");
   if (!btn) return;
-  btn.style.display = isMobile ? "flex" : "none";
-  btn.textContent = controlsPanel?.classList.contains("open") ? "×" : "☰";
+  // Show the top-right button on all devices (desktop shows hamburger, mobile shows full-screen)
+  btn.style.display = "flex";
+  // On desktop, toggle hamburgerPanel visibility; on mobile, toggle controlsPanel
+  const panel = isMobile ? controlsPanel : hamburgerPanel;
+  btn.textContent = panel?.classList.contains("open") ? "×" : "☰";
   syncFloatingViewportUi();
 }
 
@@ -1723,8 +1728,16 @@ const controlsHamburgerToggleBtn = document.getElementById("controls-hamburger-t
 if (controlsHamburgerToggleBtn) {
   controlsHamburgerToggleBtn.addEventListener("click", () => {
     if (!controlsPanel) return;
-    controlsPanel.classList.toggle("open");
-    updateControlsHamburgerVisibility();
+    const isDesktop = !isMobileDevice();
+    if (isDesktop) {
+      // Desktop: open floating dropdown panel instead of full-screen controls
+      hamburgerPanel.classList.toggle("open");
+      updateControlsHamburgerVisibility();
+    } else {
+      // Mobile/portrait: full-screen controls overlay
+      controlsPanel.classList.toggle("open");
+      updateControlsHamburgerVisibility();
+    }
   });
 }
 updateControlsHamburgerVisibility();
