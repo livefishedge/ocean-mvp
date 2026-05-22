@@ -795,7 +795,7 @@
         padding:0;
       }
       #ranges-hamburger-panel{
-        display:none; position:absolute; bottom:40px; left:0;
+        display:none; position:absolute; top:40px; left:0;
         background:var(--panel); border:1px solid var(--border);
         border-radius:10px; padding:8px 10px;
         flex-direction:column; min-width:200px; max-width:calc(100vw - 24px);
@@ -1561,11 +1561,12 @@ async function renderDesktopFrame(frameMeta) {
     plotDivEl.classList.remove("js-plotly-plot");
   }
 
-  // Remove any stale land layer and re-add if needed
+  // Ensure desktop land layer is present (persists across product switches)
   if (landTrace && desktopMapState.landLayer) {
     map.removeLayer(desktopMapState.landLayer);
     desktopMapState.landLayer = null;
   }
+  await ensureDesktopLandLayer(map);
 
   // Preserve an existing viewport when switching pages/products; otherwise fit to data.
   console.log("[OL] view fit - size:", map.getSize(), "extent:", extent, "locked:", viewState.hasRange);
@@ -3220,6 +3221,23 @@ function makeMobileLandCanvas(bathy) {
   }
   ctx.putImageData(img, 0, 0);
   return canvas;
+}
+
+async function ensureDesktopLandLayer(map) {
+  if (!map || desktopMapState.landLayer) return;
+  if (currentVar === "bathy") return;
+  const bathy = await loadBathymetryJson(BATHY_JSON_URL);
+  const canvas = makeMobileLandCanvas(bathy);
+  if (!canvas) return;
+  const extent = frameExtentFromGrid({ xAxis: bathy.xAxis, yAxis: bathy.yAxis });
+  const source = new ol.source.ImageStatic({
+    url: canvas.toDataURL("image/png"),
+    imageExtent: extent,
+    projection: "EPSG:4326",
+    interpolate: false
+  });
+  desktopMapState.landLayer = new ol.layer.Image({ source, zIndex: 20 });
+  map.addLayer(desktopMapState.landLayer);
 }
 
 async function ensureMobileLandLayer(map) {
