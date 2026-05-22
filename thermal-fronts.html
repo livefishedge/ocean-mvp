@@ -160,7 +160,6 @@ let cursorFeature = null;
 const plot = document.getElementById("plot");
 const statusEl = document.getElementById("status");
 const readoutEl = document.getElementById("readout");
-const mapLink = document.getElementById("map-link");
 const regionSelect = document.getElementById("region-select");
 const animationBtn = document.getElementById("mode-animation");
 const dailyBtn = document.getElementById("mode-daily");
@@ -733,12 +732,6 @@ productSelect.addEventListener("change", () => {
   const url = new URL("index.html", location.href);
   url.searchParams.set("region", regionId);
   url.searchParams.set("var", productSelect.value);
-  location.href = appendViewportParams(url).toString();
-});
-mapLink.addEventListener("click", (event) => {
-  event.preventDefault();
-  const url = new URL("index.html", location.href);
-  url.searchParams.set("region", regionId);
   location.href = appendViewportParams(url).toString();
 });
 animationBtn.addEventListener("click", () => setMode("animation"));
