@@ -658,8 +658,9 @@ function installReadoutHandlers() {
   }, { passive: false });
 
   plot.addEventListener('touchend', () => {
+    // Keep readout visible after tap — don't clear it
     if (cursorRing) cursorRing.style.display = 'none';
-    setReadout('');
+    // setReadout(''); // REMOVED: user needs to see what they tapped
   });
 }
 
