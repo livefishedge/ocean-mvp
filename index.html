@@ -651,13 +651,13 @@
       box-shadow:0 3px 12px rgba(0,0,0,0.5);
     }
     #controls-hamburger-toggle-btn{ display: flex !important; }
-    body.desktop-mode #ranges-hamburger{ display: flex !important; }
-    #ranges-hamburger{ display: none; }
+    body.desktop-mode #hamburger-btn{ display: flex !important; }
+    #hamburger-btn{ display: none; }
     #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
       #controls-hamburger-toggle-btn{ display: none !important; }
-      body.desktop-mode #ranges-hamburger{ display: none !important; }
+      body.desktop-mode #hamburger-btn{ display: none !important; }
       /* In portrait, the existing controls bar becomes the hamburger panel. */
       #controls{
         display: none;
@@ -779,7 +779,7 @@
       #ranges{ display: none; }
 
       /* ====== Hamburger: floating toggle + collapsible panel ====== */
-      #ranges-hamburger{
+      #hamburger-btn{
         display:none;
         position:fixed;
         bottom:calc(12px + env(safe-area-inset-bottom, 0px));
@@ -789,29 +789,30 @@
         align-items:flex-start;
         gap:0;
       }
-      /* ranges-hamburger is always hidden; mobile controls live behind the top-right toggle. */
-      #ranges-hamburger{ display: none !important; }
-      #ranges-hamburger-toggle{
+      /* hamburger-btn is always hidden on portrait/mobile */
+      body.portrait-mode #hamburger-btn,
+      body.mobile-device #hamburger-btn{ display: none !important; }
+      #hamburger-btn{
         width:36px; height:36px;
         background:var(--panel); border:1px solid var(--border);
         border-radius:8px; color:var(--fg); font-size:18px;
         cursor:pointer; display:flex; align-items:center; justify-content:center;
         padding:0;
       }
-      #ranges-hamburger-panel{
+      #menu-panel{
         display:none; position:absolute; top:58px; right:8px; left:auto;
         background:var(--panel); border:1px solid var(--border);
         border-radius:10px; padding:8px 10px;
         flex-direction:column; min-width:200px; max-width:calc(100vw - 24px);
         backdrop-filter:blur(8px); gap:6px;
       }
-      #ranges-hamburger-panel.open{ display:flex; }
+      #menu-panel.open{ display:flex; }
       .hamburger-range-block{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
       .hamburger-range-block .range-name{ font-size:12px; font-weight:700; }
       .hamburger-range-block input[type="number"]{ width:64px; font-size:12px; padding:3px 6px; min-height:28px; }
       .hamburger-range-block .range-actions{ flex:0 0 auto; gap:4px; }
       .hamburger-range-block button{ font-size:11px; min-height:26px; padding:2px 7px; }
-      #ranges-hamburger #cbar{ width:100%; }
+      #menu-panel #cbar{ width:100%; }
 
       #feedback-float{ bottom:calc(12px + env(safe-area-inset-bottom, 0px)); left:12px; right:auto; }
       #feedback-toggle{ width:34px; height:34px; min-width:34px; min-height:34px; font-size:0; line-height:1; }
@@ -1034,7 +1035,7 @@
   </div>
   <div id="plot"></div>
   <div id="mobile-map"></div>
-  <button id="controls-hamburger-toggle-btn" aria-label="Open controls" style="position:fixed;top:6px;right:6px;z-index:5000;width:44px;height:44px;background:rgba(5,11,16,0.94);border:1px solid rgba(255,255,255,0.42);border-radius:8px;color:#fff;font-size:22px;cursor:pointer;padding:0;align-items:center;justify-content:center;box-shadow:0 3px 12px rgba(0,0,0,0.5);">&#9776;</button>
+  <button id="hamburger-btn" aria-label="Open product menu">&#9776;</button>
 
   <div id="briefing-panel" aria-live="polite" style="display:none">
     <h2>Captain Briefing</h2>
@@ -1045,9 +1046,7 @@
     <div id="briefing-full"></div>
   </div>
 
-  <div id="ranges-hamburger">
-    <button id="ranges-hamburger-toggle" aria-label="Open settings">&#9776;</button>
-    <div id="ranges-hamburger-panel">
+  <div id="menu-panel">
       <div class="hamburger-range-block">
         <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
         <input id="hamburger-vmin" type="number" step="any" inputmode="decimal" />
@@ -1059,7 +1058,6 @@
       </div>
       <div id="hamburger-cbar"></div>
     </div>
-  </div>
 
   <div id="ranges">
     <div id="ranges-left">
@@ -1760,8 +1758,8 @@ window.addEventListener("orientationchange", () => {
 });
 
 // ===== Hamburger panel toggle + actions (portrait) =====
-const hamburgerToggle = document.getElementById("ranges-hamburger-toggle");
-const hamburgerPanel = document.getElementById("ranges-hamburger-panel");
+const hamburgerToggle = document.getElementById("hamburger-btn");
+const hamburgerPanel = document.getElementById("menu-panel");
 const hVmin = document.getElementById("hamburger-vmin");
 const hVmax = document.getElementById("hamburger-vmax");
 const hApply = document.getElementById("hamburger-apply");
