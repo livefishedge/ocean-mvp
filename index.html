@@ -652,8 +652,6 @@
     }
     #controls-hamburger-toggle-btn{ display: flex !important; }
     #hamburger-btn{ display: flex; }
-    body.portrait-mode #hamburger-btn,
-    body.mobile-device #hamburger-btn{ display: none; }
     #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
@@ -789,9 +787,7 @@
         align-items:flex-start;
         gap:0;
       }
-      /* hamburger-btn is always hidden on portrait/mobile */
-      body.portrait-mode #hamburger-btn,
-      body.mobile-device #hamburger-btn{ display: none !important; }
+      /* hamburger button always visible on all devices */
       #hamburger-btn{
         width:36px; height:36px;
         background:var(--panel); border:1px solid var(--border);
