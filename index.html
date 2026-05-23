@@ -13,34 +13,14 @@
 
 
   <style>
-    :root{
-      --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.92); --border:#1b2836;
-      --pad:10px;
-      --controls-h: 60px;
-      --ranges-h: 72px;
-    }
-    html, body {
-      height:100%;
-      margin:0;
-      background:var(--bg);
-      color:var(--fg);
-      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
-      overflow:auto;
-    }
+    :root{ --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.90); --border:#1b2836; }
+    html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
 
-    /* ======= Controls (sticky) ======= */
+    /* ======= Controls (fixed top bar) ======= */
     #controls{
-      position:sticky;
-      top:0;
-      z-index:80;
-      background:var(--panel);
-      border-bottom:1px solid var(--border);
-      backdrop-filter: blur(6px);
-      padding:8px 10px;
-      display:flex;
-      flex-wrap:wrap;
-      align-items:center;
-      gap:10px;
+      position:fixed; top:0; left:0; right:0; z-index:10;
+      display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+      padding:4px 8px; background:var(--panel); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);
     }
 
     .row{
@@ -443,29 +423,20 @@
     /* Floating readout: fixed lower-right so it stays visible during map gestures. */
     #readout{
       position:fixed;
-      top:auto;
-      left:auto;
-      right:72px;
+      right:12px;
       bottom:calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index:120;
-      padding:4px 6px;
-      box-sizing:border-box;
-      background: rgba(255,255,255,0.50);
-      color:#000;
-      border:1px solid rgba(0,0,0,0.12);
+      z-index:15;
+      padding:5px 8px;
+      background:rgba(5,11,16,0.82);
+      border:1px solid rgba(255,255,255,0.15);
       border-radius:10px;
-      font-variant-numeric: tabular-nums;
+      font-size:13px;
+      font-variant-numeric:tabular-nums;
       pointer-events:none;
       white-space:nowrap;
-      font-size:14px;
-      width:max-content;
-      min-width:140px;
-      max-width:calc(100vw - 96px);
-      text-align:left;
-      user-select:none;
-      cursor:default;
-      line-height: 1.4;
-      display: inline-block;
+      color:#e0e6ee;
+      line-height:1.45;
+      display:none;
     }
     body.mobile-device #readout,
     body.portrait-mode #readout{ display:inline-block !important; }
@@ -779,28 +750,25 @@
 
       /* ====== Hamburger: floating toggle + collapsible panel ====== */
       #hamburger-btn{
-        position:fixed; top:8px; right:8px; z-index:200;
-        width:36px; height:36px;
-        background:var(--panel); border:1px solid var(--border);
-        border-radius:8px; color:var(--fg); font-size:18px;
-        cursor:pointer; display:flex; align-items:center; justify-content:center;
-        padding:0;
+        position:fixed; top:8px; right:8px; z-index:30;
+        width:42px; height:42px; border:1px solid rgba(255,255,255,0.38); border-radius:8px;
+        background:rgba(5,11,16,0.92); color:#fff; font-size:22px; font-weight:900; cursor:pointer;
+        box-shadow:0 3px 12px rgba(0,0,0,0.42);
       }
       #menu-panel{
-        display:none; position:fixed; top:58px; right:8px; z-index:31;
-        width:min(320px, calc(100vw - 16px));
-        background:var(--panel); border:1px solid var(--border);
-        border-radius:10px; padding:8px 10px;
-        flex-direction:column; min-width:200px; max-width:calc(100vw - 24px);
-        backdrop-filter:blur(8px); gap:6px;
+        position:fixed; top:58px; right:8px; z-index:31; width:min(320px, calc(100vw - 16px));
+        display:none; flex-direction:column; gap:10px; padding:12px;
+        background:rgba(5,11,16,0.94); border:1px solid rgba(255,255,255,0.22); border-radius:8px;
+        box-shadow:0 12px 30px rgba(0,0,0,0.45); backdrop-filter:blur(8px);
       }
-      #menu-panel.open{ display:flex !important; }
-      .hamburger-range-block{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-      .hamburger-range-block .range-name{ font-size:12px; font-weight:700; }
-      .hamburger-range-block input[type="number"]{ width:64px; font-size:12px; padding:3px 6px; min-height:28px; }
-      .hamburger-range-block .range-actions{ flex:0 0 auto; gap:4px; }
-      .hamburger-range-block button{ font-size:11px; min-height:26px; padding:2px 7px; }
-      #menu-panel #cbar{ width:100%; }
+      #menu-panel.open{ display:flex; }
+      #menu-panel label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:800; color:#9fb0c3; }
+      #menu-panel select, #menu-panel button{
+        min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
+        color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
+      }
+      #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
+      #menu-panel #fronts-toggle{ font-size:13px; }
 </style>
 </head>
 <body>
@@ -3602,7 +3570,7 @@ function updateReadoutPosition() {
   readoutDiv.style.left = "auto";
   readoutDiv.style.top = "auto";
   readoutDiv.style.bottom = "12px";
-  readoutDiv.style.right = "72px";
+  readoutDiv.style.right = "12px";
   readoutDiv.style.width = "max-content";
   readoutDiv.style.maxWidth = "calc(100vw - 96px)";
 }
