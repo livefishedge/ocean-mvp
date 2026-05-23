@@ -23,11 +23,20 @@
     #toolbar button{ padding:0 10px; cursor:pointer; }
     #toolbar button.active{ background:#1d4f91; border-color:#4d7dff; }
     #region-select{ padding:0 8px; min-width:130px; }
-    #nav-bar{ display:flex; align-items:center; gap:4px; }
+    #nav-bar{ display:flex; align-items:center; gap:6px; flex:1 1 340px; min-width:260px; }
     #prev-btn, #next-btn{ min-width:32px; padding:0 6px; font-size:16px; font-weight:900; }
+    #frame-progress{ flex:1; min-width:120px; max-width:520px; accent-color:#d84bff; }
+    #frame-progress::-webkit-slider-runnable-track{
+      height:6px; border-radius:3px;
+      background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
+    }
+    #frame-progress::-moz-range-track{
+      height:6px; border-radius:3px;
+      background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
+    }
     #frame-time{ font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    #fronts-toggle{ display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:11px; font-weight:700; }
-    #fronts-cb{ width:13px; height:13px; accent-color:#4d7dff; }
+    #all-day-toggle{ display:flex; align-items:center; gap:6px; white-space:nowrap; font-size:13px; font-weight:800; }
+    #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
     #status{ color:#9fb0c3; font-size:12px; font-weight:700; white-space:nowrap; }
     #plot{ width:100vw; height:100vh; min-height:100vh; touch-action:none; overflow:hidden; cursor:crosshair; background:#f8fbff; }
     #legend{
@@ -54,7 +63,8 @@
       color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
     }
     #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
-    #menu-panel #fronts-toggle{ font-size:13px; }
+    #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
     #readout{
       position:fixed;
       right:12px;
@@ -72,26 +82,13 @@
       line-height:1.45;
       display:none;
     }
-    #daily-slider-row{ display:none; align-items:center; gap:6px; }
-    #daily-slider-row.visible{ display:flex; }
-    #daily-slider{ flex:1; min-width:100px; height:20px; accent-color:#ff7c7c; }
-    #daily-slider::-webkit-slider-runnable-track{
-      height:6px; border-radius:3px;
-      background:linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
-    }
-    #daily-slider::-moz-range-track{
-      height:6px; border-radius:3px;
-      background:linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
-    }
-    #daily-slider::-webkit-slider-thumb{
-      -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
-      background:#fff; border:2px solid #333; margin-top:-5px; cursor:pointer;
-      box-shadow:0 1px 4px rgba(0,0,0,0.3);
-    }
+    #day-row.hidden, #all-day-toggle.hidden{ display:none; }
     .ol-viewport{ background:#f8fbff; }
     @media (max-width:720px){
       #toolbar{ gap:6px; }
-      #status{ flex:1 1 100%; white-space:normal; }
+      #toolbar{ padding-right:58px; }
+      #nav-bar{ order:1; flex-basis:100%; }
+      #status{ order:2; flex:1 1 100%; white-space:normal; }
       #legend{ font-size:11px; max-width:calc(100vw - 44px); }
       #readout{ right:8px; max-width:calc(100vw - 16px); overflow:hidden; text-overflow:ellipsis; }
     }
@@ -101,6 +98,7 @@
   <div id="toolbar">
     <span id="nav-bar">
       <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
+      <input id="frame-progress" type="range" min="0" max="0" step="1" value="0" aria-label="Frame progress" />
       <span id="frame-time"></span>
       <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
     </span>
@@ -116,21 +114,15 @@
       <option value="usec_md">Mid-Atlantic</option>
     </select></label>
     <label>Product<select id="product-select"><option value="chl">Chlorophyll</option><option value="sst">Sea surface temperature</option><option value="uv">Currents/SSH</option><option value="bathy">Bathymetry</option><option value="thermal_fronts">Thermal Fronts</option></select></label>
-    <div id="daily-slider-row">
-      <span style="font-size:11px;font-weight:700;color:#9fb0c3;">Daily</span>
-      <input id="daily-slider" type="range" min="0" max="0" step="1" value="0" />
-    </div>
-    <label id="fronts-toggle">
-      <input id="fronts-cb" type="checkbox" checked />
-      <span id="fronts-label">Fronts</span>
+    <label id="day-row">Day<select id="day-select"></select></label>
+    <label id="all-day-toggle">
+      <input id="all-day-cb" type="checkbox" />
+      <span id="all-day-label">All fronts this day</span>
     </label>
-    <select id="region-select">
-      <option value="usec_south">South-Atlantic</option>
-      <option value="usec_md">Mid-Atlantic</option>
-    </select>
-    <button id="mode-animation" class="active" type="button">Hourly</button>
-    <button id="mode-daily" type="button">Daily</button>
-    <button id="mode-overlay" type="button">All</button>
+    <div class="mode-row">
+      <button id="mode-animation" class="active" type="button">Hourly</button>
+      <button id="mode-daily" type="button">Daily</button>
+    </div>
     <button id="play-btn" type="button">Play</button>
   </div>
 
@@ -150,6 +142,8 @@ let playing = false;
 let playTimer = null;
 let frameIdx = 0;
 let dailyFrames = [];
+let hourlyDays = [];
+let selectedDate = "";
 let map = null;
 let frontLayer = null;
 let landLayer = null;
@@ -163,17 +157,19 @@ const readoutEl = document.getElementById("readout");
 const regionSelect = document.getElementById("region-select");
 const animationBtn = document.getElementById("mode-animation");
 const dailyBtn = document.getElementById("mode-daily");
-const overlayBtn = document.getElementById("mode-overlay");
 const playBtn = document.getElementById("play-btn");
 const hamburgerBtn = document.getElementById("hamburger-btn");
 const prevBtn = document.getElementById("prev-btn");
 const nextBtn = document.getElementById("next-btn");
+const frameProgressEl = document.getElementById("frame-progress");
 const frameTimeEl = document.getElementById("frame-time");
-const frontsLabel = document.getElementById("fronts-label");
-const frontsCb = document.getElementById("fronts-cb");
+const dayRow = document.getElementById("day-row");
+const daySelect = document.getElementById("day-select");
+const allDayToggle = document.getElementById("all-day-toggle");
+const allDayCb = document.getElementById("all-day-cb");
+const allDayLabel = document.getElementById("all-day-label");
 const menuPanel = document.getElementById("menu-panel");
 const productSelect = document.getElementById("product-select");
-const dailySliderEl = document.getElementById("daily-slider");
 regionSelect.value = regionId;
 productSelect.value = "thermal_fronts";
 
@@ -235,8 +231,34 @@ function formatAge(ms, latestMs) {
 function colorForAge(ms, latestMs, oldestMs) {
   const span = Math.max(1, latestMs - oldestMs);
   const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
-  const hue = 210 - 190 * t;
-  return `hsl(${hue}, 92%, 46%)`;
+  const hue = 282 - 282 * t;
+  const light = 46 + 4 * t;
+  return `hsl(${hue}, 92%, ${light}%)`;
+}
+function dateKey(ms) {
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+}
+function frameTimeLabel(ms) {
+  return new Date(ms).toLocaleString(undefined, {month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+}
+function framesForDate(date) {
+  return frameData.filter(item => dateKey(item.t) === date);
+}
+function activeFrameList() {
+  if (mode === "daily") return dailyFrames;
+  const dayItems = framesForDate(selectedDate);
+  return dayItems.length ? dayItems : frameData;
+}
+function displayedFrontItems() {
+  if (mode === "daily") {
+    const dayItem = dailyFrames[frameIdx];
+    return dayItem ? framesForDate(dayItem.date) : [];
+  }
+  const list = activeFrameList();
+  if (allDayCb.checked) return list;
+  const item = list[frameIdx];
+  return item ? [item] : [];
 }
 function numericOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
@@ -285,8 +307,8 @@ function requestedTimeFromParams(params = new URLSearchParams(location.search)) 
 }
 function currentFrameTime() {
   if (mode === "daily") return dailyFrames[frameIdx]?.t ?? null;
-  if (mode === "animation") return frameData[frameIdx]?.t ?? null;
-  return frameData.at(-1)?.t ?? null;
+  if (mode === "animation") return activeFrameList()[frameIdx]?.t ?? null;
+  return activeFrameList().at(-1)?.t ?? null;
 }
 function closestFrameIndex(items, targetMs) {
   if (!items.length || !Number.isFinite(targetMs)) return Math.max(0, items.length - 1);
@@ -327,21 +349,7 @@ function segmentedLineStrings(coords, maxJumpDeg = 0.08) {
   return segments;
 }
 function activeFrontItems() {
-  if (!frontsCb.checked) return [];
-  if (mode === "animation") {
-    const item = frameData[frameIdx];
-    return item ? [item] : [];
-  }
-  if (mode === "daily") {
-    const dayItem = dailyFrames[frameIdx];
-    if (!dayItem) return [];
-    return frameData.filter(item => {
-      const d = new Date(item.t);
-      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
-      return dateStr === dayItem.date;
-    });
-  }
-  return frameData;
+  return displayedFrontItems();
 }
 function styleForPlace(feature) {
   const type = feature.get("type");
@@ -486,10 +494,11 @@ function featureStyle(feature) {
 }
 function renderFrontLayer() {
   if (!map) return;
-  const latestMs = frames.at(-1)?.t ?? Date.now();
-  const oldestMs = frames[0]?.t ?? latestMs;
+  const items = activeFrontItems();
+  const latestMs = items.at(-1)?.t ?? Date.now();
+  const oldestMs = items[0]?.t ?? latestMs;
   const features = [];
-  for (const item of activeFrontItems()) {
+  for (const item of items) {
     const color = colorForAge(item.t, latestMs, oldestMs);
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sourceFeature of sourceFeatures) {
@@ -502,7 +511,7 @@ function renderFrontLayer() {
           sourceCoords: coords,
           frameTime: item.t,
           color,
-          lineWidth: mode === "animation" ? 2.6 : 1.6
+          lineWidth: items.length === 1 ? 2.8 : 1.7
         });
         features.push(feature);
       }
@@ -598,7 +607,6 @@ function renderReadout(coord, pixel, persist) {
     if (deltaSst && Number.isFinite(deltaSst.value)) parts.push(`${deltaSst.label} ${deltaSst.value.toFixed(2)}°C`);
     setReadout(`${base}, ${parts.join(", ")}`);
   } else setReadout(base);
-  if (!persist && pixel && !frontsCb.checked) setReadout(base);
 }
 async function render() {
   if (!map) initMap();
@@ -607,79 +615,90 @@ async function render() {
     renderFrontLayer();
     return;
   }
+  const list = activeFrameList();
+  frameIdx = Math.max(0, Math.min(frameIdx, Math.max(0, list.length - 1)));
   renderFrontLayer();
-  if (mode === "overlay") {
-
-  } else if (mode === "daily") {
-    if (!dailyFrames.length) buildDailyFrames();
-    frameIdx = Math.max(0, Math.min(frameIdx, dailyFrames.length - 1));
+  if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
-    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""}`;
+    const count = dayItem ? framesForDate(dayItem.date).length : 0;
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • ${count} hourly fronts`;
   } else {
-    frameIdx = Math.max(0, Math.min(frameIdx, frameData.length - 1));
-    const item = frameData[frameIdx];
-
+    const item = list[frameIdx];
+    const total = allDayCb.checked ? list.length : 1;
+    statusEl.textContent = `${frameIdx+1}/${list.length} hourly frames • ${selectedDate || ""} • showing ${total}`;
   }
   updateNavBar();
 }
 function setMode(next) {
+  const priorTime = currentFrameTime();
   mode = next;
   animationBtn.classList.toggle("active", mode === "animation");
   dailyBtn.classList.toggle("active", mode === "daily");
-  overlayBtn.classList.toggle("active", mode === "overlay");
-  playBtn.disabled = mode !== "animation" || frameData.length <= 1;
-  if (mode !== "animation") setPlaying(false);
-  document.getElementById("daily-slider-row").classList.toggle("visible", mode === "daily");
+  dayRow.classList.toggle("hidden", mode !== "animation");
+  allDayToggle.classList.toggle("hidden", mode !== "animation");
   if (mode === "daily") {
-    buildDailyFrames();
-    updateDailySlider();
+    const previousDate = selectedDate || dateKey(activeFrameList()[frameIdx]?.t || Date.now());
+    frameIdx = Math.max(0, dailyFrames.findIndex(item => item.date === previousDate));
+  } else if (selectedDate) {
+    frameIdx = closestFrameIndex(activeFrameList(), priorTime);
   }
   render();
 }
 function updateNavBar() {
-  const latestMs = frames.at(-1)?.t ?? Date.now();
+  const list = activeFrameList();
   if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
     frameTimeEl.textContent = dayItem ? dayItem.date : "";
     prevBtn.disabled = dailyFrames.length <= 1;
     nextBtn.disabled = dailyFrames.length <= 1;
   } else if (mode === "animation") {
-    const item = frameData[frameIdx];
-    frameTimeEl.textContent = item ? new Date(item.t).toLocaleString(undefined, {month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}) : "";
-    prevBtn.disabled = frameData.length <= 1;
-    nextBtn.disabled = frameData.length <= 1;
+    const item = list[frameIdx];
+    frameTimeEl.textContent = item ? frameTimeLabel(item.t) : "";
+    prevBtn.disabled = list.length <= 1;
+    nextBtn.disabled = list.length <= 1;
   } else {
     frameTimeEl.textContent = "";
     prevBtn.disabled = true;
     nextBtn.disabled = true;
   }
-  if (frames.length) {
-    const latestFrame = frames.at(-1);
-    frontsLabel.textContent = `Fronts ${formatAge(latestFrame.t, latestMs)}`;
-  }
-  updateDailySlider();
+  playBtn.disabled = list.length <= 1;
+  allDayLabel.textContent = "All fronts this day";
+  updateProgress();
 }
-function updateDailySlider() {
-  if (!dailySliderEl || !dailyFrames.length) return;
-  dailySliderEl.min = 0;
-  dailySliderEl.max = dailyFrames.length - 1;
-  dailySliderEl.value = frameIdx;
+function updateProgress() {
+  const list = activeFrameList();
+  if (!frameProgressEl) return;
+  frameProgressEl.min = 0;
+  frameProgressEl.max = Math.max(0, list.length - 1);
+  frameProgressEl.value = Math.max(0, Math.min(frameIdx, list.length - 1));
+  frameProgressEl.disabled = list.length <= 1;
 }
 function buildDailyFrames() {
   dailyFrames = [];
   const seen = new Set();
   const sorted = [...frameData].sort((a,b) => a.t - b.t);
   for (const item of sorted) {
-    const d = new Date(item.t);
-    const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+    const dateStr = dateKey(item.t);
     if (!seen.has(dateStr)) {
       seen.add(dateStr);
       dailyFrames.push({ date: dateStr, t: item.t, item });
     }
   }
+  hourlyDays = dailyFrames.map(item => item.date);
+}
+function syncDaySelect() {
+  daySelect.innerHTML = "";
+  for (const date of hourlyDays) {
+    const opt = document.createElement("option");
+    opt.value = date;
+    opt.textContent = date;
+    daySelect.appendChild(opt);
+  }
+  if (!selectedDate || !hourlyDays.includes(selectedDate)) selectedDate = hourlyDays.at(-1) || "";
+  daySelect.value = selectedDate;
 }
 function step(delta) {
-  const list = mode === "daily" ? dailyFrames : frameData;
+  const list = activeFrameList();
   if (!list.length) return;
   frameIdx = (frameIdx + delta + list.length) % list.length;
   render();
@@ -713,10 +732,15 @@ async function init() {
     return { meta:f, t:f.t, data: res.ok ? await res.json() : { features:[] } };
   }));
   frameData = frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
-  frameIdx = closestFrameIndex(frameData, requestedTimeFromParams());
+  buildDailyFrames();
+  const requestedMs = requestedTimeFromParams();
+  const requestedIdx = closestFrameIndex(frameData, requestedMs);
+  selectedDate = Number.isFinite(requestedMs) ? dateKey(frameData[requestedIdx]?.t || requestedMs) : (hourlyDays.at(-1) || "");
+  syncDaySelect();
+  frameIdx = closestFrameIndex(activeFrameList(), requestedMs);
   const hasMultiDay = frameData.length > 1 && (frameData.at(-1)?.t ?? 0) - (frameData[0]?.t ?? 0) > 864e5;
   const legendEl = document.getElementById('legend');
-  if (legendEl) { legendEl.style.display = hasMultiDay ? '' : 'none'; legendEl.textContent = hasMultiDay ? 'Color = age: blue (oldest) -> red (newest)' : ''; }
+  if (legendEl) { legendEl.style.display = hasMultiDay ? '' : 'none'; legendEl.textContent = hasMultiDay ? 'Color = time: purple (oldest) -> red (newest)' : ''; }
   window.__thermalFrontsState = { frames, frameData, map };
   await render();
 }
@@ -736,14 +760,21 @@ productSelect.addEventListener("change", () => {
 });
 animationBtn.addEventListener("click", () => setMode("animation"));
 dailyBtn.addEventListener("click", () => setMode("daily"));
-overlayBtn.addEventListener("click", () => setMode("overlay"));
-frontsCb.addEventListener("change", () => render());
+allDayCb.addEventListener("change", () => render());
 playBtn.addEventListener("click", () => setPlaying(!playing));
 if (prevBtn) prevBtn.addEventListener("click", () => { setPlaying(false); step(-1); });
 if (nextBtn) nextBtn.addEventListener("click", () => { setPlaying(false); step(+1); });
-if (dailySliderEl) {
-  dailySliderEl.addEventListener("input", () => {
-    frameIdx = Number(dailySliderEl.value);
+if (frameProgressEl) {
+  frameProgressEl.addEventListener("input", () => {
+    frameIdx = Number(frameProgressEl.value);
+    setPlaying(false);
+    render();
+  });
+}
+if (daySelect) {
+  daySelect.addEventListener("change", () => {
+    selectedDate = daySelect.value;
+    frameIdx = 0;
     setPlaying(false);
     render();
   });
