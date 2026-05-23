@@ -629,6 +629,21 @@
       box-shadow:0 3px 12px rgba(0,0,0,0.42);
       padding:0;
     }
+    #menu-panel{
+      position:fixed; top:58px; right:8px; z-index:31; width:min(320px, calc(100vw - 16px));
+      display:none; flex-direction:column; gap:10px; padding:12px;
+      background:rgba(5,11,16,0.94); border:1px solid rgba(255,255,255,0.22); border-radius:8px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.45); backdrop-filter:blur(8px);
+      box-sizing:border-box; max-height:calc(100dvh - 74px); overflow:auto;
+    }
+    #menu-panel.open{ display:flex; }
+    #menu-panel label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:800; color:#9fb0c3; }
+    #menu-panel select, #menu-panel button, #menu-panel input{
+      min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
+      color:var(--fg); font-size:14px; font-weight:800; padding:0 10px; box-sizing:border-box;
+    }
+    #hamburger-cbar{ width:100%; height:54px; overflow:hidden; }
+    #hamburger-cbar svg{ display:block; max-width:100%; height:54px; }
     #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
@@ -762,18 +777,6 @@
         background:rgba(5,11,16,0.92); color:#fff; font-size:22px; font-weight:900; cursor:pointer;
         box-shadow:0 3px 12px rgba(0,0,0,0.42);
       }
-      #menu-panel{
-        position:fixed; top:58px; right:8px; z-index:31; width:min(320px, calc(100vw - 16px));
-        display:none; flex-direction:column; gap:10px; padding:12px;
-        background:rgba(5,11,16,0.94); border:1px solid rgba(255,255,255,0.22); border-radius:8px;
-        box-shadow:0 12px 30px rgba(0,0,0,0.45); backdrop-filter:blur(8px);
-      }
-      #menu-panel.open{ display:flex; }
-      #menu-panel label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:800; color:#9fb0c3; }
-      #menu-panel select, #menu-panel button{
-        min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
-        color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
-      }
       #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
       #menu-panel #fronts-toggle{ font-size:13px; }
 </style>
@@ -889,6 +892,21 @@
   </div>
 
   <div id="menu-panel">
+      <label>Region
+        <select id="hamburger-region-select">
+          <option value="usec_md">US East Coast - Mid-Atlantic</option>
+          <option value="usec_south">US East Coast - South-Atlantic</option>
+        </select>
+      </label>
+      <label>Product
+        <select id="hamburger-product-select">
+          <option value="chl">Chlorophyll</option>
+          <option value="sst">Temperature</option>
+          <option value="uv">Currents/SSH</option>
+          <option value="bathy">Bathymetry</option>
+          <option value="thermal_fronts">Thermal Fronts</option>
+        </select>
+      </label>
       <div class="hamburger-range-block">
         <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
         <input id="hamburger-vmin" type="number" step="any" inputmode="decimal" />
@@ -1603,6 +1621,8 @@ window.addEventListener("orientationchange", () => {
 // ===== Hamburger panel toggle + actions (portrait) =====
 const hamburgerToggle = document.getElementById("hamburger-btn");
 const hamburgerPanel = document.getElementById("menu-panel");
+const hamburgerRegionSelect = document.getElementById("hamburger-region-select");
+const hamburgerProductSelect = document.getElementById("hamburger-product-select");
 const hVmin = document.getElementById("hamburger-vmin");
 const hVmax = document.getElementById("hamburger-vmax");
 const hApply = document.getElementById("hamburger-apply");
@@ -1623,6 +1643,30 @@ if (hamburgerToggle && hamburgerPanel) {
     if (!hamburgerPanel.contains(e.target) && !hamburgerToggle.contains(e.target)) {
       hamburgerPanel.classList.remove("open");
     }
+  });
+}
+
+if (hamburgerRegionSelect) {
+  hamburgerRegionSelect.value = REGION_ID;
+  hamburgerRegionSelect.addEventListener("change", () => {
+    const url = new URL(location.href);
+    url.searchParams.set("region", hamburgerRegionSelect.value);
+    location.href = url.toString();
+  });
+}
+
+if (hamburgerProductSelect) {
+  hamburgerProductSelect.value = currentVar;
+  hamburgerProductSelect.addEventListener("change", () => {
+    if (hamburgerProductSelect.value === "thermal_fronts") {
+      const url = new URL("thermal-fronts.html", location.href);
+      url.searchParams.set("region", REGION_ID);
+      location.href = appendViewportParams(url).toString();
+      return;
+    }
+    setPlaying(false);
+    setCurrentVar(hamburgerProductSelect.value, true);
+    hamburgerPanel?.classList.remove("open");
   });
 }
 
@@ -3602,6 +3646,8 @@ function syncRangeInputsToVar() {
   if (hVmin) hVmin.value = userRanges[currentVar].vmin;
   if (hVmax) hVmax.value = userRanges[currentVar].vmax;
   if (hTitle) hTitle.textContent = VAR_LABELS[currentVar];
+  if (hamburgerProductSelect) hamburgerProductSelect.value = currentVar;
+  if (hamburgerRegionSelect) hamburgerRegionSelect.value = REGION_ID;
   if (mobileVmin) mobileVmin.value = userRanges[currentVar].vmin;
   if (mobileVmax) mobileVmax.value = userRanges[currentVar].vmax;
   if (mobileRangeTitle) mobileRangeTitle.textContent = VAR_LABELS[currentVar];
