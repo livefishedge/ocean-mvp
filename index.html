@@ -643,7 +643,6 @@
         overflow-y: auto;
       }
       #controls.open{ display: flex; }
-      body.desktop-mode #controls{ display:none !important; }
       #row-region-and-var{ display:flex; flex-wrap:nowrap; gap:8px; width:100%; }
       #row-region, #row-var{ flex:1 1 50%; }
       #row-fronts-overlay{ width:100%; padding:0 2px; }
@@ -747,6 +746,8 @@
 
       /* ====== Ranges bar: hidden on portrait ====== */
       #ranges{ display: none; }}
+      body.desktop-mode #controls{ display:none !important; }
+
 
       /* ====== Hamburger: floating toggle + collapsible panel ====== */
       #hamburger-btn{
