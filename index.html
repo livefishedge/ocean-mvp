@@ -622,7 +622,13 @@
       box-shadow:0 3px 12px rgba(0,0,0,0.5);
     }
     #controls-hamburger-toggle-btn{ display: flex !important; }
-    #hamburger-btn{ display: flex; position:fixed; top:8px; right:8px; z-index:200; }
+    #hamburger-btn{
+      position:fixed; top:8px; right:8px; z-index:30;
+      width:42px; height:42px; border:1px solid rgba(255,255,255,0.38); border-radius:8px;
+      background:rgba(5,11,16,0.92); color:#fff; font-size:22px; font-weight:900; cursor:pointer;
+      box-shadow:0 3px 12px rgba(0,0,0,0.42);
+      padding:0;
+    }
     #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
