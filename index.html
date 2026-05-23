@@ -651,7 +651,7 @@
       box-shadow:0 3px 12px rgba(0,0,0,0.5);
     }
     #controls-hamburger-toggle-btn{ display: flex !important; }
-    #hamburger-btn{ display: flex; }
+    #hamburger-btn{ display: flex; position:fixed; top:8px; right:8px; z-index:200; }
     #mobile-range-controls{ display:none; }
 
     @media (orientation: portrait) {
@@ -775,7 +775,7 @@
       #ranges{ display: none; }
 
       /* ====== Ranges bar: hidden on portrait ====== */
-      #ranges{ display: none; }
+      #ranges{ display: none; }}
 
       /* ====== Hamburger: floating toggle + collapsible panel ====== */
       #hamburger-btn{
@@ -794,7 +794,7 @@
         flex-direction:column; min-width:200px; max-width:calc(100vw - 24px);
         backdrop-filter:blur(8px); gap:6px;
       }
-      #menu-panel.open{ display:flex; }
+      #menu-panel.open{ display:flex !important; }
       .hamburger-range-block{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
       .hamburger-range-block .range-name{ font-size:12px; font-weight:700; }
       .hamburger-range-block input[type="number"]{ width:64px; font-size:12px; padding:3px 6px; min-height:28px; }
@@ -804,9 +804,157 @@
 </style>
 </head>
 <body>
-<div id="plot"></div>
-<div id="controls"></div>
-<div id="hamburger-btn"></div>
+  <div id="login-gate" style="display:none">
+  <div class="gate-box">
+    <h2 id="gate-title"></h2>
+  </div>
+  </div>
+
+
+
+  <div id="controls">
+    <div id="row-region-and-var">
+    <div class="row control-group" id="row-region">
+      <select id="region-select" class="control-select" title="Region">
+        <option value="usec_md">US East Coast - Mid-Atlantic</option>
+        <option value="usec_south">US East Coast - South-Atlantic</option>
+      </select>
+    </div>
+
+    <div class="row control-group" id="row-var">
+      <select id="var-select" class="control-select" title="Product">
+        <option value="chl">Chlorophyll</option>
+        <option value="sst">Temperature</option>
+        <option value="uv">Currents/SSH</option>
+        <option value="bathy">Bathymetry</option>
+        <option value="thermal_fronts">Thermal Fronts</option>
+      </select>
+      <button id="temp-unit-toggle" type="button" title="Temperature unit">°C</button>
+    </div>
+    </div>
+
+    <div id="row-fronts-overlay">
+      <label id="chl-front-overlay-wrap">
+        <input id="chl-front-overlay" type="checkbox" />
+        CHL fronts
+      </label>
+      <label id="sst-front-overlay-wrap">
+        <input id="sst-front-overlay" type="checkbox" />
+        SST fronts
+      </label>
+    </div>
+
+    <div id="row-slider-and-play">
+    <div class="row" id="row-slider">
+      <span id="frame-label"></span>
+      <div class="row" id="row-play">
+        <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
+        <button id="play-btn">Play</button>
+        <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
+      </div>
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" style="flex:1;min-width:80px;" />
+      <label id="speed-wrap">
+        <select id="speed-select" title="Animation speed">
+          <option value="0.25">1⁄4×</option>
+          <option value="0.5">1⁄2×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+      <button id="fs-btn" title="Fullscreen">⛶</button>
+      <button id="briefing-toggle" title="Captain briefing" style="display:none">Briefing</button>
+    </div>
+  </div>
+
+    <div id="mobile-range-controls">
+      <div id="mobile-range-row">
+        <span id="mobile-range-title">Chlorophyll</span>
+        <input id="mobile-vmin" type="number" step="any" inputmode="decimal" aria-label="Color scale minimum" />
+        <input id="mobile-vmax" type="number" step="any" inputmode="decimal" aria-label="Color scale maximum" />
+        <button id="mobile-apply">Apply</button>
+        <button id="mobile-reset">Reset</button>
+      </div>
+      <div id="mobile-cbar"></div>
+    </div>
+  </div>
+
+  <div id="mobile-time-badge"></div>
+  <div id="map-status-toolbar">
+    <button id="map-prev-btn" class="map-time-step" type="button" title="Previous frame" aria-label="Previous frame">&#8249;</button>
+    <span id="map-time-status"></span>
+    <button id="map-next-btn" class="map-time-step" type="button" title="Next frame" aria-label="Next frame">&#8250;</button>
+    <label id="thermal-front-toolbar" title="Overlay nearest thermal front on the current product">
+      <input id="global-sst-front-overlay" type="checkbox" />
+      Fronts
+    </label>
+  </div>
+  <div id="readout"></div>
+  <div id="feedback-float">
+    <button id="feedback-toggle" title="Send feedback">&#9993;</button>
+    <div id="feedback-panel" style="display:none;">
+      <input type="text" id="feedbackInput" placeholder="Questions / comments..." />
+      <button id="feedbackSubmit">Send</button>
+    </div>
+  </div>
+  <div id="modebar-host">
+    <div id="modebar-tip" style="display:none;"></div>
+  </div>
+  <div id="plot"></div>
+  <div id="mobile-map"></div>
+  <button id="hamburger-btn" aria-label="Open product menu">&#9776;</button>
+
+  <div id="briefing-panel" aria-live="polite" style="display:none">
+    <h2>Captain Briefing</h2>
+    <div id="briefing-status" class="muted">Loading briefing...</div>
+    <div id="briefing-plans"></div>
+    <div id="briefing-health" class="briefing-health"></div>
+    <button id="briefing-full-toggle" style="margin-top:10px;">Show full briefing</button>
+    <div id="briefing-full"></div>
+  </div>
+
+  <div id="menu-panel">
+      <div class="hamburger-range-block">
+        <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
+        <input id="hamburger-vmin" type="number" step="any" inputmode="decimal" />
+        <input id="hamburger-vmax" type="number" step="any" inputmode="decimal" />
+        <div class="range-actions">
+          <button id="hamburger-apply">Apply</button>
+          <button id="hamburger-reset">Reset</button>
+        </div>
+      </div>
+      <div id="hamburger-cbar"></div>
+    </div>
+
+  <div id="ranges">
+    <div id="ranges-left">
+    <div class="range-block">
+      <span class="range-name" id="range-title">Chlorophyll</span>
+      <span class="mini-label">min</span><input id="vmin-input" type="number" step="any" inputmode="decimal" />
+      <span class="mini-label">max</span><input id="vmax-input" type="number" step="any" inputmode="decimal" />
+      <div class="range-actions">
+        <button id="apply-range">Apply</button>
+        <button id="reset-range">Reset</button>
+      </div>
+    </div>
+
+    <div id="arrow-legend" class="range-block" style="display:none;">
+      <span class="range-name">Currents</span>
+      <svg id="arrow-svg" width="100" height="36" viewBox="0 0 100 36">
+        <line x1="10" y1="18" x2="80" y2="18" stroke="#e0e6ee" stroke-width="1"/>
+        <polyline points="75,14 85,18 75,22" fill="none" stroke="#e0e6ee" stroke-width="1"/>
+      </svg>
+      <span class="mini-label">1 m/s</span>
+    </div>
+    </div>
+
+    <div id="ranges-right">
+      <div id="cbar"></div>
+    </div>
+  </div>
+
+
+<script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
 const QUERY_PARAMS = new URLSearchParams(location.search);
