@@ -397,14 +397,14 @@ function dailyRepresentativeForDate(date) {
   }
   let candidates = [...cells.values()];
   const maxSupport = Math.max(0, ...candidates.map(c => c.frames.size));
-  let minSupport = Math.max(2, Math.ceil(items.length * 0.18));
+  let minSupport = Math.max(3, Math.ceil(items.length * 0.35));
   candidates = candidates.filter(c => c.frames.size >= minSupport);
   if (candidates.length < 8 && maxSupport > 0) {
-    minSupport = Math.max(1, Math.ceil(maxSupport * 0.5));
+    minSupport = Math.max(2, Math.ceil(maxSupport * 0.65));
     candidates = [...cells.values()].filter(c => c.frames.size >= minSupport);
   }
   candidates.sort((a,b) => (b.frames.size - a.frames.size) || (b.hits - a.hits));
-  candidates = candidates.slice(0, 900);
+  candidates = candidates.slice(0, 260);
   const candidateMap = new Map(candidates.map(c => [c.key, c]));
   const seen = new Set();
   const features = [];
@@ -427,7 +427,7 @@ function dailyRepresentativeForDate(date) {
         }
       }
     }
-    if (component.length < 2) continue;
+    if (component.length < 3) continue;
     const coords = orderRepresentativeCells(component).map(c => [c.lonSum / c.hits, c.latSum / c.hits]);
     if (coords.length < 2) continue;
     const gradCells = component.filter(c => c.gradCount > 0);
