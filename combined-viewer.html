@@ -226,10 +226,6 @@ function interpolateColorPalette(value, palette) {
 function rgba(color, a) {
   return `rgba(${color[0]},${color[1]},${color[2]},${a.toFixed(3)})`;
 }
-function sortedFilenames(dir, pattern) {
-  // Will be populated via fetch
-  return [];
-}
 
 // ─── Build colorbar canvas ────────────────────────────────────────────────────
 function buildColorbarCanvas(palette, width=180, height=10) {
@@ -320,7 +316,7 @@ async function loadChlLayer(map) {
     if(status) status.textContent = "";
     return layer;
   } catch(e) {
-    console.error("CHL load error:", e, "DATA_DIR was:", DATA_DIR);
+    console.error("CHL load error:", e);
     if(status) status.textContent = "CHL failed: " + (e.message || String(e).slice(0,60));
     return null;
   }
@@ -414,7 +410,7 @@ async function loadUvLayer(map) {
     if(status) status.textContent = "";
     return layer;
   } catch(e) {
-    console.error("UV load error:", e, "DATA_DIR was:", DATA_DIR);
+    console.error("UV load error:", e);
     if(status) status.textContent = "UV failed: " + (e.message || String(e).slice(0,60));
     return null;
   }
@@ -583,11 +579,10 @@ async function loadFrontsLayer(map) {
     // Find all sst_front JSON files and group by date
     const dirRes = await fetchWithTimeout(`${DATA_DIR}/sst_front/`);
     const text = await dirRes.text();
-    const regionPrefix = REGION_ID.replace(/_/g, "_");
+    const regionPrefix = REGION_ID;
     const matches = [...text.matchAll(new RegExp(`href="(sstfront_${regionPrefix}_[^"]+\.json)"`, "g"))];
     const files = matches.map(m => m[1]).filter(Boolean);
-    if (!files.length) { if(status) status.textContent = "No front files in " + DATA_DIR; return null; }
-    if(status) status.textContent = "Fronts: loading " + latestFiles.length + " frames…";
+    if (!files.length) { if(status) status.textContent = "No front files"; return null; }
 
     // Parse dates from filenames (format: sstfront_usec_south_YYYYMMDD_HH_g19.json)
     const dateMap = new Map();
@@ -666,7 +661,7 @@ async function loadFrontsLayer(map) {
     if(status) status.textContent = "";
     return layer;
   } catch(e) {
-    console.error("Fronts load error:", e, "DATA_DIR was:", DATA_DIR);
+    console.error("Fronts load error:", e);
     if(status) status.textContent = "Fronts failed: " + (e.message || String(e).slice(0,60));
     return null;
   }
