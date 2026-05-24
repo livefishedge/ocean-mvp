@@ -252,7 +252,13 @@ async function loadChlLayer(map) {
     // Find latest VJ1 or VNP file
     const dirRes = await fetch(`${DATA_DIR}/chl/`);
     const text = await dirRes.text();
-    const matches = [...text.matchAll(/href="([^"]*_VJ1\.json)"/g), ...text.matchAll(/href="([^"]*_VNP\.json)"/g)];
+    const matches = [
+      ...text.matchAll(/href="([^"]*_VJ1\.json)"/g),
+      ...text.matchAll(/href="([^"]*_VNP\.json)"/g),
+      ...text.matchAll(/href="([^"]*_S3A-S3B\.json)"/g),
+      ...text.matchAll(/href="([^"]*_S3A\.json)"/g),
+      ...text.matchAll(/href="([^"]*_S3B\.json)"/g),
+    ];
     const files = matches.map(m => m[1]).filter(Boolean);
     if (!files.length) { if(status) status.textContent = "No CHL files found"; return null; }
     files.sort();
