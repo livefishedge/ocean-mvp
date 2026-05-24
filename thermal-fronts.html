@@ -155,20 +155,8 @@ const REGIONS = {
   usec_south: { label: "US East Coast - South-Atlantic", index: "index-usec_south.json" },
   usec_md: { label: "US East Coast - Mid-Atlantic", index: "index-usec_md.json" }
 };
-const DENSITY_DAY_COLORS = [
-  [106, 61, 154],
-  [31, 120, 180],
-  [51, 160, 44],
-  [255, 127, 0],
-  [227, 26, 28],
-  [166, 86, 40],
-  [247, 129, 191],
-  [117, 112, 179],
-  [27, 158, 119],
-  [217, 95, 2],
-  [102, 166, 30],
-  [230, 171, 2]
-];
+const DENSITY_COLOR_START = [106, 61, 154];
+const DENSITY_COLOR_END = [227, 26, 28];
 let regionId = new URLSearchParams(location.search).get("region") || "usec_south";
 if (!REGIONS[regionId]) regionId = "usec_south";
 let bbox = [-81,31,-71,40];
@@ -437,7 +425,9 @@ function densityForDates(dates) {
 }
 function colorForDensityDate(date) {
   const idx = Math.max(0, hourlyDays.indexOf(date));
-  return DENSITY_DAY_COLORS[idx % DENSITY_DAY_COLORS.length];
+  const denom = Math.max(1, hourlyDays.length - 1);
+  const t = idx / denom;
+  return DENSITY_COLOR_START.map((start, i) => Math.round(start + (DENSITY_COLOR_END[i] - start) * t));
 }
 function quantile(values, q) {
   if (!values.length) return null;
@@ -447,7 +437,7 @@ function quantile(values, q) {
 }
 function buildDensityField(points, hourlyCount, label) {
   const [west, south, east, north] = bbox.map(Number);
-  const cellDeg = 0.02;
+  const cellDeg = 0.01;
   const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
   const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
   const density = new Float32Array(nx * ny);
