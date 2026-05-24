@@ -166,11 +166,12 @@ let playing = false;
 let playTimer = null;
 let frameIdx = 0;
 let dailyFrames = [];
-let dailyRepresentativeCache = new Map();
+let dailyDensityCache = new Map();
 let hourlyDays = [];
 let selectedDate = "";
 let map = null;
 let frontLayer = null;
+let densityLayer = null;
 let landLayer = null;
 let placeLayer = null;
 let cursorLayer = null;
@@ -277,9 +278,7 @@ function activeFrameList() {
 }
 function displayedFrontItems() {
   if (mode === "daily") {
-    if (allDayCb.checked) return dailyFrames.map(day => dailyRepresentativeForDate(day.date));
-    const dayItem = dailyFrames[frameIdx];
-    return dayItem ? [dailyRepresentativeForDate(dayItem.date)] : [];
+    return [];
   }
   const list = activeFrameList();
   if (allDayCb.checked) return list;
@@ -374,9 +373,7 @@ function segmentedLineStrings(coords, maxJumpDeg = 0.08) {
   if (segment.length >= 2) segments.push(segment);
   return segments;
 }
-function dailyRepresentativeForDate(date) {
-  if (dailyRepresentativeCache.has(date)) return dailyRepresentativeCache.get(date);
-  const items = framesForDate(date);
+function collectFrontPoints(items) {
   const points = [];
   for (const item of items) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
@@ -396,58 +393,24 @@ function dailyRepresentativeForDate(date) {
       }
     }
   }
-  const cells = buildDensityCells(points, items.length);
-  const candidateMap = new Map(cells.map(c => [c.key, c]));
-  const seen = new Set();
-  const features = [];
-  for (const root of cells) {
-    if (seen.has(root.key)) continue;
-    const stack = [root];
-    const component = [];
-    seen.add(root.key);
-    while (stack.length) {
-      const cell = stack.pop();
-      component.push(cell);
-      for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-          if (!dx && !dy) continue;
-          const neighbor = candidateMap.get(`${cell.x + dx},${cell.y + dy}`);
-          if (neighbor && !seen.has(neighbor.key)) {
-            seen.add(neighbor.key);
-            stack.push(neighbor);
-          }
-        }
-      }
-    }
-    if (component.length < 2) continue;
-    const coords = orderRepresentativeCells(component).map(c => [c.lon, c.lat]);
-    if (coords.length < 2) continue;
-    const gradCells = component.filter(c => Number.isFinite(c.gradient_per_km));
-    const densitySum = component.reduce((sum, c) => sum + c.density, 0);
-    const grad = gradCells.length ? gradCells.reduce((sum, c) => sum + c.gradient_per_km * c.density, 0) / gradCells.reduce((sum, c) => sum + c.density, 0) : null;
-    const frameSet = new Set(component.flatMap(c => [...c.frames]));
-    features.push({
-      type:"Feature",
-      geometry:{ type:"LineString", coordinates:coords },
-      properties:{
-        daily_representative:true,
-        method:"spatial_kde_density_ridge",
-        hourly_count:items.length,
-        support_hours:frameSet.size,
-        cell_count:component.length,
-        density: densitySum,
-        gradient_per_km:grad
-      }
-    });
-  }
-  features.sort((a,b) => (b.properties?.density || 0) - (a.properties?.density || 0));
-  const representative = {
-    meta:{ date, representative:true },
-    t: items[0]?.t ?? Date.parse(`${date}T00:00:00Z`),
-    data:{ type:"FeatureCollection", features }
-  };
-  dailyRepresentativeCache.set(date, representative);
-  return representative;
+  return points;
+}
+function dailyDensityForDate(date) {
+  const key = `day:${date}`;
+  if (dailyDensityCache.has(key)) return dailyDensityCache.get(key);
+  const items = framesForDate(date);
+  const density = buildDensityField(collectFrontPoints(items), items.length, date);
+  dailyDensityCache.set(key, density);
+  return density;
+}
+function densityForDates(dates) {
+  const key = `dates:${dates.join("|")}`;
+  if (dailyDensityCache.has(key)) return dailyDensityCache.get(key);
+  const items = dates.flatMap(date => framesForDate(date));
+  const density = buildDensityField(collectFrontPoints(items), items.length, `${dates[0]}..${dates.at(-1)}`);
+  density.dayCount = dates.length;
+  dailyDensityCache.set(key, density);
+  return density;
 }
 function quantile(values, q) {
   if (!values.length) return null;
@@ -455,102 +418,36 @@ function quantile(values, q) {
   const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * q)));
   return sorted[idx];
 }
-function buildDensityCells(points, hourlyCount) {
-  if (!points.length) return [];
+function buildDensityField(points, hourlyCount, label) {
+  const [west, south, east, north] = bbox.map(Number);
   const cellDeg = 0.035;
+  const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
+  const density = new Float32Array(nx * ny);
   const bandwidthDeg = 0.07;
   const radiusCells = Math.ceil((bandwidthDeg * 2.5) / cellDeg);
   const invTwoSigma2 = 1 / (2 * bandwidthDeg * bandwidthDeg);
-  const cells = new Map();
   for (const point of points) {
-    const cx = Math.round(point.lon / cellDeg);
-    const cy = Math.round(point.lat / cellDeg);
+    const cx = Math.round((point.lon - west) / cellDeg);
+    const cy = Math.round((point.lat - south) / cellDeg);
     for (let dx = -radiusCells; dx <= radiusCells; dx++) {
       for (let dy = -radiusCells; dy <= radiusCells; dy++) {
-        const lon = (cx + dx) * cellDeg;
-        const lat = (cy + dy) * cellDeg;
+        const x = cx + dx;
+        const y = cy + dy;
+        if (x < 0 || x >= nx || y < 0 || y >= ny) continue;
+        const lon = west + x * cellDeg;
+        const lat = south + y * cellDeg;
         const d2 = (lon - point.lon) ** 2 + (lat - point.lat) ** 2;
         const weight = Math.exp(-d2 * invTwoSigma2);
-        if (weight < 0.035) continue;
-        const key = `${cx + dx},${cy + dy}`;
-        let cell = cells.get(key);
-        if (!cell) {
-          cell = { key, x:cx + dx, y:cy + dy, lon, lat, density:0, frames:new Set(), gradSum:0, gradWeight:0 };
-          cells.set(key, cell);
-        }
-        cell.density += weight;
-        cell.frames.add(point.t);
-        if (Number.isFinite(point.grad)) {
-          cell.gradSum += point.grad * weight;
-          cell.gradWeight += weight;
-        }
+        if (weight < 0.02) continue;
+        density[y * nx + x] += weight;
       }
     }
   }
-  const allCells = [...cells.values()];
-  for (const cell of allCells) {
-    cell.gradient_per_km = cell.gradWeight > 0 ? cell.gradSum / cell.gradWeight : null;
-    let neighborSum = 0;
-    let neighborCount = 0;
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const neighbor = cells.get(`${cell.x + dx},${cell.y + dy}`);
-        if (neighbor) {
-          neighborSum += neighbor.density;
-          neighborCount += 1;
-        }
-      }
-    }
-    cell.smoothedDensity = neighborCount ? neighborSum / neighborCount : cell.density;
-  }
-  const densities = allCells.map(c => c.smoothedDensity).filter(Number.isFinite);
-  const high = quantile(densities, hourlyCount >= 16 ? 0.82 : 0.76) || 0;
-  const floor = Math.max(1.8, high * 0.62);
-  let candidates = allCells.filter(c => c.smoothedDensity >= floor && c.frames.size >= Math.min(2, hourlyCount));
-  if (candidates.length < 24) {
-    const fallback = quantile(densities, 0.68) || 0;
-    candidates = allCells.filter(c => c.smoothedDensity >= fallback && c.frames.size >= 1);
-  }
-  candidates.sort((a,b) => (b.smoothedDensity - a.smoothedDensity) || (b.frames.size - a.frames.size));
-  return candidates.slice(0, 680);
-}
-function orderRepresentativeCells(component) {
-  const remaining = component.map(c => ({
-    ...c,
-    lon:c.lon,
-    lat:c.lat
-  }));
-  const centroid = remaining.reduce((acc, c) => {
-    acc.lon += c.lon; acc.lat += c.lat; return acc;
-  }, { lon:0, lat:0 });
-  centroid.lon /= remaining.length;
-  centroid.lat /= remaining.length;
-  let currentIdx = 0;
-  let bestDist = -1;
-  for (let i = 0; i < remaining.length; i++) {
-    const d = Math.hypot(remaining[i].lon - centroid.lon, remaining[i].lat - centroid.lat);
-    if (d > bestDist) {
-      bestDist = d;
-      currentIdx = i;
-    }
-  }
-  const ordered = [];
-  let current = remaining.splice(currentIdx, 1)[0];
-  ordered.push(current);
-  while (remaining.length) {
-    let nextIdx = 0;
-    let nextDist = Infinity;
-    for (let i = 0; i < remaining.length; i++) {
-      const d = Math.hypot(remaining[i].lon - current.lon, remaining[i].lat - current.lat);
-      if (d < nextDist) {
-        nextDist = d;
-        nextIdx = i;
-      }
-    }
-    current = remaining.splice(nextIdx, 1)[0];
-    ordered.push(current);
-  }
-  return ordered;
+  const nonzero = Array.from(density).filter(v => v > 0);
+  const p95 = quantile(nonzero, 0.95) || 1;
+  const max = Math.max(p95, quantile(nonzero, 0.995) || p95, 1);
+  return { method:"spatial_kde_density_field", label, points:points.length, hourlyCount, nx, ny, cellDeg, extent:[west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg], density, max };
 }
 function activeFrontItems() {
   return displayedFrontItems();
@@ -696,8 +593,73 @@ function featureStyle(feature) {
     })
   });
 }
+function activeDensityField() {
+  if (mode !== "daily") return null;
+  if (allDayCb.checked) return densityForDates(dailyFrames.map(item => item.date));
+  const dayItem = dailyFrames[frameIdx];
+  return dayItem ? dailyDensityForDate(dayItem.date) : null;
+}
+function densityCanvas(field) {
+  if (!field || !field.density?.length) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = field.nx;
+  canvas.height = field.ny;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(field.nx, field.ny);
+  const max = Math.max(field.max || 1, 1);
+  for (let row = 0; row < field.ny; row++) {
+    const y = field.ny - 1 - row;
+    for (let x = 0; x < field.nx; x++) {
+      const v = field.density[y * field.nx + x];
+      if (v <= 0) continue;
+      const norm = Math.min(1, v / max);
+      if (norm < 0.015) continue;
+      const alpha = Math.round(230 * Math.pow(norm, 0.62));
+      const k = (row * field.nx + x) * 4;
+      img.data[k] = 19;
+      img.data[k + 1] = 74;
+      img.data[k + 2] = 136;
+      img.data[k + 3] = alpha;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+function renderDensityLayer() {
+  if (!map) return;
+  if (mode !== "daily") {
+    if (densityLayer) densityLayer.setSource(null);
+    return;
+  }
+  const field = activeDensityField();
+  const canvas = densityCanvas(field);
+  if (!field || !canvas) {
+    if (densityLayer) densityLayer.setSource(null);
+    return;
+  }
+  const source = new ol.source.ImageStatic({
+    url: canvas.toDataURL("image/png"),
+    imageExtent: field.extent,
+    projection: "EPSG:4326",
+    interpolate: true
+  });
+  if (densityLayer) densityLayer.setSource(source);
+  else {
+    densityLayer = new ol.layer.Image({ source, zIndex: 28, opacity: 1 });
+    map.addLayer(densityLayer);
+  }
+}
 function renderFrontLayer() {
   if (!map) return;
+  if (mode === "daily") {
+    const source = new ol.source.Vector({ features: [] });
+    if (frontLayer) frontLayer.setSource(source);
+    else {
+      frontLayer = new ol.layer.Vector({ source, style: featureStyle, zIndex: 30, updateWhileAnimating: true, updateWhileInteracting: true });
+      map.addLayer(frontLayer);
+    }
+    return;
+  }
   const items = activeFrontItems();
   const latestMs = items.at(-1)?.t ?? Date.now();
   const oldestMs = items[0]?.t ?? latestMs;
@@ -823,14 +785,15 @@ async function render() {
   }
   const list = activeFrameList();
   frameIdx = Math.max(0, Math.min(frameIdx, Math.max(0, list.length - 1)));
+  renderDensityLayer();
   renderFrontLayer();
   if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
     const count = dayItem ? framesForDate(dayItem.date).length : 0;
-    const shown = displayedFrontItems();
-    const representativeCount = shown.reduce((sum, item) => sum + ((item.data?.features || []).length), 0);
+    const field = activeDensityField();
     const shownDays = allDayCb.checked ? dailyFrames.length : 1;
-    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • showing ${representativeCount} KDE fronts from ${shownDays === 1 ? count + " hourly frames" : shownDays + " days"}`;
+    const sourceText = shownDays === 1 ? `${count} hourly frames` : `${field?.hourlyCount || 0} hourly frames across ${shownDays} days`;
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • density shade from ${sourceText}`;
   } else {
     const item = list[frameIdx];
     const total = allDayCb.checked ? list.length : 1;
@@ -879,6 +842,11 @@ function updateNavBar() {
 function updateLegend() {
   const legendEl = document.getElementById("legend");
   if (!legendEl) return;
+  if (mode === "daily") {
+    legendEl.style.display = "";
+    legendEl.textContent = "Shade = hourly front-point density";
+    return;
+  }
   const displayedCount = displayedFrontItems().length;
   legendEl.style.display = displayedCount > 1 ? "" : "none";
   legendEl.textContent = displayedCount > 1 ? "Color = time: purple (oldest) -> red (newest)" : "";
