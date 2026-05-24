@@ -151,6 +151,7 @@ const REGION_CONFIGS = {
 const REGION = REGION_CONFIGS[REGION_ID] || REGION_CONFIGS["usec_south"];
 const BBOX = REGION.bbox;
 const DATA_DIR = REGION.dataDir;
+const DEPLOY_TS = Date.now();
 const DEPLOY_CHECK = new URLSearchParams(window.location.search).get("deploycheck") || "";
 
 // CHL palette: 0.02 → 10 mg/m³ (log scale)
@@ -743,7 +744,7 @@ const regionSelect = document.getElementById("region-select");
 regionSelect.value = REGION_ID;
 regionSelect.addEventListener("change", () => {
   const region = regionSelect.value;
-  window.location.href = `${window.location.origin}${window.location.pathname}?region=${region}&deploycheck=${DEPLOY_CHECK}`;
+  window.location.href = `${window.location.origin}${window.location.pathname}?region=${region}&t=${DEPLOY_TS}`;
 });
 
 (async () => {
