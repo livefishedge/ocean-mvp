@@ -244,13 +244,27 @@ function buildColorbarCanvas(palette, width=180, height=10) {
   return c;
 }
 
+// Retry wrapper with timeout
+async function fetchWithTimeout(url, ms = 15000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch(e) {
+    clearTimeout(timer);
+    throw e;
+  }
+}
+
 // ─── Layer 1: Chlorophyll ────────────────────────────────────────────────────
 async function loadChlLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading CHL…";
   try {
-    // Find latest VJ1 or VNP file
-    const dirRes = await fetch(`${DATA_DIR}/chl/`);
+    // Find latest CHL file (VIIRS or Sentinel-3)
+    const dirRes = await fetchWithTimeout(`${DATA_DIR}/chl/`);
     const text = await dirRes.text();
     const matches = [
       ...text.matchAll(/href="([^"]*_VJ1\.json)"/g),
@@ -263,7 +277,7 @@ async function loadChlLayer(map) {
     if (!files.length) { if(status) status.textContent = "No CHL files found"; return null; }
     files.sort();
     const latestFile = files[files.length - 1];
-    const res = await fetch(`${DATA_DIR}/chl/${latestFile}`);
+    const res = await fetchWithTimeout(`${DATA_DIR}/chl/${latestFile}`);
     const d = await res.json();
     const { bbox: extent, nx, ny, z } = d;
 
@@ -315,14 +329,14 @@ async function loadUvLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading UV…";
   try {
-    const dirRes = await fetch(`${DATA_DIR}/uv/`);
+    const dirRes = await fetchWithTimeout(`${DATA_DIR}/uv/`);
     const text = await dirRes.text();
     const matches = [...text.matchAll(/href="(uv_usec_south_[^"]+\.json)"/g)];
     const files = matches.map(m => m[1]).filter(Boolean);
     if (!files.length) { if(status) status.textContent = "No UV files"; return null; }
     files.sort();
     const latestFile = files[files.length - 1];
-    const res = await fetch(`${DATA_DIR}/uv/${latestFile}`);
+    const res = await fetchWithTimeout(`${DATA_DIR}/uv/${latestFile}`);
     const d = await res.json();
     const { bbox: extent, nx: gridNx, ny: gridNy, u, v, adt } = d;
 
@@ -408,7 +422,7 @@ async function loadBathymetryLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading bathy…";
   try {
-    const res = await fetch(`${DATA_DIR}/gebco_bath_latest/gebco_bathy.json`);
+    const res = await fetchWithTimeout(`${DATA_DIR}/gebco_bath_latest/gebco_bathy.json`);
     const d = await res.json();
     const xAxis = d.xAxis; // 1920 lons
     const yAxis = d.yAxis; // 1200 lats
@@ -434,7 +448,7 @@ async function loadBathymetryLayer(map) {
     return layer;
   } catch(e) {
     console.error("Bathy load error:", e);
-    if(status) status.textContent = "Bathy failed";
+    if(status) status.textContent = "Bathy failed: " + (e.message || "unknown");
     return null;
   }
 }
@@ -488,6 +502,10 @@ function depthMaxInExtent(bd, extent, stepX, stepY) {
 
 function generateContourLevels(maxDepth) {
   const standardLevels = [50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+  if (maxDepth < 200) {
+    // Land/shallow area: still show a few shallow levels so something renders
+    return [50, 100, 200].filter(l => l <= maxDepth + 200);
+  }
   return standardLevels.filter(l => l <= maxDepth + 200);
 }
 
@@ -560,7 +578,7 @@ async function loadFrontsLayer(map) {
   if(status) status.textContent = "Loading fronts…";
   try {
     // Find all sst_front JSON files and group by date
-    const dirRes = await fetch(`${DATA_DIR}/sst_front/`);
+    const dirRes = await fetchWithTimeout(`${DATA_DIR}/sst_front/`);
     const text = await dirRes.text();
     const matches = [...text.matchAll(/href="(sstfront_usec_south_[^"]+\.json)"/g)];
     const files = matches.map(m => m[1]).filter(Boolean);
@@ -581,7 +599,7 @@ async function loadFrontsLayer(map) {
     const latestFiles = dateMap.get(latestDate);
 
     // Load all hourly frames for latest date
-    const loadPromises = latestFiles.map(f => fetch(`${DATA_DIR}/sst_front/${f}`).then(r => r.json()));
+    const loadPromises = latestFiles.map(f => fetchWithTimeout(`${DATA_DIR}/sst_front/${f}`).then(r => r.json()));
     const frames = await Promise.all(loadPromises);
 
     // Build density field: 0.005° cells
