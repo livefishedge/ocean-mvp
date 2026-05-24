@@ -265,7 +265,7 @@ function dateKey(ms) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
 }
 function frameTimeLabel(ms) {
-  return new Date(ms).toLocaleString(undefined, {month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+  return new Date(ms).toLocaleString(undefined, {timeZone:"UTC", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false}) + " UTC";
 }
 function framesForDate(date) {
   return frameData.filter(item => dateKey(item.t) === date);
@@ -377,8 +377,7 @@ function segmentedLineStrings(coords, maxJumpDeg = 0.08) {
 function dailyRepresentativeForDate(date) {
   if (dailyRepresentativeCache.has(date)) return dailyRepresentativeCache.get(date);
   const items = framesForDate(date);
-  const cellDeg = 0.05;
-  const cells = new Map();
+  const points = [];
   for (const item of items) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sourceFeature of sourceFeatures) {
@@ -390,40 +389,18 @@ function dailyRepresentativeForDate(date) {
         const lon = Number(pt[0]);
         const lat = Number(pt[1]);
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-        const x = Math.round(lon / cellDeg);
-        const y = Math.round(lat / cellDeg);
-        const key = `${x},${y}`;
-        let cell = cells.get(key);
-        if (!cell) {
-          cell = { key, x, y, lonSum:0, latSum:0, hits:0, frames:new Set(), gradSum:0, gradCount:0 };
-          cells.set(key, cell);
-        }
-        cell.lonSum += lon;
-        cell.latSum += lat;
-        cell.hits += 1;
-        cell.frames.add(item.t);
+        const point = { lon, lat, t:item.t, grad:null };
         const g = gradientForFeaturePoint(props, i);
-        if (Number.isFinite(g)) {
-          cell.gradSum += g;
-          cell.gradCount += 1;
-        }
+        if (Number.isFinite(g)) point.grad = g;
+        points.push(point);
       }
     }
   }
-  let candidates = [...cells.values()];
-  const maxSupport = Math.max(0, ...candidates.map(c => c.frames.size));
-  let minSupport = Math.max(2, Math.ceil(items.length * 0.18));
-  candidates = candidates.filter(c => c.frames.size >= minSupport);
-  if (candidates.length < 20 && maxSupport > 0) {
-    minSupport = Math.max(1, Math.ceil(maxSupport * 0.5));
-    candidates = [...cells.values()].filter(c => c.frames.size >= minSupport);
-  }
-  candidates.sort((a,b) => (b.frames.size - a.frames.size) || (b.hits - a.hits));
-  candidates = candidates.slice(0, 520);
-  const candidateMap = new Map(candidates.map(c => [c.key, c]));
+  const cells = buildDensityCells(points, items.length);
+  const candidateMap = new Map(cells.map(c => [c.key, c]));
   const seen = new Set();
   const features = [];
-  for (const root of candidates) {
+  for (const root of cells) {
     if (seen.has(root.key)) continue;
     const stack = [root];
     const component = [];
@@ -443,24 +420,27 @@ function dailyRepresentativeForDate(date) {
       }
     }
     if (component.length < 2) continue;
-    const coords = orderRepresentativeCells(component).map(c => [c.lonSum / c.hits, c.latSum / c.hits]);
+    const coords = orderRepresentativeCells(component).map(c => [c.lon, c.lat]);
     if (coords.length < 2) continue;
-    const gradCells = component.filter(c => c.gradCount > 0);
-    const grad = gradCells.length
-      ? gradCells.reduce((sum, c) => sum + c.gradSum, 0) / gradCells.reduce((sum, c) => sum + c.gradCount, 0)
-      : null;
+    const gradCells = component.filter(c => Number.isFinite(c.gradient_per_km));
+    const densitySum = component.reduce((sum, c) => sum + c.density, 0);
+    const grad = gradCells.length ? gradCells.reduce((sum, c) => sum + c.gradient_per_km * c.density, 0) / gradCells.reduce((sum, c) => sum + c.density, 0) : null;
+    const frameSet = new Set(component.flatMap(c => [...c.frames]));
     features.push({
       type:"Feature",
       geometry:{ type:"LineString", coordinates:coords },
       properties:{
         daily_representative:true,
-        support_threshold:minSupport,
+        method:"spatial_kde_density_ridge",
         hourly_count:items.length,
+        support_hours:frameSet.size,
         cell_count:component.length,
+        density: densitySum,
         gradient_per_km:grad
       }
     });
   }
+  features.sort((a,b) => (b.properties?.density || 0) - (a.properties?.density || 0));
   const representative = {
     meta:{ date, representative:true },
     t: items[0]?.t ?? Date.parse(`${date}T00:00:00Z`),
@@ -469,11 +449,76 @@ function dailyRepresentativeForDate(date) {
   dailyRepresentativeCache.set(date, representative);
   return representative;
 }
+function quantile(values, q) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a,b) => a - b);
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * q)));
+  return sorted[idx];
+}
+function buildDensityCells(points, hourlyCount) {
+  if (!points.length) return [];
+  const cellDeg = 0.035;
+  const bandwidthDeg = 0.07;
+  const radiusCells = Math.ceil((bandwidthDeg * 2.5) / cellDeg);
+  const invTwoSigma2 = 1 / (2 * bandwidthDeg * bandwidthDeg);
+  const cells = new Map();
+  for (const point of points) {
+    const cx = Math.round(point.lon / cellDeg);
+    const cy = Math.round(point.lat / cellDeg);
+    for (let dx = -radiusCells; dx <= radiusCells; dx++) {
+      for (let dy = -radiusCells; dy <= radiusCells; dy++) {
+        const lon = (cx + dx) * cellDeg;
+        const lat = (cy + dy) * cellDeg;
+        const d2 = (lon - point.lon) ** 2 + (lat - point.lat) ** 2;
+        const weight = Math.exp(-d2 * invTwoSigma2);
+        if (weight < 0.035) continue;
+        const key = `${cx + dx},${cy + dy}`;
+        let cell = cells.get(key);
+        if (!cell) {
+          cell = { key, x:cx + dx, y:cy + dy, lon, lat, density:0, frames:new Set(), gradSum:0, gradWeight:0 };
+          cells.set(key, cell);
+        }
+        cell.density += weight;
+        cell.frames.add(point.t);
+        if (Number.isFinite(point.grad)) {
+          cell.gradSum += point.grad * weight;
+          cell.gradWeight += weight;
+        }
+      }
+    }
+  }
+  const allCells = [...cells.values()];
+  for (const cell of allCells) {
+    cell.gradient_per_km = cell.gradWeight > 0 ? cell.gradSum / cell.gradWeight : null;
+    let neighborSum = 0;
+    let neighborCount = 0;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const neighbor = cells.get(`${cell.x + dx},${cell.y + dy}`);
+        if (neighbor) {
+          neighborSum += neighbor.density;
+          neighborCount += 1;
+        }
+      }
+    }
+    cell.smoothedDensity = neighborCount ? neighborSum / neighborCount : cell.density;
+  }
+  const densities = allCells.map(c => c.smoothedDensity).filter(Number.isFinite);
+  const high = quantile(densities, hourlyCount >= 16 ? 0.82 : 0.76) || 0;
+  const floor = Math.max(1.8, high * 0.62);
+  let candidates = allCells.filter(c => c.smoothedDensity >= floor && c.frames.size >= Math.min(2, hourlyCount));
+  if (candidates.length < 24) {
+    const fallback = quantile(densities, 0.68) || 0;
+    candidates = allCells.filter(c => c.smoothedDensity >= fallback && c.frames.size >= 1);
+  }
+  candidates.sort((a,b) => (b.smoothedDensity - a.smoothedDensity) || (b.frames.size - a.frames.size));
+  return candidates.slice(0, 680);
+}
 function orderRepresentativeCells(component) {
   const remaining = component.map(c => ({
     ...c,
-    lon:c.lonSum / c.hits,
-    lat:c.latSum / c.hits
+    lon:c.lon,
+    lat:c.lat
   }));
   const centroid = remaining.reduce((acc, c) => {
     acc.lon += c.lon; acc.lat += c.lat; return acc;
@@ -785,7 +830,7 @@ async function render() {
     const shown = displayedFrontItems();
     const representativeCount = shown.reduce((sum, item) => sum + ((item.data?.features || []).length), 0);
     const shownDays = allDayCb.checked ? dailyFrames.length : 1;
-    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • showing ${representativeCount} mean fronts from ${shownDays === 1 ? count + " hourly frames" : shownDays + " days"}`;
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • showing ${representativeCount} KDE fronts from ${shownDays === 1 ? count + " hourly frames" : shownDays + " days"}`;
   } else {
     const item = list[frameIdx];
     const total = allDayCb.checked ? list.length : 1;
