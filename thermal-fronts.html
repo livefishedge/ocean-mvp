@@ -155,6 +155,20 @@ const REGIONS = {
   usec_south: { label: "US East Coast - South-Atlantic", index: "index-usec_south.json" },
   usec_md: { label: "US East Coast - Mid-Atlantic", index: "index-usec_md.json" }
 };
+const DENSITY_DAY_COLORS = [
+  [106, 61, 154],
+  [31, 120, 180],
+  [51, 160, 44],
+  [255, 127, 0],
+  [227, 26, 28],
+  [166, 86, 40],
+  [247, 129, 191],
+  [117, 112, 179],
+  [27, 158, 119],
+  [217, 95, 2],
+  [102, 166, 30],
+  [230, 171, 2]
+];
 let regionId = new URLSearchParams(location.search).get("region") || "usec_south";
 if (!REGIONS[regionId]) regionId = "usec_south";
 let bbox = [-81,31,-71,40];
@@ -406,11 +420,24 @@ function dailyDensityForDate(date) {
 function densityForDates(dates) {
   const key = `dates:${dates.join("|")}`;
   if (dailyDensityCache.has(key)) return dailyDensityCache.get(key);
-  const items = dates.flatMap(date => framesForDate(date));
-  const density = buildDensityField(collectFrontPoints(items), items.length, `${dates[0]}..${dates.at(-1)}`);
-  density.dayCount = dates.length;
+  const fields = dates.map(date => dailyDensityForDate(date));
+  const density = {
+    method:"spatial_kde_density_field_by_day",
+    label:`${dates[0]}..${dates.at(-1)}`,
+    fields,
+    hourlyCount:fields.reduce((sum, field) => sum + field.hourlyCount, 0),
+    points:fields.reduce((sum, field) => sum + field.points, 0),
+    dayCount:fields.length,
+    nx:fields[0]?.nx || 0,
+    ny:fields[0]?.ny || 0,
+    extent:fields[0]?.extent || bbox
+  };
   dailyDensityCache.set(key, density);
   return density;
+}
+function colorForDensityDate(date) {
+  const idx = Math.max(0, hourlyDays.indexOf(date));
+  return DENSITY_DAY_COLORS[idx % DENSITY_DAY_COLORS.length];
 }
 function quantile(values, q) {
   if (!values.length) return null;
@@ -420,12 +447,12 @@ function quantile(values, q) {
 }
 function buildDensityField(points, hourlyCount, label) {
   const [west, south, east, north] = bbox.map(Number);
-  const cellDeg = 0.035;
+  const cellDeg = 0.02;
   const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
   const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
   const density = new Float32Array(nx * ny);
-  const bandwidthDeg = 0.07;
-  const radiusCells = Math.ceil((bandwidthDeg * 2.5) / cellDeg);
+  const bandwidthDeg = 0.045;
+  const radiusCells = Math.ceil((bandwidthDeg * 2.2) / cellDeg);
   const invTwoSigma2 = 1 / (2 * bandwidthDeg * bandwidthDeg);
   for (const point of points) {
     const cx = Math.round((point.lon - west) / cellDeg);
@@ -439,7 +466,7 @@ function buildDensityField(points, hourlyCount, label) {
         const lat = south + y * cellDeg;
         const d2 = (lon - point.lon) ** 2 + (lat - point.lat) ** 2;
         const weight = Math.exp(-d2 * invTwoSigma2);
-        if (weight < 0.02) continue;
+        if (weight < 0.05) continue;
         density[y * nx + x] += weight;
       }
     }
@@ -447,7 +474,8 @@ function buildDensityField(points, hourlyCount, label) {
   const nonzero = Array.from(density).filter(v => v > 0);
   const p95 = quantile(nonzero, 0.95) || 1;
   const max = Math.max(p95, quantile(nonzero, 0.995) || p95, 1);
-  return { method:"spatial_kde_density_field", label, points:points.length, hourlyCount, nx, ny, cellDeg, extent:[west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg], density, max };
+  const cutoff = Math.max(quantile(nonzero, 0.72) || 0, max * 0.08);
+  return { method:"spatial_kde_density_field", label, color:colorForDensityDate(label), points:points.length, hourlyCount, nx, ny, cellDeg, extent:[west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg], density, max, cutoff };
 }
 function activeFrontItems() {
   return displayedFrontItems();
@@ -600,27 +628,68 @@ function activeDensityField() {
   return dayItem ? dailyDensityForDate(dayItem.date) : null;
 }
 function densityCanvas(field) {
-  if (!field || !field.density?.length) return null;
+  if (!field) return null;
+  if (Array.isArray(field.fields)) return compositeDensityCanvas(field);
+  if (!field.density?.length) return null;
   const canvas = document.createElement("canvas");
   canvas.width = field.nx;
   canvas.height = field.ny;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(field.nx, field.ny);
   const max = Math.max(field.max || 1, 1);
+  const cutoff = Math.max(field.cutoff || 0, max * 0.08);
+  const span = Math.max(0.001, max - cutoff);
+  const color = field.color || [19, 74, 136];
   for (let row = 0; row < field.ny; row++) {
     const y = field.ny - 1 - row;
     for (let x = 0; x < field.nx; x++) {
       const v = field.density[y * field.nx + x];
-      if (v <= 0) continue;
-      const norm = Math.min(1, v / max);
-      if (norm < 0.015) continue;
-      const alpha = Math.round(230 * Math.pow(norm, 0.62));
+      if (v <= cutoff) continue;
+      const norm = Math.min(1, (v - cutoff) / span);
+      const alpha = Math.round(232 * Math.pow(norm, 0.58));
       const k = (row * field.nx + x) * 4;
-      img.data[k] = 19;
-      img.data[k + 1] = 74;
-      img.data[k + 2] = 136;
+      img.data[k] = color[0];
+      img.data[k + 1] = color[1];
+      img.data[k + 2] = color[2];
       img.data[k + 3] = alpha;
     }
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+function compositeDensityCanvas(field) {
+  const fields = field.fields || [];
+  const first = fields[0];
+  if (!first) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = first.nx;
+  canvas.height = first.ny;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(first.nx, first.ny);
+  const pixelCount = first.nx * first.ny;
+  for (let i = 0; i < pixelCount; i++) {
+    let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+    for (const dayField of fields) {
+      const v = dayField.density[i];
+      const max = Math.max(dayField.max || 1, 1);
+      const cutoff = Math.max(dayField.cutoff || 0, max * 0.08);
+      if (v <= cutoff) continue;
+      const norm = Math.min(1, (v - cutoff) / Math.max(0.001, max - cutoff));
+      const alpha = Math.pow(norm, 0.58);
+      const color = dayField.color || [19, 74, 136];
+      rSum += color[0] * alpha;
+      gSum += color[1] * alpha;
+      bSum += color[2] * alpha;
+      aSum += alpha;
+    }
+    if (aSum <= 0) continue;
+    const row = Math.floor(i / first.nx);
+    const col = i - row * first.nx;
+    const k = ((first.ny - 1 - row) * first.nx + col) * 4;
+    img.data[k] = Math.round(rSum / aSum);
+    img.data[k + 1] = Math.round(gSum / aSum);
+    img.data[k + 2] = Math.round(bSum / aSum);
+    img.data[k + 3] = Math.min(235, Math.round(145 * Math.sqrt(aSum)));
   }
   ctx.putImageData(img, 0, 0);
   return canvas;
@@ -844,7 +913,7 @@ function updateLegend() {
   if (!legendEl) return;
   if (mode === "daily") {
     legendEl.style.display = "";
-    legendEl.textContent = "Shade = hourly front-point density";
+    legendEl.textContent = allDayCb.checked ? "Color = day; shade = hourly front-point density" : "Shade = hourly front-point density";
     return;
   }
   const displayedCount = displayedFrontItems().length;
