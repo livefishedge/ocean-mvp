@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ocean Intelligence — Combined Viewer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.4.0/ol.css">
+  <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
+  <style>
+    :root{--bg:#050b10;--fg:#e0e6ee;--panel:rgba(5,11,16,0.90);--border:#1b2836;}
+    *{box-sizing:border-box;}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden;}
+    #map{position:fixed;inset:0;}
+    #controls{
+      position:fixed;top:0;left:0;right:0;z-index:30;
+      display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+      padding:8px 16px;
+      background:var(--panel);border-bottom:1px solid var(--border);
+      backdrop-filter:blur(6px);
+    }
+    .toggle{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;padding:5px 12px;border:1px solid #2a3a50;border-radius:6px;background:rgba(12,23,35,0.8);transition:background 0.15s;}
+    .toggle:hover{background:rgba(29,79,145,0.4);}
+    .toggle input{display:none;}
+    .toggle .box{
+      width:16px;height:16px;border-radius:3px;border:2px solid #4d7dff;
+      display:flex;align-items:center;justify-content:center;
+      background:#0c1723;transition:background 0.15s;flex-shrink:0;
+    }
+    .toggle input:checked~.box{background:#1d4f91;}
+    .toggle input:checked~.box::after{content:"✓";color:#fff;font-size:12px;font-weight:700;}
+    .toggle label{font-size:13px;font-weight:700;white-space:nowrap;color:var(--fg);}
+    .toggle .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+    .dot-chl{background:#1d8aff;}
+    .dot-uv{background:#00c8ff;}
+    .dot-bathy{background:#8bb8d4;}
+    .dot-front{background:#ff4040;}
+    .legend{
+      position:fixed;right:12px;bottom:12px;z-index:15;
+      padding:10px 14px;background:rgba(5,11,16,0.88);border:1px solid rgba(255,255,255,0.18);
+      border-radius:8px;color:#fff;font-size:12px;font-weight:800;
+    }
+    .legend-title{margin-bottom:6px;letter-spacing:0.5px;}
+    .legend-bar{width:180px;height:10px;border-radius:5px;}
+    .legend-labels{display:flex;justify-content:space-between;margin-top:3px;font-size:11px;color:#9fb0c3;}
+    .legend.adt{right:210px;}
+    #status{position:fixed;bottom:12px;left:12px;z-index:15;font-size:11px;color:#9fb0c3;background:rgba(5,11,16,0.8);padding:5px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);}
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <span style="font-weight:900;font-size:14px;margin-right:4px;">Layers</span>
+
+  <label class="toggle">
+    <input type="checkbox" id="chk-chlorophyll" checked>
+    <span class="box"></span>
+    <span class="dot dot-chl"></span>
+    <label>Chlorophyll (CHL)</label>
+  </label>
+
+  <label class="toggle">
+    <input type="checkbox" id="chk-currents" checked>
+    <span class="box"></span>
+    <span class="dot dot-uv"></span>
+    <label>Currents (UV)</label>
+  </label>
+
+  <label class="toggle">
+    <input type="checkbox" id="chk-bathymetry" checked>
+    <span class="box"></span>
+    <span class="dot dot-bathy"></span>
+    <label>Bathymetry</label>
+  </label>
+
+  <label class="toggle">
+    <input type="checkbox" id="chk-fronts" checked>
+    <span class="box"></span>
+    <span class="dot dot-front"></span>
+    <label>Thermal Fronts</label>
+  </label>
+
+  <span id="load-status" style="font-size:11px;color:#9fb0c3;margin-left:auto;"></span>
+</div>
+
+<div id="map"></div>
+
+<div class="legend" id="chl-legend" style="display:none">
+  <div class="legend-title">CHL mg/m³</div>
+  <div class="legend-bar" id="chl-bar"></div>
+  <div class="legend-labels"><span>0.02</span><span>10</span></div>
+</div>
+
+<div class="legend adt" id="adt-legend" style="display:none">
+  <div class="legend-title">ADT m (currents)</div>
+  <div class="legend-bar" id="adt-bar"></div>
+  <div class="legend-labels"><span>0.005</span><span>1.6</span></div>
+</div>
+
+<div id="status">Initializing…</div>
+
+<script>
+// ─── Constants ──────────────────────────────────────────────────────────────
+const REGION_ID = "usec_south";
+const BBOX = [-81, 31, -73, 40];
+const DATA_DIR = "data/usec_south";
+
+// CHL palette: 0.02 → 10 mg/m³ (log scale)
+const CHL_PALETTE = [
+  [0.00, [5,11,23]],
+  [0.10, [12,32,68]],
+  [0.25, [16,60,102]],
+  [0.40, [16,97,110]],
+  [0.55, [20,130,80]],
+  [0.70, [80,170,50]],
+  [0.85, [200,160,20]],
+  [1.00, [220,100,10]],
+];
+const CHL_MIN = 0.02, CHL_MAX = 10;
+
+// ADT palette: blue → white → red
+const ADT_PALETTE = [
+  [0.00, [30,80,200]],
+  [0.25, [60,140,230]],
+  [0.50, [240,240,240]],
+  [0.75, [230,80,40]],
+  [1.00, [180,20,20]],
+];
+const ADT_MIN = 0.005, ADT_MAX = 1.6;
+
+// Bathymetry contour color
+const BATHY_STROKE = "#8bb8d4";
+const BATHY_WIDTH = 0.8;
+
+// Thermal front color ramp: purple → red
+function spectralRgb(t) {
+  const hue = 270 - t * 270;
+  const s = 0.85, l = 0.50;
+  const h = ((hue % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60)       { r=c; g=x; b=0; }
+  else if (h < 120)  { r=x; g=c; b=0; }
+  else if (h < 180)  { r=0; g=c; b=x; }
+  else if (h < 240)  { r=0; g=x; b=c; }
+  else if (h < 300) { r=x; g=0; b=c; }
+  else              { r=c; g=0; b=x; }
+  return [Math.round((r+m)*255), Math.round((g+m)*255), Math.round((b+m)*255)];
+}
+const FRONT_COLOR = spectralRgb(1.0); // newest=red
+
+// ─── Utility functions ────────────────────────────────────────────────────────
+function logNorm(val, vMin, vMax) {
+  const logMin = Math.log(vMin);
+  return Math.max(0, Math.min(1, (Math.log(val) - logMin) / (Math.log(vMax) - logMin)));
+}
+function linearNorm(val, vMin, vMax) {
+  return Math.max(0, Math.min(1, (val - vMin) / (vMax - vMin)));
+}
+function interpolateColorPalette(value, palette) {
+  const v = Math.max(0, Math.min(1, value));
+  for (let i = 1; i < palette.length; i++) {
+    if (v <= palette[i][0]) {
+      const t = (v - palette[i-1][0]) / (palette[i][0] - palette[i-1][0]);
+      const c0 = palette[i-1][1], c1 = palette[i][1];
+      return [
+        Math.round(c0[0] + t * (c1[0] - c0[0])),
+        Math.round(c0[1] + t * (c1[1] - c0[1])),
+        Math.round(c0[2] + t * (c1[2] - c0[2])),
+      ];
+    }
+  }
+  return palette[palette.length-1][1];
+}
+function rgba(color, a) {
+  return `rgba(${color[0]},${color[1]},${color[2]},${a.toFixed(3)})`;
+}
+function sortedFilenames(dir, pattern) {
+  // Will be populated via fetch
+  return [];
+}
+
+// ─── Build colorbar canvas ────────────────────────────────────────────────────
+function buildColorbarCanvas(palette, width=180, height=10) {
+  const c = document.createElement("canvas");
+  c.width = width; c.height = height;
+  const ctx = c.getContext("2d");
+  const gradient = ctx.createLinearGradient(0,0,width,0);
+  for (const [t, col] of palette) {
+    gradient.addColorStop(t, `rgb(${col[0]},${col[1]},${col[2]})`);
+  }
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0,0,width,height);
+  return c;
+}
+
+// ─── Layer 1: Chlorophyll ────────────────────────────────────────────────────
+async function loadChlLayer(map) {
+  const status = document.getElementById("load-status");
+  if(status) status.textContent = "Loading CHL…";
+  try {
+    // Find latest VJ1 or VNP file
+    const dirRes = await fetch(`${DATA_DIR}/chl/`);
+    const text = await dirRes.text();
+    const matches = [...text.matchAll(/href="([^"]*_VJ1\.json)"/g), ...text.matchAll(/href="([^"]*_VNP\.json)"/g)];
+    const files = matches.map(m => m[1]).filter(Boolean);
+    if (!files.length) { if(status) status.textContent = "No CHL files found"; return null; }
+    files.sort();
+    const latestFile = files[files.length - 1];
+    const res = await fetch(`${DATA_DIR}/chl/${latestFile}`);
+    const d = await res.json();
+    const { bbox: extent, nx, ny, z } = d;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = nx; canvas.height = ny;
+    const ctx = canvas.getContext("2d");
+    const imgData = ctx.createImageData(nx, ny);
+    for (let row = 0; row < ny; row++) {
+      for (let col = 0; col < nx; col++) {
+        const val = z[row][col];
+        const t = logNorm(val, CHL_MIN, CHL_MAX);
+        const col3 = interpolateColorPalette(t, CHL_PALETTE);
+        const k = (row * nx + col) * 4;
+        imgData.data[k]   = col3[0];
+        imgData.data[k+1] = col3[1];
+        imgData.data[k+2] = col3[2];
+        imgData.data[k+3] = isFinite(val) ? 255 : 0;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    const src = new ol.source.ImageStatic({
+      url: canvas.toDataURL("image/png"),
+      imageExtent: extent,
+      projection: "EPSG:4326",
+      interpolate: false,
+    });
+    const layer = new ol.layer.Image({ source: src, zIndex: 10 });
+    map.addLayer(layer);
+
+    // Show legend
+    const legend = document.getElementById("chl-legend");
+    const bar = document.getElementById("chl-bar");
+    if (legend && bar) {
+      bar.style.background = `linear-gradient(to right, ${CHL_PALETTE.map(([t,c])=>`rgb(${c[0]},${c[1]},${c[2]})`).join(",")})`;
+      legend.style.display = "block";
+    }
+    if(status) status.textContent = "";
+    return layer;
+  } catch(e) {
+    console.error("CHL load error:", e);
+    if(status) status.textContent = "CHL failed";
+    return null;
+  }
+}
+
+// ─── Layer 2: UV Currents ───────────────────────────────────────────────────
+async function loadUvLayer(map) {
+  const status = document.getElementById("load-status");
+  if(status) status.textContent = "Loading UV…";
+  try {
+    const dirRes = await fetch(`${DATA_DIR}/uv/`);
+    const text = await dirRes.text();
+    const matches = [...text.matchAll(/href="(uv_usec_south_[^"]+\.json)"/g)];
+    const files = matches.map(m => m[1]).filter(Boolean);
+    if (!files.length) { if(status) status.textContent = "No UV files"; return null; }
+    files.sort();
+    const latestFile = files[files.length - 1];
+    const res = await fetch(`${DATA_DIR}/uv/${latestFile}`);
+    const d = await res.json();
+    const { bbox: extent, nx: gridNx, ny: gridNy, u, v, adt } = d;
+
+    const nx = gridNx, ny = gridNy;
+    const canvas = document.createElement("canvas");
+    canvas.width = nx; canvas.height = ny;
+    const ctx = canvas.getContext("2d");
+
+    // ADT range for coloring
+    const adtMin = 0.005, adtMax = 1.6;
+
+    for (let row = 0; row < ny; row++) {
+      for (let col = 0; col < nx; col++) {
+        const ui = u[row][col];
+        const vi = v[row][col];
+        const mag = Math.sqrt(ui*ui + vi*vi);
+        if (!isFinite(ui) || !isFinite(vi) || mag < 0.001) continue;
+
+        const adtVal = adt[row][col];
+        const t = linearNorm(adtVal, adtMin, adtMax);
+        const col3 = interpolateColorPalette(t, ADT_PALETTE);
+
+        const cx = col + 0.5, cy = row + 0.5;
+        const angle = Math.atan2(vi, ui);
+        const cos = Math.cos(angle), sin = Math.sin(angle);
+
+        const arrowLen = Math.min(12, Math.max(4, 2 + mag * 10));
+        const headLen = arrowLen * 0.35;
+        const tailFraction = 0.3;
+        const tx = cx - cos * arrowLen * tailFraction;
+        const ty = cy - sin * arrowLen * tailFraction;
+        const ex = cx + cos * arrowLen;
+        const ey = cy + sin * arrowLen;
+        const perpX = -sin, perpY = cos;
+
+        ctx.strokeStyle = rgba(col3, 0.85);
+        ctx.fillStyle = rgba(col3, 0.85);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+
+        const hx1 = ex - cos * headLen + perpX * headLen * 0.45;
+        const hy1 = ey - sin * headLen + perpY * headLen * 0.45;
+        const hx2 = ex - cos * headLen - perpX * headLen * 0.45;
+        const hy2 = ey - sin * headLen - perpY * headLen * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(ex, ey);
+        ctx.lineTo(hx1, hy1);
+        ctx.lineTo(hx2, hy2);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    const src = new ol.source.ImageStatic({
+      url: canvas.toDataURL("image/png"),
+      imageExtent: extent,
+      projection: "EPSG:4326",
+      interpolate: false,
+    });
+    const layer = new ol.layer.Image({ source: src, zIndex: 20 });
+    map.addLayer(layer);
+
+    const legend = document.getElementById("adt-legend");
+    const bar = document.getElementById("adt-bar");
+    if (legend && bar) {
+      bar.style.background = `linear-gradient(to right, ${ADT_PALETTE.map(([t,c])=>`rgb(${c[0]},${c[1]},${c[2]})`).join(",")})`;
+      legend.style.display = "block";
+    }
+    if(status) status.textContent = "";
+    return layer;
+  } catch(e) {
+    console.error("UV load error:", e);
+    if(status) status.textContent = "UV failed";
+    return null;
+  }
+}
+
+// ─── Layer 3: Bathymetry contours ─────────────────────────────────────────
+async function loadBathymetryLayer(map) {
+  const status = document.getElementById("load-status");
+  if(status) status.textContent = "Loading bathy…";
+  try {
+    const res = await fetch(`${DATA_DIR}/gebco_bath_latest/gebco_bathy.json`);
+    const d = await res.json();
+    const xAxis = d.xAxis; // 1920 lons
+    const yAxis = d.yAxis; // 1200 lats
+    const depth  = d.depth; // 1200×1920, values 0-5360m
+
+    // Store for contour rendering
+    window._bathyData = { xAxis, yAxis, depth, nx: xAxis.length, ny: yAxis.length };
+
+    const layer = new ol.layer.Vector({
+      source: new ol.source.Vector({ wrapX: false }),
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: BATHY_STROKE, width: BATHY_WIDTH }),
+      }),
+      zIndex: 15,
+    });
+    map.addLayer(layer);
+    window._bathyLayer = layer;
+
+    // Initial render
+    updateBathyContours(map);
+
+    if(status) status.textContent = "";
+    return layer;
+  } catch(e) {
+    console.error("Bathy load error:", e);
+    if(status) status.textContent = "Bathy failed";
+    return null;
+  }
+}
+
+function updateBathyContours(map) {
+  const bd = window._bathyData;
+  const layer = window._bathyLayer;
+  if (!bd || !layer) return;
+
+  const source = layer.getSource();
+  source.clear();
+
+  const extent = map.getView().calculateExtent(map.getSize());
+  const [viewMinX, viewMinY, viewMaxX, viewMaxY] = extent;
+
+  // Subsample for performance
+  const maxW = 400, maxH = 600;
+  const nx = bd.nx, ny = bd.ny;
+  const stepX = Math.max(1, Math.floor(nx / maxW));
+  const stepY = Math.max(1, Math.floor(ny / maxH));
+
+  // Determine contour levels based on visible depth range
+  const maxDepth = depthMaxInExtent(bd, extent, stepX, stepY);
+  const levels = generateContourLevels(maxDepth);
+
+  // Simple scanline contour extraction: for each level, collect edge pixels
+  for (const level of levels) {
+    const segments = extractContourSegments(bd, level, stepX, stepY, extent);
+    for (const seg of segments) {
+      const feature = new ol.Feature(new ol.geom.LineString(seg));
+      source.addFeature(feature);
+    }
+  }
+}
+
+function depthMaxInExtent(bd, extent, stepX, stepY) {
+  const [vx0, vy0, vx1, vy1] = extent;
+  let maxD = 0;
+  for (let row = 0; row < bd.ny; row += stepY) {
+    const lat = bd.yAxis[row];
+    if (lat < vy0 || lat > vy1) continue;
+    for (let col = 0; col < bd.nx; col += stepX) {
+      const lon = bd.xAxis[col];
+      if (lon < vx0 || lon > vx1) continue;
+      const d = bd.depth[row][col];
+      if (d > maxD) maxD = d;
+    }
+  }
+  return maxD;
+}
+
+function generateContourLevels(maxDepth) {
+  const standardLevels = [50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+  return standardLevels.filter(l => l <= maxDepth + 200);
+}
+
+function extractContourSegments(bd, level, stepX, stepY, extent) {
+  const [vx0, vy0, vx1, vy1] = extent;
+  const segments = [];
+
+  // Marching-squares style: check each cell for crossings on edges
+  // Cell edges: top (between row and row-1), bottom (between row and row+1),
+  //             left (between col and col-1), right (between col and col+1)
+  for (let row = 1; row < bd.ny - 1; row += stepY) {
+    const lat = bd.yAxis[row];
+    if (lat < vy0 || lat > vy1) continue;
+    const nextLat = bd.yAxis[Math.min(row + stepY, bd.ny - 1)];
+
+    for (let col = 1; col < bd.nx - 1; col += stepX) {
+      const lon = bd.xAxis[col];
+      if (lon < vx0 || lon > vx1) continue;
+      const nextLon = bd.xAxis[Math.min(col + stepX, bd.nx - 1)];
+
+      // Cell corner depths (top-left, top-right, bottom-right, bottom-left)
+      const tl = bd.depth[row][col];
+      const tr = bd.depth[row][Math.min(col + stepX, bd.nx - 1)];
+      const br = bd.depth[Math.min(row + stepY, bd.ny - 1)][Math.min(col + stepX, bd.nx - 1)];
+      const bl = bd.depth[Math.min(row + stepY, bd.ny - 1)][col];
+
+      // Check edges for level crossings
+      const edgeCrossings = [];
+
+      // Top edge: tl → tr
+      if ((tl < level) !== (tr < level)) {
+        const t = (level - tl) / (tr - tl);
+        edgeCrossings.push([[lon + t * (nextLon - lon), lat], "top"]);
+      }
+      // Bottom edge: bl → br
+      if ((bl < level) !== (br < level)) {
+        const t = (level - bl) / (br - bl);
+        edgeCrossings.push([[lon + t * (nextLon - lon), nextLat], "bottom"]);
+      }
+      // Left edge: tl → bl
+      if ((tl < level) !== (bl < level)) {
+        const t = (level - tl) / (bl - tl);
+        edgeCrossings.push([[lon, lat + t * (nextLat - lat)], "left"]);
+      }
+      // Right edge: tr → br
+      if ((tr < level) !== (br < level)) {
+        const t = (level - tr) / (br - tr);
+        edgeCrossings.push([[nextLon, lat + t * (nextLat - lat)], "right"]);
+      }
+
+      if (edgeCrossings.length >= 2) {
+        // Connect pairs of crossings (simple approach: connect first two)
+        const segCoords = edgeCrossings.slice(0, 2).map(e => e[0]);
+        if (segCoords.length === 2) {
+          const d0 = Math.hypot(segCoords[0][0] - vx0, segCoords[0][1] - vy0);
+          const d1 = Math.hypot(segCoords[1][0] - vx0, segCoords[1][1] - vy0);
+          if (d0 > 0.01 && d1 > 0.01) {
+            segments.push(segCoords);
+          }
+        }
+      }
+    }
+  }
+  return segments;
+}
+
+// ─── Layer 4: Thermal front density ─────────────────────────────────────────
+async function loadFrontsLayer(map) {
+  const status = document.getElementById("load-status");
+  if(status) status.textContent = "Loading fronts…";
+  try {
+    // Find all sst_front JSON files and group by date
+    const dirRes = await fetch(`${DATA_DIR}/sst_front/`);
+    const text = await dirRes.text();
+    const matches = [...text.matchAll(/href="(sstfront_usec_south_[^"]+\.json)"/g)];
+    const files = matches.map(m => m[1]).filter(Boolean);
+    if (!files.length) { if(status) status.textContent = "No front files"; return null; }
+
+    // Parse dates from filenames (format: sstfront_usec_south_YYYYMMDD_HH_g19.json)
+    const dateMap = new Map();
+    for (const f of files) {
+      const m = f.match(/(\d{8})_\d\d_g19\.json$/);
+      if (!m) continue;
+      const date = m[1]; // YYYYMMDD
+      if (!dateMap.has(date)) dateMap.set(date, []);
+      dateMap.get(date).push(f);
+    }
+
+    const dates = Array.from(dateMap.keys()).sort();
+    const latestDate = dates[dates.length - 1];
+    const latestFiles = dateMap.get(latestDate);
+
+    // Load all hourly frames for latest date
+    const loadPromises = latestFiles.map(f => fetch(`${DATA_DIR}/sst_front/${f}`).then(r => r.json()));
+    const frames = await Promise.all(loadPromises);
+
+    // Build density field: 0.005° cells
+    const cellDeg = 0.005;
+    const nx = Math.max(2, Math.ceil((BBOX[2] - BBOX[0]) / cellDeg) + 1);
+    const ny = Math.max(2, Math.ceil((BBOX[3] - BBOX[1]) / cellDeg) + 1);
+    const counts = new Int32Array(nx * ny);
+    const [west, south] = BBOX;
+
+    for (const frame of frames) {
+      const features = frame.features || [];
+      for (const feat of features) {
+        const coords = feat.geometry?.coordinates || [];
+        for (const pt of coords) {
+          const [lon, lat] = pt;
+          const cx = Math.round((lon - west) / cellDeg);
+          const cy = Math.round((lat - south) / cellDeg);
+          if (cx < 0 || cx >= nx || cy < 0 || cy >= ny) continue;
+          counts[cy * nx + cx]++;
+        }
+      }
+    }
+
+    const nonzero = Array.from(counts).filter(v => v > 0);
+    const max = Math.max(1, ...nonzero);
+    const cutoff = Math.max(2, Math.round(max * 0.15));
+
+    // Draw density canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = nx; canvas.height = ny;
+    const ctx = canvas.getContext("2d");
+    const radiusPx = 4;
+    const color = FRONT_COLOR;
+
+    for (let row = 0; row < ny; row++) {
+      const y = ny - 1 - row;
+      for (let x = 0; x < nx; x++) {
+        const v = counts[row * nx + x];
+        if (v < cutoff) continue;
+        const norm = Math.min(1, (v - cutoff) / Math.max(1, max - cutoff));
+        const alpha = Math.round(40 + 215 * norm);
+        ctx.beginPath();
+        ctx.arc(x, y, radiusPx, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(alpha/255).toFixed(3)})`;
+        ctx.fill();
+      }
+    }
+
+    const extent = [west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg];
+    const src = new ol.source.ImageStatic({
+      url: canvas.toDataURL("image/png"),
+      imageExtent: extent,
+      projection: "EPSG:4326",
+      interpolate: false,
+    });
+    const layer = new ol.layer.Image({ source: src, zIndex: 25 });
+    map.addLayer(layer);
+
+    if(status) status.textContent = "";
+    return layer;
+  } catch(e) {
+    console.error("Fronts load error:", e);
+    if(status) status.textContent = "Fronts failed";
+    return null;
+  }
+}
+
+// ─── Map init ────────────────────────────────────────────────────────────────
+const map = new ol.Map({
+  target: "map",
+  layers: [
+    new ol.layer.Tile({
+      source: new ol.source.XYZ({
+        url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        attributions: "© OpenStreetMap contributors",
+        maxZoom: 18,
+      }),
+      zIndex: 5,
+    }),
+  ],
+  view: new ol.View({
+    projection: "EPSG:4326",
+    extent: BBOX,
+    constrainOnlyCenter: false,
+    constrainResolution: false,
+    smooth: true,
+    rotation: 0,
+    center: [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2],
+    zoom: 7,
+    minZoom: 5,
+    maxZoom: 14,
+  }),
+  controls: ol.control.defaults.defaults({ attribution: false, zoom: true }),
+});
+
+// Layer refs
+let chlLayer = null, uvLayer = null, bathyLayer = null, frontsLayer = null;
+
+// Toggle handlers
+document.getElementById("chk-chlorophyll").addEventListener("change", e => {
+  if (chlLayer) chlLayer.setVisible(e.target.checked);
+});
+document.getElementById("chk-currents").addEventListener("change", e => {
+  if (uvLayer) uvLayer.setVisible(e.target.checked);
+});
+document.getElementById("chk-bathymetry").addEventListener("change", e => {
+  if (bathyLayer) bathyLayer.setVisible(e.target.checked);
+});
+document.getElementById("chk-fronts").addEventListener("change", e => {
+  if (frontsLayer) frontsLayer.setVisible(e.target.checked);
+});
+
+// Bathymetry contours on moveend
+map.on("moveend", () => {
+  if (bathyLayer) updateBathyContours(map);
+});
+
+// Load all layers in parallel
+(async () => {
+  const status = document.getElementById("status");
+  status.textContent = "Loading layers…";
+  try {
+    const [ch, uv, bath, fr] = await Promise.all([
+      loadChlLayer(map),
+      loadUvLayer(map),
+      loadBathymetryLayer(map),
+      loadFrontsLayer(map),
+    ]);
+    chlLayer = ch; uvLayer = uv; bathyLayer = bath; frontsLayer = fr;
+    status.textContent = "Ready";
+    setTimeout(() => { status.textContent = ""; }, 3000);
+  } catch(e) {
+    console.error(e);
+    status.textContent = "Error loading layers";
+  }
+})();
+</script>
+</body>
+</html>
