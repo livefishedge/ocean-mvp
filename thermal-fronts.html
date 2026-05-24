@@ -25,14 +25,24 @@
     #region-select{ padding:0 8px; min-width:130px; }
     #nav-bar{ display:flex; align-items:center; gap:6px; flex:1 1 340px; min-width:260px; }
     #prev-btn, #next-btn{ min-width:32px; padding:0 6px; font-size:16px; font-weight:900; }
-    #frame-progress{ flex:1; min-width:120px; max-width:520px; accent-color:#d84bff; }
+    #frame-progress{ flex:1; min-width:120px; max-width:520px; accent-color:#d84bff; background:transparent; -webkit-appearance:none; appearance:none; }
     #frame-progress::-webkit-slider-runnable-track{
       height:6px; border-radius:3px;
       background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
     }
+    #frame-progress::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:16px; height:16px; border-radius:50%;
+      background:#fff; border:0; margin-top:-5px;
+      box-shadow:0 1px 5px rgba(0,0,0,0.42);
+    }
     #frame-progress::-moz-range-track{
       height:6px; border-radius:3px;
       background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
+    }
+    #frame-progress::-moz-range-thumb{
+      width:16px; height:16px; border-radius:50%;
+      background:#fff; border:0; box-shadow:0 1px 5px rgba(0,0,0,0.42);
     }
     #frame-time{ font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
     #all-day-toggle{ display:flex; align-items:center; gap:6px; white-space:nowrap; font-size:13px; font-weight:800; }
@@ -142,6 +152,7 @@ let playing = false;
 let playTimer = null;
 let frameIdx = 0;
 let dailyFrames = [];
+let dailyRepresentativeCache = new Map();
 let hourlyDays = [];
 let selectedDate = "";
 let map = null;
@@ -253,7 +264,7 @@ function activeFrameList() {
 function displayedFrontItems() {
   if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
-    return dayItem ? framesForDate(dayItem.date) : [];
+    return dayItem ? [dailyRepresentativeForDate(dayItem.date)] : [];
   }
   const list = activeFrameList();
   if (allDayCb.checked) return list;
@@ -347,6 +358,139 @@ function segmentedLineStrings(coords, maxJumpDeg = 0.08) {
   }
   if (segment.length >= 2) segments.push(segment);
   return segments;
+}
+function dailyRepresentativeForDate(date) {
+  if (dailyRepresentativeCache.has(date)) return dailyRepresentativeCache.get(date);
+  const items = framesForDate(date);
+  const cellDeg = 0.04;
+  const cells = new Map();
+  for (const item of items) {
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sourceFeature of sourceFeatures) {
+      const coords = sourceFeature?.geometry?.coordinates || [];
+      const props = sourceFeature?.properties || {};
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const lon = Number(pt[0]);
+        const lat = Number(pt[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        const x = Math.round(lon / cellDeg);
+        const y = Math.round(lat / cellDeg);
+        const key = `${x},${y}`;
+        let cell = cells.get(key);
+        if (!cell) {
+          cell = { key, x, y, lonSum:0, latSum:0, hits:0, frames:new Set(), gradSum:0, gradCount:0 };
+          cells.set(key, cell);
+        }
+        cell.lonSum += lon;
+        cell.latSum += lat;
+        cell.hits += 1;
+        cell.frames.add(item.t);
+        const g = gradientForFeaturePoint(props, i);
+        if (Number.isFinite(g)) {
+          cell.gradSum += g;
+          cell.gradCount += 1;
+        }
+      }
+    }
+  }
+  let candidates = [...cells.values()];
+  const maxSupport = Math.max(0, ...candidates.map(c => c.frames.size));
+  let minSupport = Math.max(2, Math.ceil(items.length * 0.18));
+  candidates = candidates.filter(c => c.frames.size >= minSupport);
+  if (candidates.length < 8 && maxSupport > 0) {
+    minSupport = Math.max(1, Math.ceil(maxSupport * 0.5));
+    candidates = [...cells.values()].filter(c => c.frames.size >= minSupport);
+  }
+  candidates.sort((a,b) => (b.frames.size - a.frames.size) || (b.hits - a.hits));
+  candidates = candidates.slice(0, 900);
+  const candidateMap = new Map(candidates.map(c => [c.key, c]));
+  const seen = new Set();
+  const features = [];
+  for (const root of candidates) {
+    if (seen.has(root.key)) continue;
+    const stack = [root];
+    const component = [];
+    seen.add(root.key);
+    while (stack.length) {
+      const cell = stack.pop();
+      component.push(cell);
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          if (!dx && !dy) continue;
+          const neighbor = candidateMap.get(`${cell.x + dx},${cell.y + dy}`);
+          if (neighbor && !seen.has(neighbor.key)) {
+            seen.add(neighbor.key);
+            stack.push(neighbor);
+          }
+        }
+      }
+    }
+    if (component.length < 2) continue;
+    const coords = orderRepresentativeCells(component).map(c => [c.lonSum / c.hits, c.latSum / c.hits]);
+    if (coords.length < 2) continue;
+    const gradCells = component.filter(c => c.gradCount > 0);
+    const grad = gradCells.length
+      ? gradCells.reduce((sum, c) => sum + c.gradSum, 0) / gradCells.reduce((sum, c) => sum + c.gradCount, 0)
+      : null;
+    features.push({
+      type:"Feature",
+      geometry:{ type:"LineString", coordinates:coords },
+      properties:{
+        daily_representative:true,
+        support_threshold:minSupport,
+        hourly_count:items.length,
+        cell_count:component.length,
+        gradient_per_km:grad
+      }
+    });
+  }
+  const representative = {
+    meta:{ date, representative:true },
+    t: items[0]?.t ?? Date.parse(`${date}T00:00:00Z`),
+    data:{ type:"FeatureCollection", features }
+  };
+  dailyRepresentativeCache.set(date, representative);
+  return representative;
+}
+function orderRepresentativeCells(component) {
+  const remaining = component.map(c => ({
+    ...c,
+    lon:c.lonSum / c.hits,
+    lat:c.latSum / c.hits
+  }));
+  const centroid = remaining.reduce((acc, c) => {
+    acc.lon += c.lon; acc.lat += c.lat; return acc;
+  }, { lon:0, lat:0 });
+  centroid.lon /= remaining.length;
+  centroid.lat /= remaining.length;
+  let currentIdx = 0;
+  let bestDist = -1;
+  for (let i = 0; i < remaining.length; i++) {
+    const d = Math.hypot(remaining[i].lon - centroid.lon, remaining[i].lat - centroid.lat);
+    if (d > bestDist) {
+      bestDist = d;
+      currentIdx = i;
+    }
+  }
+  const ordered = [];
+  let current = remaining.splice(currentIdx, 1)[0];
+  ordered.push(current);
+  while (remaining.length) {
+    let nextIdx = 0;
+    let nextDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = Math.hypot(remaining[i].lon - current.lon, remaining[i].lat - current.lat);
+      if (d < nextDist) {
+        nextDist = d;
+        nextIdx = i;
+      }
+    }
+    current = remaining.splice(nextIdx, 1)[0];
+    ordered.push(current);
+  }
+  return ordered;
 }
 function activeFrontItems() {
   return displayedFrontItems();
@@ -499,7 +643,9 @@ function renderFrontLayer() {
   const oldestMs = items[0]?.t ?? latestMs;
   const features = [];
   for (const item of items) {
-    const color = colorForAge(item.t, latestMs, oldestMs);
+    const color = mode === "daily"
+      ? colorForAge(item.t, dailyFrames.at(-1)?.t ?? item.t, dailyFrames[0]?.t ?? item.t)
+      : colorForAge(item.t, latestMs, oldestMs);
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sourceFeature of sourceFeatures) {
       const coords = sourceFeature?.geometry?.coordinates || [];
@@ -621,7 +767,8 @@ async function render() {
   if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
     const count = dayItem ? framesForDate(dayItem.date).length : 0;
-    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • ${count} hourly fronts`;
+    const representativeCount = dayItem ? (dailyRepresentativeForDate(dayItem.date).data.features || []).length : 0;
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • ${representativeCount} mean fronts from ${count} hourly frames`;
   } else {
     const item = list[frameIdx];
     const total = allDayCb.checked ? list.length : 1;
@@ -742,7 +889,8 @@ async function init() {
   const legendEl = document.getElementById('legend');
   if (legendEl) { legendEl.style.display = hasMultiDay ? '' : 'none'; legendEl.textContent = hasMultiDay ? 'Color = time: purple (oldest) -> red (newest)' : ''; }
   window.__thermalFrontsState = { frames, frameData, map };
-  await render();
+  if (new URLSearchParams(location.search).get("mode") === "daily") setMode("daily");
+  else await render();
 }
 
 regionSelect.addEventListener("change", () => {
