@@ -277,6 +277,7 @@ function activeFrameList() {
 }
 function displayedFrontItems() {
   if (mode === "daily") {
+    if (allDayCb.checked) return dailyFrames.map(day => dailyRepresentativeForDate(day.date));
     const dayItem = dailyFrames[frameIdx];
     return dayItem ? [dailyRepresentativeForDate(dayItem.date)] : [];
   }
@@ -376,7 +377,7 @@ function segmentedLineStrings(coords, maxJumpDeg = 0.08) {
 function dailyRepresentativeForDate(date) {
   if (dailyRepresentativeCache.has(date)) return dailyRepresentativeCache.get(date);
   const items = framesForDate(date);
-  const cellDeg = 0.04;
+  const cellDeg = 0.05;
   const cells = new Map();
   for (const item of items) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
@@ -411,14 +412,14 @@ function dailyRepresentativeForDate(date) {
   }
   let candidates = [...cells.values()];
   const maxSupport = Math.max(0, ...candidates.map(c => c.frames.size));
-  let minSupport = Math.max(3, Math.ceil(items.length * 0.35));
+  let minSupport = Math.max(2, Math.ceil(items.length * 0.18));
   candidates = candidates.filter(c => c.frames.size >= minSupport);
-  if (candidates.length < 8 && maxSupport > 0) {
-    minSupport = Math.max(2, Math.ceil(maxSupport * 0.65));
+  if (candidates.length < 20 && maxSupport > 0) {
+    minSupport = Math.max(1, Math.ceil(maxSupport * 0.5));
     candidates = [...cells.values()].filter(c => c.frames.size >= minSupport);
   }
   candidates.sort((a,b) => (b.frames.size - a.frames.size) || (b.hits - a.hits));
-  candidates = candidates.slice(0, 260);
+  candidates = candidates.slice(0, 520);
   const candidateMap = new Map(candidates.map(c => [c.key, c]));
   const seen = new Set();
   const features = [];
@@ -441,7 +442,7 @@ function dailyRepresentativeForDate(date) {
         }
       }
     }
-    if (component.length < 3) continue;
+    if (component.length < 2) continue;
     const coords = orderRepresentativeCells(component).map(c => [c.lonSum / c.hits, c.latSum / c.hits]);
     if (coords.length < 2) continue;
     const gradCells = component.filter(c => c.gradCount > 0);
@@ -781,13 +782,16 @@ async function render() {
   if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
     const count = dayItem ? framesForDate(dayItem.date).length : 0;
-    const representativeCount = dayItem ? (dailyRepresentativeForDate(dayItem.date).data.features || []).length : 0;
-    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • ${representativeCount} mean fronts from ${count} hourly frames`;
+    const shown = displayedFrontItems();
+    const representativeCount = shown.reduce((sum, item) => sum + ((item.data?.features || []).length), 0);
+    const shownDays = allDayCb.checked ? dailyFrames.length : 1;
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • showing ${representativeCount} mean fronts from ${shownDays === 1 ? count + " hourly frames" : shownDays + " days"}`;
   } else {
     const item = list[frameIdx];
     const total = allDayCb.checked ? list.length : 1;
     statusEl.textContent = `${frameIdx+1}/${list.length} hourly frames • ${selectedDate || ""} • showing ${total}`;
   }
+  updateLegend();
   updateNavBar();
 }
 function setMode(next) {
@@ -796,7 +800,8 @@ function setMode(next) {
   animationBtn.classList.toggle("active", mode === "animation");
   dailyBtn.classList.toggle("active", mode === "daily");
   dayRow.classList.toggle("hidden", mode !== "animation");
-  allDayToggle.classList.toggle("hidden", mode !== "animation");
+  allDayToggle.classList.toggle("hidden", false);
+  allDayCb.checked = false;
   if (mode === "daily") {
     const previousDate = selectedDate || dateKey(activeFrameList()[frameIdx]?.t || Date.now());
     frameIdx = Math.max(0, dailyFrames.findIndex(item => item.date === previousDate));
@@ -823,8 +828,15 @@ function updateNavBar() {
     nextBtn.disabled = true;
   }
   playBtn.disabled = list.length <= 1;
-  allDayLabel.textContent = "All fronts this day";
+  allDayLabel.textContent = mode === "daily" ? "All days this period" : "All fronts this day";
   updateProgress();
+}
+function updateLegend() {
+  const legendEl = document.getElementById("legend");
+  if (!legendEl) return;
+  const displayedCount = displayedFrontItems().length;
+  legendEl.style.display = displayedCount > 1 ? "" : "none";
+  legendEl.textContent = displayedCount > 1 ? "Color = time: purple (oldest) -> red (newest)" : "";
 }
 function updateProgress() {
   const list = activeFrameList();
@@ -899,9 +911,6 @@ async function init() {
   selectedDate = Number.isFinite(requestedMs) ? dateKey(frameData[requestedIdx]?.t || requestedMs) : (hourlyDays.at(-1) || "");
   syncDaySelect();
   frameIdx = closestFrameIndex(activeFrameList(), requestedMs);
-  const hasMultiDay = frameData.length > 1 && (frameData.at(-1)?.t ?? 0) - (frameData[0]?.t ?? 0) > 864e5;
-  const legendEl = document.getElementById('legend');
-  if (legendEl) { legendEl.style.display = hasMultiDay ? '' : 'none'; legendEl.textContent = hasMultiDay ? 'Color = time: purple (oldest) -> red (newest)' : ''; }
   window.__thermalFrontsState = { frames, frameData, map };
   if (new URLSearchParams(location.search).get("mode") === "daily") setMode("daily");
   else await render();
