@@ -638,14 +638,13 @@ function densityCanvas(field) {
   const color = field.color || [19, 74, 136];
   const radiusPx = 4; // pixel radius of each hit cell
   for (let row = 0; row < field.ny; row++) {
-    const y = field.ny - 1 - row;
     for (let x = 0; x < field.nx; x++) {
-      const v = counts[y * field.nx + x];
+      const v = counts[row * field.nx + x];
       if (v < cutoff) continue;
       const norm = Math.min(1, (v - cutoff) / span);
       const alpha = Math.round(40 + 215 * norm);
       ctx.beginPath();
-      ctx.arc(x, y, radiusPx, 0, Math.PI * 2);
+      ctx.arc(x, row, radiusPx, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(alpha / 255).toFixed(3)})`;
       ctx.fill();
     }
