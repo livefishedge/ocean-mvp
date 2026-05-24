@@ -275,7 +275,7 @@ async function loadChlLayer(map) {
     files.sort();
     const latestFile = files[files.length - 1];
     if(status) status.textContent = "CHL: loading " + latestFile + "…";
-    const res = await fetchWithTimeout(`${DATA_DIR}/chl/${latestFile}`);
+    const res = await fetchWithTimeout(`${DATA_DIR}/chl/${latestFile}?t=${Date.now()}`);
     const d = await res.json();
     const { bbox: extent, nx, ny, z } = d;
 
@@ -335,7 +335,7 @@ async function loadUvLayer(map) {
     files.sort();
     const latestFile = files[files.length - 1];
     if(status) status.textContent = "UV: loading " + latestFile + "…";
-    const res = await fetchWithTimeout(`${DATA_DIR}/uv/${latestFile}`);
+    const res = await fetchWithTimeout(`${DATA_DIR}/uv/${latestFile}?t=${Date.now()}`);
     const d = await res.json();
     const { bbox: extent, nx: gridNx, ny: gridNy, u, v, adt } = d;
 
@@ -421,7 +421,7 @@ async function loadBathymetryLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Bathy: loading gebco_bathy.json…";
   try {
-    const res = await fetchWithTimeout(`${DATA_DIR}/gebco_bath_latest/gebco_bathy.json`);
+    const res = await fetchWithTimeout(`${DATA_DIR}/gebco_bath_latest/gebco_bathy.json?t=${Date.now()}`);
     const d = await res.json();
     const xAxis = d.xAxis; // 1920 lons
     const yAxis = d.yAxis; // 1200 lats
@@ -599,7 +599,7 @@ async function loadFrontsLayer(map) {
     const latestFiles = dateMap.get(latestDate);
 
     // Load all hourly frames for latest date
-    const loadPromises = latestFiles.map(f => fetchWithTimeout(`${DATA_DIR}/sst_front/${f}`).then(r => r.json()));
+    const loadPromises = latestFiles.map(f => fetchWithTimeout(`${DATA_DIR}/sst_front/${f}?t=${Date.now()}`).then(r => r.json()));
     const frames = await Promise.all(loadPromises);
 
     // Build density field: 0.005° cells
