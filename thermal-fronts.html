@@ -137,7 +137,7 @@
       <option value="usec_south">South-Atlantic</option>
       <option value="usec_md">Mid-Atlantic</option>
     </select></label>
-    <label>Product<select id="product-select"><option value="chl">Chlorophyll</option><option value="sst">Sea surface temperature</option><option value="uv">Currents/SSH</option><option value="bathy">Bathymetry</option><option value="thermal_fronts">Thermal Fronts</option></select></label>
+    <label>Product<select id="product-select"><option value="chl">Chlorophyll</option><option value="sst">Sea surface temperature</option><option value="uv">Currents/SSH</option><option value="bathy">Bathymetry</option><option value="thermal_fronts">Thermal Fronts</option><option value="combined">Combined View</option></select></label>
     <label id="day-row">Day<select id="day-select"></select></label>
     <label id="all-day-toggle">
       <input id="all-day-cb" type="checkbox" />
@@ -1001,10 +1001,13 @@ regionSelect.addEventListener("change", () => {
 });
 hamburgerBtn.addEventListener("click", () => menuPanel.classList.toggle("open"));
 productSelect.addEventListener("change", () => {
-  if (productSelect.value === "thermal_fronts") return;
   const url = new URL("index.html", location.href);
+  if (productSelect.value === "thermal_fronts") {
+    url.pathname = url.pathname.replace("thermal-fronts.html", "combined-viewer.html");
+  } else {
+    url.searchParams.set("var", productSelect.value);
+  }
   url.searchParams.set("region", regionId);
-  url.searchParams.set("var", productSelect.value);
   location.href = appendViewportParams(url).toString();
 });
 animationBtn.addEventListener("click", () => setMode("animation"));
