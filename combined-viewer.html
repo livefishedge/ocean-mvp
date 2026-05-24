@@ -275,9 +275,10 @@ async function loadChlLayer(map) {
       ...text.matchAll(/href="([^"]*_S3B\.json)"/g),
     ];
     const files = matches.map(m => m[1]).filter(Boolean);
-    if (!files.length) { if(status) status.textContent = "No CHL files found"; return null; }
+    if (!files.length) { if(status) status.textContent = "No CHL files in " + DATA_DIR; return null; }
     files.sort();
     const latestFile = files[files.length - 1];
+    if(status) status.textContent = "CHL: loading " + latestFile + "…";
     const res = await fetchWithTimeout(`${DATA_DIR}/chl/${latestFile}`);
     const d = await res.json();
     const { bbox: extent, nx, ny, z } = d;
@@ -319,8 +320,8 @@ async function loadChlLayer(map) {
     if(status) status.textContent = "";
     return layer;
   } catch(e) {
-    console.error("CHL load error:", e);
-    if(status) status.textContent = "CHL failed";
+    console.error("CHL load error:", e, "DATA_DIR was:", DATA_DIR);
+    if(status) status.textContent = "CHL failed: " + (e.message || String(e).slice(0,60));
     return null;
   }
 }
@@ -334,9 +335,10 @@ async function loadUvLayer(map) {
     const text = await dirRes.text();
     const matches = [...text.matchAll(/href="(uv_usec_south_[^"]+\.json)"/g)];
     const files = matches.map(m => m[1]).filter(Boolean);
-    if (!files.length) { if(status) status.textContent = "No UV files"; return null; }
+    if (!files.length) { if(status) status.textContent = "No UV files in " + DATA_DIR; return null; }
     files.sort();
     const latestFile = files[files.length - 1];
+    if(status) status.textContent = "UV: loading " + latestFile + "…";
     const res = await fetchWithTimeout(`${DATA_DIR}/uv/${latestFile}`);
     const d = await res.json();
     const { bbox: extent, nx: gridNx, ny: gridNy, u, v, adt } = d;
@@ -412,8 +414,8 @@ async function loadUvLayer(map) {
     if(status) status.textContent = "";
     return layer;
   } catch(e) {
-    console.error("UV load error:", e);
-    if(status) status.textContent = "UV failed";
+    console.error("UV load error:", e, "DATA_DIR was:", DATA_DIR);
+    if(status) status.textContent = "UV failed: " + (e.message || String(e).slice(0,60));
     return null;
   }
 }
@@ -421,7 +423,7 @@ async function loadUvLayer(map) {
 // ─── Layer 3: Bathymetry contours ─────────────────────────────────────────
 async function loadBathymetryLayer(map) {
   const status = document.getElementById("load-status");
-  if(status) status.textContent = "Loading bathy…";
+  if(status) status.textContent = "Bathy: loading gebco_bathy.json…";
   try {
     const res = await fetchWithTimeout(`${DATA_DIR}/gebco_bath_latest/gebco_bathy.json`);
     const d = await res.json();
@@ -449,7 +451,7 @@ async function loadBathymetryLayer(map) {
     return layer;
   } catch(e) {
     console.error("Bathy load error:", e);
-    if(status) status.textContent = "Bathy failed: " + (e.message || "unknown");
+    if(status) status.textContent = "Bathy failed: " + (e.message || String(e).slice(0,60));
     return null;
   }
 }
@@ -581,9 +583,11 @@ async function loadFrontsLayer(map) {
     // Find all sst_front JSON files and group by date
     const dirRes = await fetchWithTimeout(`${DATA_DIR}/sst_front/`);
     const text = await dirRes.text();
-    const matches = [...text.matchAll(/href="(sstfront_usec_south_[^"]+\.json)"/g)];
+    const regionPrefix = REGION_ID.replace(/_/g, "_");
+    const matches = [...text.matchAll(new RegExp(`href="(sstfront_${regionPrefix}_[^"]+\.json)"`, "g"))];
     const files = matches.map(m => m[1]).filter(Boolean);
-    if (!files.length) { if(status) status.textContent = "No front files"; return null; }
+    if (!files.length) { if(status) status.textContent = "No front files in " + DATA_DIR; return null; }
+    if(status) status.textContent = "Fronts: loading " + latestFiles.length + " frames…";
 
     // Parse dates from filenames (format: sstfront_usec_south_YYYYMMDD_HH_g19.json)
     const dateMap = new Map();
@@ -662,8 +666,8 @@ async function loadFrontsLayer(map) {
     if(status) status.textContent = "";
     return layer;
   } catch(e) {
-    console.error("Fronts load error:", e);
-    if(status) status.textContent = "Fronts failed";
+    console.error("Fronts load error:", e, "DATA_DIR was:", DATA_DIR);
+    if(status) status.textContent = "Fronts failed: " + (e.message || String(e).slice(0,60));
     return null;
   }
 }
