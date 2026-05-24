@@ -632,27 +632,24 @@ function densityCanvas(field) {
   canvas.width = field.nx;
   canvas.height = field.ny;
   const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(field.nx, field.ny);
   const max = Math.max(field.max || 1, 1);
   const cutoff = Math.max(field.cutoff || 2, Math.round(max * 0.15));
   const span = Math.max(1, max - cutoff);
   const color = field.color || [19, 74, 136];
+  const radiusPx = 4; // pixel radius of each hit cell
   for (let row = 0; row < field.ny; row++) {
     const y = field.ny - 1 - row;
     for (let x = 0; x < field.nx; x++) {
       const v = counts[y * field.nx + x];
       if (v < cutoff) continue;
       const norm = Math.min(1, (v - cutoff) / span);
-      // Alpha encodes density: higher count = more opaque
       const alpha = Math.round(40 + 215 * norm);
-      const k = (row * field.nx + x) * 4;
-      img.data[k] = color[0];
-      img.data[k + 1] = color[1];
-      img.data[k + 2] = color[2];
-      img.data[k + 3] = alpha;
+      ctx.beginPath();
+      ctx.arc(x, y, radiusPx, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(alpha / 255).toFixed(3)})`;
+      ctx.fill();
     }
   }
-  ctx.putImageData(img, 0, 0);
   return canvas;
 }
 function compositeDensityCanvas(field) {
@@ -665,6 +662,7 @@ function compositeDensityCanvas(field) {
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(first.nx, first.ny);
   const pixelCount = first.nx * first.ny;
+  const radiusPx = 4;
   for (let i = 0; i < pixelCount; i++) {
     let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
     for (const dayField of fields) {
@@ -672,7 +670,6 @@ function compositeDensityCanvas(field) {
       const max = Math.max(dayField.max || 1, 1);
       const cutoff = Math.max(dayField.cutoff || 2, Math.round(max * 0.15));
       if (v < cutoff) continue;
-      // Alpha proportional to count within the day (more hourly hits = more opaque)
       const alpha = Math.min(1, v / max);
       const color = dayField.color || [19, 74, 136];
       rSum += color[0] * alpha;
