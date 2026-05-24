@@ -423,11 +423,32 @@ function densityForDates(dates) {
   dailyDensityCache.set(key, density);
   return density;
 }
+// Full spectral ramp: purple(270°) → blue → cyan → green → yellow → orange → red(0°)
+function spectralRgb(t) {
+  // Hue: 270° (purple) → 360°/0° (red) via blue→cyan→green→yellow→orange
+  const hue = 270 - t * 270; // 270 → 0
+  const s = 0.85, l = 0.50;
+  return hslToRgb(hue, s, l);
+}
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
 function colorForDensityDate(date) {
   const idx = Math.max(0, hourlyDays.indexOf(date));
   const denom = Math.max(1, hourlyDays.length - 1);
   const t = idx / denom;
-  return DENSITY_COLOR_START.map((start, i) => Math.round(start + (DENSITY_COLOR_END[i] - start) * t));
+  return spectralRgb(t);
 }
 function quantile(values, q) {
   if (!values.length) return null;
@@ -437,7 +458,7 @@ function quantile(values, q) {
 }
 function buildDensityField(points, hourlyCount, label) {
   const [west, south, east, north] = bbox.map(Number);
-  const cellDeg = 0.01;
+  const cellDeg = 0.005;
   const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
   const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
   const density = new Float32Array(nx * ny);
@@ -464,7 +485,7 @@ function buildDensityField(points, hourlyCount, label) {
   const nonzero = Array.from(density).filter(v => v > 0);
   const p95 = quantile(nonzero, 0.95) || 1;
   const max = Math.max(p95, quantile(nonzero, 0.995) || p95, 1);
-  const cutoff = Math.max(quantile(nonzero, 0.72) || 0, max * 0.08);
+  const cutoff = Math.max(quantile(nonzero, 0.88) || 0, max * 0.18);
   return { method:"spatial_kde_density_field", label, color:colorForDensityDate(label), points:points.length, hourlyCount, nx, ny, cellDeg, extent:[west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg], density, max, cutoff };
 }
 function activeFrontItems() {
@@ -627,7 +648,7 @@ function densityCanvas(field) {
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(field.nx, field.ny);
   const max = Math.max(field.max || 1, 1);
-  const cutoff = Math.max(field.cutoff || 0, max * 0.08);
+  const cutoff = Math.max(field.cutoff || 0, max * 0.18);
   const span = Math.max(0.001, max - cutoff);
   const color = field.color || [19, 74, 136];
   for (let row = 0; row < field.ny; row++) {
@@ -662,7 +683,7 @@ function compositeDensityCanvas(field) {
     for (const dayField of fields) {
       const v = dayField.density[i];
       const max = Math.max(dayField.max || 1, 1);
-      const cutoff = Math.max(dayField.cutoff || 0, max * 0.08);
+      const cutoff = Math.max(dayField.cutoff || 0, max * 0.18);
       if (v <= cutoff) continue;
       const norm = Math.min(1, (v - cutoff) / Math.max(0.001, max - cutoff));
       const alpha = Math.pow(norm, 0.58);
