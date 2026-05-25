@@ -645,6 +645,9 @@ async function loadFrontsLayer(map) {
 }
 
 // ─── Map init ────────────────────────────────────────────────────────────────
+const interactionsFactory = typeof ol.interaction?.defaults === "function"
+    ? ol.interaction.defaults
+    : ol.interaction?.defaults?.defaults;
 const map = new ol.Map({
   target: "map",
   layers: [],
@@ -661,14 +664,14 @@ const map = new ol.Map({
     maxZoom: 14,
   }),
   controls: ol.control.defaults.defaults({ attribution: false, zoom: true }),
-  interactions: ol.interaction.defaults({
+  interactions: typeof interactionsFactory === "function" ? interactionsFactory({
     altShiftDragRotate: false,
     pinchRotate: false,
     doubleClickZoom: true,
     dragPan: true,
     mouseWheelZoom: true,
     pinchZoom: true,
-  }),
+  }) : undefined,
 });
 
 // Layer refs
