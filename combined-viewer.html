@@ -329,7 +329,7 @@ async function loadUvLayer(map) {
     if(status) status.textContent = "UV: loading " + latestFile + "…";
     const res = await fetchWithTimeout(`${DATA_DIR}/uv/${latestFile}?t=${Date.now()}`);
     const d = await res.json();
-    const { bbox: extent, nx: gridNx, ny: gridNy, u, v, adt } = d;
+    const { bbox: extent, nx, ny, u, v, adt } = d;
 
     // Draw arrows only — sparse grid for vector rendering
     const sparse = 4; // every 4th cell
