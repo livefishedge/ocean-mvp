@@ -257,20 +257,12 @@ async function loadChlLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading CHL…";
   try {
-    // Find latest CHL file (VIIRS or Sentinel-3)
-    const dirRes = await fetchWithTimeout(`${DATA_DIR}/chl/`);
-    const text = await dirRes.text();
-    const matches = [
-      ...text.matchAll(/href="([^"]*_VJ1\.json)"/g),
-      ...text.matchAll(/href="([^"]*_VNP\.json)"/g),
-      ...text.matchAll(/href="([^"]*_S3A-S3B\.json)"/g),
-      ...text.matchAll(/href="([^"]*_S3A\.json)"/g),
-      ...text.matchAll(/href="([^"]*_S3B\.json)"/g),
-    ];
-    const files = matches.map(m => m[1]).filter(Boolean);
-    if (!files.length) { if(status) status.textContent = "No CHL files in " + DATA_DIR; return null; }
-    files.sort();
-    const latestFile = files[files.length - 1];
+    // Find latest CHL file from index.json (VIIRS or Sentinel-3)
+    const idxRes = await fetchWithTimeout(`${DATA_DIR}/chl/index.json`);
+    const indexData = await idxRes.json();
+    if (!Array.isArray(indexData) || !indexData.length) { if(status) status.textContent = "No CHL index"; return null; }
+    const latest = indexData[indexData.length - 1];
+    const latestFile = latest.json_path.split("/").pop();
     if(status) status.textContent = "CHL: loading " + latestFile + "…";
     const res = await fetchWithTimeout(`${DATA_DIR}/chl/${latestFile}?t=${Date.now()}`);
     const d = await res.json();
@@ -324,13 +316,12 @@ async function loadUvLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading UV…";
   try {
-    const dirRes = await fetchWithTimeout(`${DATA_DIR}/uv/`);
-    const text = await dirRes.text();
-    const matches = [...text.matchAll(/href="(uv_usec_south_[^"]+\.json)"/g)];
-    const files = matches.map(m => m[1]).filter(Boolean);
-    if (!files.length) { if(status) status.textContent = "No UV files in " + DATA_DIR; return null; }
-    files.sort();
-    const latestFile = files[files.length - 1];
+    // Find latest UV file from index.json
+    const idxRes = await fetchWithTimeout(`${DATA_DIR}/uv/index.json`);
+    const indexData = await idxRes.json();
+    if (!Array.isArray(indexData) || !indexData.length) { if(status) status.textContent = "No UV index"; return null; }
+    const latest = indexData[indexData.length - 1];
+    const latestFile = latest.json_path.split("/").pop();
     if(status) status.textContent = "UV: loading " + latestFile + "…";
     const res = await fetchWithTimeout(`${DATA_DIR}/uv/${latestFile}?t=${Date.now()}`);
     const d = await res.json();
@@ -573,30 +564,28 @@ async function loadFrontsLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading fronts…";
   try {
-    // Find all sst_front JSON files and group by date
-    const dirRes = await fetchWithTimeout(`${DATA_DIR}/sst_front/`);
-    const text = await dirRes.text();
-    const regionPrefix = REGION_ID;
-    const matches = [...text.matchAll(new RegExp(`href="(sstfront_${regionPrefix}_[^"]+\.json)"`, "g"))];
-    const files = matches.map(m => m[1]).filter(Boolean);
-    if (!files.length) { if(status) status.textContent = "No front files"; return null; }
+    // Load all sst_front frames for latest date from index.json
+    const idxRes = await fetchWithTimeout(`${DATA_DIR}/sst_front/index.json`);
+    const indexData = await idxRes.json();
+    if (!Array.isArray(indexData) || !indexData.length) { if(status) status.textContent = "No sst_front index"; return null; }
 
-    // Parse dates from filenames (format: sstfront_usec_south_YYYYMMDD_HH_g19.json)
+    // Group by date
     const dateMap = new Map();
-    for (const f of files) {
-      const m = f.match(/(\d{8})_\d\d_g19\.json$/);
+    for (const entry of indexData) {
+      const fn = entry.json_path.split("/").pop();
+      const m = fn.match(/(\d{8})_\d\d_g19\.json$/);
       if (!m) continue;
-      const date = m[1]; // YYYYMMDD
+      const date = m[1];
       if (!dateMap.has(date)) dateMap.set(date, []);
-      dateMap.get(date).push(f);
+      dateMap.get(date).push(entry);
     }
 
     const dates = Array.from(dateMap.keys()).sort();
     const latestDate = dates[dates.length - 1];
-    const latestFiles = dateMap.get(latestDate);
-
-    // Load all hourly frames for latest date
-    const loadPromises = latestFiles.map(f => fetchWithTimeout(`${DATA_DIR}/sst_front/${f}?t=${Date.now()}`).then(r => r.json()));
+    const latestEntries = dateMap.get(latestDate) || [];
+    if (!latestEntries.length) { if(status) status.textContent = "No front frames for latest date"; return null; }
+    if(status) status.textContent = "Fronts: loading " + latestEntries.length + " frames…";
+    const loadPromises = latestEntries.map(e => fetchWithTimeout(`${DATA_DIR}/sst_front/${e.json_path.split("/").pop()}?t=${Date.now()}`).then(r => r.json()));
     const frames = await Promise.all(loadPromises);
 
     // Build density field: 0.005° cells
