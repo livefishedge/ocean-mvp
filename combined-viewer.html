@@ -274,12 +274,13 @@ async function loadChlLayer(map) {
     canvas.width = nx; canvas.height = ny;
     const ctx = canvas.getContext("2d");
     const imgData = ctx.createImageData(nx, ny);
+    // Flip y: row 0 (south/bottom) → canvas bottom (ny-1-y)
     for (let row = 0; row < ny; row++) {
       for (let col = 0; col < nx; col++) {
         const val = z[row][col];
         const t = logNorm(val, CHL_MIN, CHL_MAX);
         const col3 = interpolateColorPalette(t, CHL_PALETTE);
-        const k = (row * nx + col) * 4;
+        const k = ((ny - 1 - row) * nx + col) * 4;
         imgData.data[k]   = col3[0];
         imgData.data[k+1] = col3[1];
         imgData.data[k+2] = col3[2];
@@ -660,6 +661,14 @@ const map = new ol.Map({
     maxZoom: 14,
   }),
   controls: ol.control.defaults.defaults({ attribution: false, zoom: true }),
+  interactions: ol.interaction.defaults({
+    altShiftDragRotate: false,
+    pinchRotate: false,
+    doubleClickZoom: true,
+    dragPan: true,
+    mouseWheelZoom: true,
+    pinchZoom: true,
+  }),
 });
 
 // Layer refs
