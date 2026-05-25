@@ -141,13 +141,14 @@
 // ─── Constants ──────────────────────────────────────────────────────────────
 const REGION_ID = new URLSearchParams(window.location.search).get("region") || "usec_south";
 const REGION_CONFIGS = {
-  usec_south:  { bbox: [-81, 31, -73, 40], dataDir: "data/usec_south" },
-  usec_md:     { bbox: [-76, 37, -69, 41], dataDir: "data/usec_md" },
-  usec_north:  { bbox: [-72, 40, -64, 44], dataDir: "data/usec_north" },
+  usec_south:  { bbox: [-81, 31, -73, 40], dataDir: "data/usec_south", indexUrl: "index-usec_south.json" },
+  usec_md:     { bbox: [-76, 37, -69, 41], dataDir: "data/usec_md",    indexUrl: "index-usec_md.json" },
+  usec_north:  { bbox: [-72, 40, -64, 44], dataDir: "data/usec_north", indexUrl: "index-usec_north.json" },
 };
 const REGION = REGION_CONFIGS[REGION_ID] || REGION_CONFIGS["usec_south"];
 const BBOX = REGION.bbox;
 const DATA_DIR = REGION.dataDir;
+const INDEX_URL = REGION.indexUrl;
 const DEPLOY_TS = Date.now();
 const DEPLOY_CHECK = new URLSearchParams(window.location.search).get("deploycheck") || "";
 
@@ -257,11 +258,12 @@ async function loadChlLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading CHL…";
   try {
-    // Find latest CHL file from index.json (VIIRS or Sentinel-3)
-    const idxRes = await fetchWithTimeout(`${DATA_DIR}/chl/index.json`);
-    const indexData = await idxRes.json();
-    if (!Array.isArray(indexData) || !indexData.length) { if(status) status.textContent = "No CHL index"; return null; }
-    const latest = indexData[indexData.length - 1];
+    // Find latest CHL file from region index.json (VIIRS or Sentinel-3)
+    const idxRes = await fetchWithTimeout(`${INDEX_URL}?t=${Date.now()}`);
+    const idx = await idxRes.json();
+    const chlFrames = (idx.frames || {}).chl || [];
+    if (!chlFrames.length) { if(status) status.textContent = "No CHL frames in index"; return null; }
+    const latest = chlFrames[chlFrames.length - 1];
     const latestFile = latest.json_path.split("/").pop();
     if(status) status.textContent = "CHL: loading " + latestFile + "…";
     const res = await fetchWithTimeout(`${DATA_DIR}/chl/${latestFile}?t=${Date.now()}`);
@@ -316,11 +318,12 @@ async function loadUvLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading UV…";
   try {
-    // Find latest UV file from index.json
-    const idxRes = await fetchWithTimeout(`${DATA_DIR}/uv/index.json`);
-    const indexData = await idxRes.json();
-    if (!Array.isArray(indexData) || !indexData.length) { if(status) status.textContent = "No UV index"; return null; }
-    const latest = indexData[indexData.length - 1];
+    // Find latest UV file from region index.json
+    const idxRes = await fetchWithTimeout(`${INDEX_URL}?t=${Date.now()}`);
+    const idx = await idxRes.json();
+    const uvFrames = (idx.frames || {}).uv || [];
+    if (!uvFrames.length) { if(status) status.textContent = "No UV frames in index"; return null; }
+    const latest = uvFrames[uvFrames.length - 1];
     const latestFile = latest.json_path.split("/").pop();
     if(status) status.textContent = "UV: loading " + latestFile + "…";
     const res = await fetchWithTimeout(`${DATA_DIR}/uv/${latestFile}?t=${Date.now()}`);
@@ -564,16 +567,16 @@ async function loadFrontsLayer(map) {
   const status = document.getElementById("load-status");
   if(status) status.textContent = "Loading fronts…";
   try {
-    // Load all sst_front frames for latest date from index.json
-    const idxRes = await fetchWithTimeout(`${DATA_DIR}/sst_front/index.json`);
-    const indexData = await idxRes.json();
-    if (!Array.isArray(indexData) || !indexData.length) { if(status) status.textContent = "No sst_front index"; return null; }
+    // Load all sst_front frames for latest date from region index.json
+    const idxRes = await fetchWithTimeout(`${INDEX_URL}?t=${Date.now()}`);
+    const idx = await idxRes.json();
+    const sstFrontFrames = (idx.frames || {}).sst_front || [];
+    if (!sstFrontFrames.length) { if(status) status.textContent = "No sst_front in index"; return null; }
 
-    // Group by date
+    // Group by date (YYYYMMDD from id)
     const dateMap = new Map();
-    for (const entry of indexData) {
-      const fn = entry.json_path.split("/").pop();
-      const m = fn.match(/(\d{8})_\d\d_g19\.json$/);
+    for (const entry of sstFrontFrames) {
+      const m = entry.id.match(/(\d{8})_\d\d_g19/);
       if (!m) continue;
       const date = m[1];
       if (!dateMap.has(date)) dateMap.set(date, []);
