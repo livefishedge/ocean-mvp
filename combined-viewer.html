@@ -88,40 +88,37 @@
       <option value="usec_north">USEC North</option>
     </select>
   </div>
+  <div class="sidebar-section">
+    <div class="sidebar-title">Layers</div>
+    <label class="toggle">
+      <input type="checkbox" id="chk-chlorophyll" checked>
+      <span class="box"></span>
+      <span class="dot dot-chl"></span>
+      <label>Chlorophyll (CHL)</label>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="chk-currents" checked>
+      <span class="box"></span>
+      <span class="dot dot-uv"></span>
+      <label>Currents (UV)</label>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="chk-bathymetry" checked>
+      <span class="box"></span>
+      <span class="dot dot-bathy"></span>
+      <label>Bathymetry</label>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="chk-fronts" checked>
+      <span class="box"></span>
+      <span class="dot dot-front"></span>
+      <label>Thermal Fronts</label>
+    </label>
+  </div>
 </div>
 
 <div id="controls">
-  <span style="font-weight:900;font-size:14px;margin-right:4px;">Layers</span>
-
-  <label class="toggle">
-    <input type="checkbox" id="chk-chlorophyll" checked>
-    <span class="box"></span>
-    <span class="dot dot-chl"></span>
-    <label>Chlorophyll (CHL)</label>
-  </label>
-
-  <label class="toggle">
-    <input type="checkbox" id="chk-currents" checked>
-    <span class="box"></span>
-    <span class="dot dot-uv"></span>
-    <label>Currents (UV)</label>
-  </label>
-
-  <label class="toggle">
-    <input type="checkbox" id="chk-bathymetry" checked>
-    <span class="box"></span>
-    <span class="dot dot-bathy"></span>
-    <label>Bathymetry</label>
-  </label>
-
-  <label class="toggle">
-    <input type="checkbox" id="chk-fronts" checked>
-    <span class="box"></span>
-    <span class="dot dot-front"></span>
-    <label>Thermal Fronts</label>
-  </label>
-
-  <span id="load-status" style="font-size:11px;color:#9fb0c3;margin-left:auto;"></span>
+  <span id="load-status"></span>
 </div>
 
 <div id="map"></div>
