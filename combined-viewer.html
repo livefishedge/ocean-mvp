@@ -330,66 +330,53 @@ async function loadUvLayer(map) {
     const d = await res.json();
     const { bbox: extent, nx: gridNx, ny: gridNy, u, v, adt } = d;
 
-    const nx = gridNx, ny = gridNy;
-    const canvas = document.createElement("canvas");
-    canvas.width = nx; canvas.height = ny;
-    const ctx = canvas.getContext("2d");
-
-    // ADT range for coloring
-    const adtMin = 0.005, adtMax = 1.6;
-
-    for (let row = 0; row < ny; row++) {
-      for (let col = 0; col < nx; col++) {
-        const ui = u[row][col];
-        const vi = v[row][col];
+    // Draw arrows only — sparse grid for vector rendering
+    const sparse = 4; // every 4th cell
+    const features = [];
+    for (let row = 0; row < ny; row += sparse) {
+      for (let col = 0; col < nx; col += sparse) {
+        const ui = u[row]?.[col];
+        const vi = v[row]?.[col];
+        if (!isFinite(ui) || !isFinite(vi)) continue;
         const mag = Math.sqrt(ui*ui + vi*vi);
-        if (!isFinite(ui) || !isFinite(vi) || mag < 0.001) continue;
+        if (mag < 0.001) continue;
 
-        const adtVal = adt[row][col];
+        // Grid cell center → geographic coordinates
+        const px = (col + 0.5) / nx;
+        const py = (row + 0.5) / ny;
+        const lon0 = extent[0] + px * (extent[2] - extent[0]);
+        const lat0 = extent[3] - py * (extent[3] - extent[1]); // flip y
+
+        const arrowLenDeg = Math.min(0.15, 0.03 + mag * 0.08);
+        const cos = Math.cos(Math.atan2(vi, ui));
+        const sin = Math.sin(Math.atan2(vi, ui));
+        const lon1 = lon0 + cos * arrowLenDeg;
+        const lat1 = lat0 + sin * arrowLenDeg;
+
+        const adtVal = adt[row]?.[col] ?? 0.5;
         const t = linearNorm(adtVal, adtMin, adtMax);
         const col3 = interpolateColorPalette(t, ADT_PALETTE);
 
-        const cx = col + 0.5, cy = row + 0.5;
-        const angle = Math.atan2(vi, ui);
-        const cos = Math.cos(angle), sin = Math.sin(angle);
 
-        const arrowLen = Math.min(12, Math.max(4, 2 + mag * 10));
-        const headLen = arrowLen * 0.35;
-        const tailFraction = 0.3;
-        const tx = cx - cos * arrowLen * tailFraction;
-        const ty = cy - sin * arrowLen * tailFraction;
-        const ex = cx + cos * arrowLen;
-        const ey = cy + sin * arrowLen;
-        const perpX = -sin, perpY = cos;
-
-        ctx.strokeStyle = rgba(col3, 0.85);
-        ctx.fillStyle = rgba(col3, 0.85);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(tx, ty);
-        ctx.lineTo(ex, ey);
-        ctx.stroke();
-
-        const hx1 = ex - cos * headLen + perpX * headLen * 0.45;
-        const hy1 = ey - sin * headLen + perpY * headLen * 0.45;
-        const hx2 = ex - cos * headLen - perpX * headLen * 0.45;
-        const hy2 = ey - sin * headLen - perpY * headLen * 0.45;
-        ctx.beginPath();
-        ctx.moveTo(ex, ey);
-        ctx.lineTo(hx1, hy1);
-        ctx.lineTo(hx2, hy2);
-        ctx.closePath();
-        ctx.fill();
+        features.push(new ol.Feature({
+          geometry: new ol.geom.LineString([[lon0, lat0], [lon1, lat1]]),
+          color: rgba(col3, 0.85),
+        }));
       }
     }
 
-    const src = new ol.source.ImageStatic({
-      url: canvas.toDataURL("image/png"),
-      imageExtent: extent,
-      projection: "EPSG:4326",
-      interpolate: false,
+    const src = new ol.source.Vector({ features, wrapX: false });
+    const layer = new ol.layer.Vector({
+      source: src,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({
+          color: f => f.get("color"),
+          width: 1.5,
+          lineCap: "round",
+        }),
+      }),
+      zIndex: 20,
     });
-    const layer = new ol.layer.Image({ source: src, zIndex: 20 });
     map.addLayer(layer);
 
     const legend = document.getElementById("adt-legend");
@@ -659,16 +646,7 @@ async function loadFrontsLayer(map) {
 // ─── Map init ────────────────────────────────────────────────────────────────
 const map = new ol.Map({
   target: "map",
-  layers: [
-    new ol.layer.Tile({
-      source: new ol.source.XYZ({
-        url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        attributions: "© OpenStreetMap contributors",
-        maxZoom: 18,
-      }),
-      zIndex: 5,
-    }),
-  ],
+  layers: [],
   view: new ol.View({
     projection: "EPSG:4326",
     extent: BBOX,
