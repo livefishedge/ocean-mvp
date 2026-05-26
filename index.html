@@ -546,14 +546,14 @@
     body.thermal-fronts-mode #hamburger-cbar,
     body.thermal-fronts-mode .hamburger-range-block{ display:none !important; }
     /* Combined mode: hide single-product slider/progress, show sidebar */
-    body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; display:flex !important; }
+body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; z-index:1100; display:flex !important; }
     body.combined-mode #combined-menu-btn span{ display:block; width:18px; height:2px; background:var(--fg); border-radius:2px; }
     body.combined-mode #nav-bar{ display:none !important; }
     body.combined-mode #toolbar{ display:none !important; }
     body.combined-mode #hamburger-btn{ display:none !important; }
     body.combined-mode #plot{ display:none !important; }
     body.combined-mode #mobile-map{ display:none !important; }
-    body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:0; width:100%; height:100%; }
+    body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; }
     body.combined-mode #combined-map .ol-viewport{ background:#f8fbff; }
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
@@ -3449,7 +3449,8 @@ async function renderCombinedMode() {
 
   // Destroy previous instance if any
   if (window._combinedMap) {
-    window._combinedMap.setTarget(null);
+    try { window._combinedMap.dispose(); } catch (_) {}
+    window._combinedMap.setTarget(undefined);
     window._combinedMap = null;
   }
 
@@ -3669,7 +3670,7 @@ async function ensureCombinedLandLayer(map) {
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
   const landCanvas = makeMobileLandCanvas(bathy);
   if (!landCanvas) return;
-  const extent = BBOX;
+  const extent = frameExtentFromGrid({ xAxis: bathy.xAxis, yAxis: bathy.yAxis });
   const src = new ol.source.ImageStatic({
     url: landCanvas.toDataURL("image/png"),
     imageExtent: extent,
@@ -4872,7 +4873,8 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   // Reset combined map state when switching away from combined
   if (v !== "combined") {
     if (window._combinedMap) {
-      window._combinedMap.setTarget(null);
+      try { window._combinedMap.dispose(); } catch (_) {}
+      window._combinedMap.setTarget(undefined);
       window._combinedMap = null;
     }
   }
@@ -5244,10 +5246,9 @@ async function showFrame() {
   console.log("[showFrame] currentVar:", currentVar, "IS_TOUCH:", IS_TOUCH, "isDesktopMapMode():", isDesktopMapMode(), "isMobileMapMode():", isMobileMapMode());
   updateReadoutPosition();
 
-  // combined mode uses its own full-renderer
+  // combined mode uses its own full-renderer — no desktop map init needed
   if (currentVar === "combined") {
-    const map = await initDesktopMapIfNeeded();
-    if (map) await renderCombinedMode();
+    await renderCombinedMode();
     return;
   }
 
