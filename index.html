@@ -339,18 +339,20 @@
       position:fixed;
       right:12px;
       bottom:calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index:150;
-      padding:5px 8px;
-      background:rgba(5,11,16,0.82);
-      border:1px solid rgba(255,255,255,0.15);
+      z-index:950;
+      min-width:178px;
+      padding:6px 9px;
+      background:rgba(5,11,16,0.90);
+      border:1px solid rgba(255,255,255,0.28);
       border-radius:10px;
       font-size:13px;
+      font-weight:800;
       font-variant-numeric:tabular-nums;
       pointer-events:none;
       white-space:nowrap;
       color:#e0e6ee;
       line-height:1.45;
-      display:none;
+      display:inline-block;
     }
     body.mobile-device #readout,
     body.portrait-mode #readout{ display:inline-block !important; }
@@ -492,14 +494,14 @@
 
     /* Hamburger button and menu panel */
     #hamburger-btn{
-      position:fixed; top:8px; right:8px; z-index:30;
-      width:42px; height:42px; border:1px solid rgba(255,255,255,0.38); border-radius:8px;
-      background:rgba(5,11,16,0.92); color:#fff; font-size:22px; font-weight:900; cursor:pointer;
-      box-shadow:0 3px 12px rgba(0,0,0,0.42);
+      position:fixed; top:8px; right:8px; z-index:1000;
+      width:48px; height:48px; border:2px solid rgba(255,255,255,0.72); border-radius:8px;
+      background:rgba(9,74,132,0.96); color:#fff; font-size:26px; font-weight:900; cursor:pointer;
+      box-shadow:0 4px 16px rgba(0,0,0,0.62);
       padding:0;
     }
     #menu-panel{
-      position:fixed; top:58px; right:8px; z-index:31; width:min(320px, calc(100vw - 16px));
+      position:fixed; top:62px; right:8px; z-index:1001; width:min(320px, calc(100vw - 16px));
       display:none; flex-direction:column; gap:10px; padding:12px;
       background:rgba(5,11,16,0.94); border:1px solid rgba(255,255,255,0.22); border-radius:8px;
       box-shadow:0 12px 30px rgba(0,0,0,0.45); backdrop-filter:blur(8px);
@@ -538,18 +540,20 @@
       position:fixed;
       right:12px;
       bottom:calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index:150;
-      padding:5px 8px;
-      background:rgba(5,11,16,0.82);
-      border:1px solid rgba(255,255,255,0.15);
+      z-index:950;
+      min-width:178px;
+      padding:6px 9px;
+      background:rgba(5,11,16,0.90);
+      border:1px solid rgba(255,255,255,0.28);
       border-radius:10px;
       font-size:13px;
+      font-weight:800;
       font-variant-numeric:tabular-nums;
       pointer-events:none;
       white-space:nowrap;
       color:#e0e6ee;
       line-height:1.45;
-      display:none;
+      display:inline-block;
       max-width:min(460px, calc(100vw - 24px));
       overflow:hidden;
       text-overflow:ellipsis;
@@ -560,15 +564,15 @@
       border-radius:8px; color:#fff; font-size:12px; font-weight:800;
       max-width:min(380px, calc(100vw - 24px));
     }
-    #hamburger-btn{ z-index:30; }
+    #hamburger-btn{ z-index:1000; }
 
 
       /* ====== Hamburger: floating toggle + collapsible panel ====== */
       #hamburger-btn{
-        position:fixed; top:8px; right:8px; z-index:30;
-        width:42px; height:42px; border:1px solid rgba(255,255,255,0.38); border-radius:8px;
-        background:rgba(5,11,16,0.92); color:#fff; font-size:22px; font-weight:900; cursor:pointer;
-        box-shadow:0 3px 12px rgba(0,0,0,0.42);
+        position:fixed; top:8px; right:8px; z-index:1000;
+        width:48px; height:48px; border:2px solid rgba(255,255,255,0.72); border-radius:8px;
+        background:rgba(9,74,132,0.96); color:#fff; font-size:26px; font-weight:900; cursor:pointer;
+        box-shadow:0 4px 16px rgba(0,0,0,0.62);
       }
       #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
       #menu-panel #fronts-toggle{ font-size:13px; }
@@ -597,7 +601,7 @@
   <div id="mobile-map"></div>
   <div id="mobile-time-badge"></div>
   <div id="plot"></div>
-  <div id="readout"></div>
+  <div id="readout">Lat/Lon: -- | Value: --</div>
   <button id="hamburger-btn" aria-label="Open product menu">&#9776;</button>
 
   <div id="briefing-panel" aria-live="polite" style="display:none">
@@ -1560,8 +1564,8 @@ const cbarDiv = document.getElementById("cbar");
 
 function setReadout(txt) {
   if (!readoutDiv) return;
-  readoutDiv.textContent = txt || "";
-  readoutDiv.style.display = txt ? "inline-block" : "none";
+  readoutDiv.textContent = txt || "Lat/Lon: -- | Value: --";
+  readoutDiv.style.display = "inline-block";
 }
 
 let _wheelInstalled = false;
