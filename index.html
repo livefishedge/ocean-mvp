@@ -3468,6 +3468,9 @@ async function renderCombinedMode() {
 
   const view = new ol.View({ projection: "EPSG:4326", extent: BBOX });
   console.log("[combined] creating OL map, combinedMapDiv:", combinedMapDiv, "size:", combinedMapDiv?.clientWidth, combinedMapDiv?.clientHeight);
+  // Force layout so combinedMapDiv has real pixel dimensions before new ol.Map
+  // (position:absolute divs report 0x0 until the browser computes layout)
+  combinedMapDiv.getBoundingClientRect();
   const map = new ol.Map({
     target: combinedMapDiv,
     view,
