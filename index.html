@@ -1230,7 +1230,7 @@ window.addEventListener('orientationchange', () => {
     syncControlsHeight();
     updateReadoutPosition();
     syncFloatingViewportUi();
-    try { Plotly.Plots.resize(plotDiv); } catch(_){}
+    try { } catch(_){}
   }, 150);
 });
 
@@ -1537,15 +1537,11 @@ function updateMeasureTrace() {
 
 /* ========================= DOM ========================= */
 const plotDiv   = document.getElementById("plot");
-const varSelect = document.getElementById("var-select");
 const slider    = document.getElementById("frame-slider");
 const frameLbl  = document.getElementById("frame-label");
-const speedSel = document.getElementById("speed-select");
-const fsBtn    = document.getElementById("fs-btn");
 const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
-const tempUnitToggle = document.getElementById("temp-unit-toggle");
 const globalSstFrontOverlayInput = document.getElementById("global-sst-front-overlay");
 const readoutDiv = document.getElementById("readout");
 const cbarDiv = document.getElementById("cbar");
@@ -3343,7 +3339,6 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const savedRange = (keepRange && viewState.hasRange) ? { x: viewState.xRange, y: viewState.yRange } : null;
 
   currentVar = v;
-  varSelect.value = v;
 
   const frames = framesByVar[currentVar] || [];
   const times = frameTimesByVar[currentVar] || [];
@@ -3360,13 +3355,13 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
 
   syncRangeInputsToVar();
   updateSliderUI();
-  syncTimeControls(); /* NEW */
-  syncArrowLegend(); /* NEW */
+  syncTimeControls();
+  syncArrowLegend();
   syncFrontOverlayControls();
-  syncThermalFrontsVisibility(); /* hide temp-unit, map-toolbar for thermal */
+  syncThermalFrontsVisibility();
 
   if (frames.length) await showFrame();
-  else Plotly.purge(plotDiv);
+  else return;
 }
 
 function stepFrame(delta) {
@@ -3509,12 +3504,6 @@ async function loadIndex() {
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
 
-  for (const opt of varSelect.options) {
-    if (opt.value === "thermal_fronts") {
-      opt.disabled = false;
-      opt.textContent = VAR_LABELS.thermal_fronts || "Thermal Fronts";
-      continue;
-    }
     const count = (framesByVar[opt.value] || []).length;
     opt.disabled = count === 0;
     opt.textContent = count === 0 ? `${VAR_LABELS[opt.value]} - no data` : VAR_LABELS[opt.value];
@@ -3775,28 +3764,12 @@ async function showFrame() {
   }
 
   installModebarHoverHelpOnce();
-
   installTouchPolicyOnce();
-
-  setupReadoutHandlersOnce();
-  attachRelayoutListenerOnce();
   updateSliderUI();
 }
 
 /* ========================= EVENTS ========================= */
-varSelect.addEventListener("change", () => {
-  setPlaying(false);
-  setCurrentVar(varSelect.value, true);
-});
 
-if (tempUnitToggle) {
-  tempUnitToggle.addEventListener("click", () => {
-    tempUnit = tempUnit === "F" ? "C" : "F";
-    localStorage.setItem("sst_temp_unit", tempUnit);
-    updateTempUnitUI();
-    if (currentVar === "sst") showFrame();
-  });
-}
 
 if (chlFrontOverlayInput) {
   chlFrontOverlayInput.addEventListener("change", () => {
@@ -3826,8 +3799,6 @@ slider.addEventListener("input", () => {
 });
 
 playBtn.addEventListener("click", () => setPlaying(!playing));
-speedSel.addEventListener("change", () => setPlaySpeed(speedSel.value));
-setPlaySpeed(speedSel.value);
 
 // Fullscreen toggle (plot stays responsive)
 function toggleFullscreen() {
@@ -3838,12 +3809,6 @@ function toggleFullscreen() {
     if (document.exitFullscreen) document.exitFullscreen();
   }
 }
-if (fsBtn) {
-  fsBtn.addEventListener("click", () => toggleFullscreen());
-}
-document.addEventListener("fullscreenchange", () => {
-  try { Plotly.Plots.resize(plotDiv); } catch(e) {}
-});
 
 prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
 nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
@@ -3873,7 +3838,7 @@ window.addEventListener("resize", () => {
   syncControlsHeight();
   if (orientationChanged) resetViewportToWidthFit();
   syncFloatingViewportUi();
-  try { Plotly.Plots.resize(plotDiv); } catch(_){}
+  try { } catch(_){}
   showFrame();
 });
 
@@ -3990,7 +3955,7 @@ async function loadCaptainBriefing() {
     syncArrowLegend();
     syncControlsHeight();
     if (framesByVar[currentVar]?.length) await showFrame();
-    else Plotly.purge(plotDiv);
+    else { }
   } catch (e) {
     console.error("Init failed:", e);
   }
