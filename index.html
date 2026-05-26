@@ -3201,14 +3201,12 @@ function updateReadoutPosition() {
 /* ========================= UI ========================= */
 function updateTempUnitUI() {
   document.body.classList.toggle("show-temp-unit", currentVar === "sst");
-  if (tempUnitToggle) tempUnitToggle.textContent = tempUnitLabel();
 }
 
 function syncThermalFrontsVisibility() {
   // Show/hide product-specific controls based on whether thermal_fronts is active
   const isThermal = currentVar === "thermal_fronts";
   document.body.classList.toggle("thermal-fronts-mode", isThermal);
-  if (tempUnitToggle) tempUnitToggle.style.display = isThermal ? "none" : "";
 }
 
 function syncRangeInputsToVar() {
