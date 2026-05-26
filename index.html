@@ -1525,6 +1525,8 @@ const frameLbl  = document.getElementById("frame-label");
 const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
+const mapPrevBtn = document.getElementById("map-prev-btn");
+const mapNextBtn = document.getElementById("map-next-btn");
 const globalSstFrontOverlayInput = document.getElementById("global-sst-front-overlay");
 const readoutDiv = document.getElementById("readout");
 const cbarDiv = document.getElementById("cbar");
@@ -3239,39 +3241,21 @@ function updateSliderUI() {
   prevBtn.disabled = n <= 1;
   nextBtn.disabled = n <= 1;
   playBtn.disabled = n <= 1;
-  rowSlider.style.display = isBathy || isThermal ? "none" : "flex";
 }
 
 function syncArrowLegend() {
+  const arrowLegendDiv = document.getElementById("arrow-legend");
+  if (!arrowLegendDiv) return;
   const isUv = (currentVar === "uv");
   arrowLegendDiv.style.display = isUv ? "flex" : "none";
 }
 
 function syncFrontOverlayControls() {
-  if (!frontsOverlayRow) return;
-  const isThermal = (currentVar === "thermal_fronts");
-  const showChl = currentVar === "chl";
-  const showSst = currentVar === "sst";
-  const chlCount = (framesByVar.chl_front || []).length;
-  const sstCount = (framesByVar.sst_front || []).length;
-
-  frontsOverlayRow.style.display = (showChl || showSst) && !isThermal ? "flex" : "none";
-  if (chlFrontOverlayWrap) chlFrontOverlayWrap.style.display = showChl ? "flex" : "none";
-  if (sstFrontOverlayWrap) sstFrontOverlayWrap.style.display = showSst ? "flex" : "none";
-  if (chlFrontOverlayInput) {
-    chlFrontOverlayInput.disabled = chlCount === 0;
-    chlFrontOverlayInput.checked = showChlFrontOverlay && chlCount > 0;
-  }
-  if (sstFrontOverlayInput) {
-    sstFrontOverlayInput.disabled = sstCount === 0;
-    sstFrontOverlayInput.checked = showSstFrontOverlay && sstCount > 0;
-  }
+  // CHL/SST front overlays removed from main UI
+  // globalSstFrontOverlayInput is wired directly in the events section
   if (globalSstFrontOverlayInput) {
-    globalSstFrontOverlayInput.disabled = sstCount === 0 || currentVar === "sst_front";
-    globalSstFrontOverlayInput.checked = showGlobalSstFrontOverlay && sstCount > 0;
+    globalSstFrontOverlayInput.disabled = (framesByVar.thermal_fronts || []).length === 0;
   }
-}
-
 async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
   let frontVar = baseVar === "chl" ? "chl_front" : baseVar === "sst" ? "sst_front" : null;
   if (showGlobalSstFrontOverlay && baseVar !== "sst_front") frontVar = "sst_front";
@@ -3311,6 +3295,7 @@ async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
     console.error(`${frontVar} overlay failed:`, e);
   }
 }
+}
 
 async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const prevVar = currentVar;
@@ -3324,6 +3309,65 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   currentVar = v;
 
   const frames = framesByVar[currentVar] || [];
+  const times = frameTimesByVar[currentVar] || [];
+
+  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : frames.length - 1;
+  else currentFrameIdx = 0;
+
+  // Restore saved geographic viewport after switching
+  if (savedRange) {
+    viewState.xRange = savedRange.x;
+    viewState.yRange = savedRange.y;
+    viewState.hasRange = true;
+  }
+
+  syncRangeInputsToVar();
+  updateSliderUI();
+  syncTimeControls();
+  syncArrowLegend();
+  syncFrontOverlayControls();
+  syncThermalFrontsVisibility();
+
+  if (frames.length) await showFrame();
+  else return;
+}
+  if (showGlobalSstFrontOverlay && baseVar !== "sst_front") frontVar = "sst_front";
+  if (!frontVar) return;
+  if (frontVar === "chl_front" && !showChlFrontOverlay) return;
+  if (frontVar === "sst_front" && !(showSstFrontOverlay || showGlobalSstFrontOverlay)) return;
+
+  const frontFrames = framesByVar[frontVar] || [];
+  if (!frontFrames.length) return;
+  const finiteFrontTimes = (frameTimesByVar[frontVar] || []).filter(Number.isFinite);
+  const curMs = epochMsForFrame(baseVar, baseFrameMeta) ?? finiteFrontTimes.at(-1) ?? null;
+  const frontTimes = frameTimesByVar[frontVar] || [];
+  let bestIdx = 0;
+  let bestDiff = Infinity;
+  for (let i = 0; i < frontFrames.length; i++) {
+    const t = frontTimes[i];
+    if (!Number.isFinite(t)) continue;
+    const d = Math.abs(t - curMs);
+    if (d < bestDiff) {
+      bestDiff = d;
+      bestIdx = i;
+    }
+  }
+
+  try {
+    const frontData = await fetchFrameData(frontVar, frontFrames[bestIdx]);
+    const frontGrid = await loadGridForVar(frontVar, frontData);
+    const frontFig = buildFrontLines(frontGrid, frontData, frontVar);
+    const label = formatRelativeFrontTime((frontTimes[bestIdx] ?? NaN) - curMs);
+    for (const trace of frontFig.data || []) {
+      trace.name = label ? `Thermal front (${label})` : "Thermal front";
+      trace.hovertemplate = label ? `<b>Thermal front</b><br>${label}<extra></extra>` : trace.hovertemplate;
+    }
+    fig.data.push(...frontFig.data);
+
+  } catch (e) {
+    console.error(`${frontVar} overlay failed:`, e);
+  }
+}
   const times = frameTimesByVar[currentVar] || [];
 
   if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : frames.length - 1;
@@ -3777,22 +3821,22 @@ function toggleFullscreen() {
 
 prevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
 nextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
-if (mapPrevBtn) mapPrevBtn.addEventListener("click", () => { setPlaying(false); stepFrame(-1); });
-if (mapNextBtn) mapNextBtn.addEventListener("click", () => { setPlaying(false); stepFrame(+1); });
 
-applyBtn.addEventListener("click", () => {
-  const vmin = Number(vminInput.value);
-  const vmax = Number(vmaxInput.value);
+hApply.addEventListener("click", () => {
+  const vmin = Number(hVmin.value);
+  const vmax = Number(hVmax.value);
   if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
   userRanges[currentVar].vmin = vmin;
   userRanges[currentVar].vmax = vmax;
   showFrame();
+  hamburgerPanel?.classList.remove("open");
 });
 
-resetBtn.addEventListener("click", () => {
+hReset.addEventListener("click", () => {
   userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
   syncRangeInputsToVar();
   showFrame();
+  hamburgerPanel?.classList.remove("open");
 });
 
 window.addEventListener("resize", () => {
@@ -3808,9 +3852,7 @@ window.addEventListener("resize", () => {
 });
 
 function syncControlsHeight() {
-  const controls = document.getElementById('controls');
   const ranges = document.getElementById('ranges');
-  if (controls) document.documentElement.style.setProperty('--controls-h', controls.offsetHeight + 'px');
   if (ranges) document.documentElement.style.setProperty('--ranges-h', ranges.offsetHeight + 'px');
 }
 
