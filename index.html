@@ -3735,9 +3735,11 @@ function extractContourSegments(bd, level, sx, sy, extent) {
 }
 
 async function ensureCombinedLandLayer(map) {
+  console.log("[combined] ensureCombinedLandLayer ENTRY");
   if (!map) return;
   if (window._combinedLandLayer) { map.addLayer(window._combinedLandLayer); return; }
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
+  console.log("[combined] ensureCombinedLandLayer bathy loaded");
   console.log("[combined] bathy loaded, xAxis:", bathy?.xAxis?.slice(0,2), "yAxis:", bathy?.yAxis?.slice(0,2));
   const landCanvas = makeMobileLandCanvas(bathy);
   if (!landCanvas) return;
