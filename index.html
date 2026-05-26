@@ -3467,9 +3467,19 @@ async function renderCombinedMode() {
 
   // Destroy previous instance if any
   if (window._combinedMap) {
+    console.log("[combined] CLEANUP: disposing prev combined map");
     try { window._combinedMap.dispose(); } catch (_) {}
     window._combinedMap.setTarget(undefined);
     window._combinedMap = null;
+    window._combinedLandLayer = null;
+    window._combinedPlaceLayer = null;
+    window._combinedChlLayer = null;
+    window._combinedBathyLayer = null;
+    window._combinedUvLayer = null;
+    window._combinedFrontDensityLayer = null;
+    window._combinedFrontLineLayer = null;
+    window._combinedRenderLocked = false;
+    console.log("[combined] CLEANUP: all combined state cleared");
   }
 
   const view = new ol.View({ projection: "EPSG:4326", extent: BBOX });
@@ -3754,8 +3764,10 @@ function extractContourSegments(bd, level, sx, sy, extent) {
 
 async function ensureCombinedLandLayer(map) {
   console.log("[combined] ensureCombinedLandLayer ENTRY");
-  if (!map) return;
-  if (window._combinedLandLayer) { map.addLayer(window._combinedLandLayer); return; }
+  if (!map) { console.log("[combined] ensureCombinedLandLayer: EARLY RETURN — no map"); return; }
+  console.log("[combined] ensureCombinedLandLayer: map exists, _combinedLandLayer:", !!window._combinedLandLayer);
+  if (window._combinedLandLayer) { map.addLayer(window._combinedLandLayer); console.log("[combined] ensureCombinedLandLayer: REUSING cached layer"); return; }
+  console.log("[combined] ensureCombinedLandLayer: will build fresh layer");
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
   console.log("[combined] ensureCombinedLandLayer bathy loaded");
   console.log("[combined] bathy loaded, xAxis:", bathy?.xAxis?.slice(0,2), "yAxis:", bathy?.yAxis?.slice(0,2));
@@ -5336,7 +5348,10 @@ function plotConfig() {
 
 
 async function showFrame() {
-  console.log("[showFrame] currentVar:", currentVar, "IS_TOUCH:", IS_TOUCH, "isDesktopMapMode():", isDesktopMapMode(), "isMobileMapMode():", isMobileMapMode());
+  const e = new Error();
+  const callers = e.stack?.split("\n").slice(1,4).join(" | ") || "";
+  console.log("[showFrame] ENTRY currentVar:", currentVar, "IS_TOUCH:", IS_TOUCH, "callers:", callers);
+  console.log("[showFrame] ENTRY timestamp:", Date.now());
   updateReadoutPosition();
 
   // combined mode uses its own full-renderer — no desktop map init needed
