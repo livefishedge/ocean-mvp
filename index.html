@@ -5495,7 +5495,8 @@ window.addEventListener("resize", () => {
   if (orientationChanged) resetViewportToWidthFit();
   syncFloatingViewportUi();
   try { } catch(_){}
-  showFrame();
+  // Don't re-render on resize when on combined — the OL map handles its own resize via ResizeObserver + updateSize
+  if (currentVar !== "combined") showFrame();
 });
 
 function syncControlsHeight() {
