@@ -3452,6 +3452,12 @@ function fitMobileMapWidth(map, extent) {
 /* ====================== COMBINED MODE RENDERER ====================== */
 /* ====================== COMBINED MODE RENDERER ====================== */
 async function renderCombinedMode() {
+  // Prevent concurrent calls — if a render is already in progress, bail out
+  if (window._combinedRenderLocked) {
+    console.log("[combined] renderCombinedMode SKIPPED — render already in progress");
+    return;
+  }
+  window._combinedRenderLocked = true;
   console.log("[combined] renderCombinedMode called, currentVar:", currentVar, "REGION_ID:", REGION_ID);
   document.body.classList.add("combined-mode");
 
@@ -3623,6 +3629,8 @@ async function renderCombinedMode() {
     if (readoutEl) readoutEl.textContent = `Lat: ${lat.toFixed(4)} Lon: ${lon.toFixed(4)}`;
   });
 
+  window._combinedRenderLocked = false;
+  console.log("[combined] renderCombinedMode finished successfully");
   return true;
 }
 
