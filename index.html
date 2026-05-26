@@ -546,7 +546,15 @@
     body.thermal-fronts-mode #hamburger-cbar,
     body.thermal-fronts-mode .hamburger-range-block{ display:none !important; }
     /* Combined mode: hide single-product slider/progress, show sidebar */
-body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; z-index:1100; display:flex !important; }
+body.combined-mode #combined-menu-btn{
+      top:8px !important; right:8px !important; left:auto !important;
+      z-index:1200 !important;
+      display:flex !important;
+      border-left:1px solid var(--border);
+      border-right:none;
+      border-radius:8px;
+      box-shadow:0 2px 10px rgba(0,0,0,0.25);
+    }
     body.combined-mode #combined-menu-btn span{ display:block; width:18px; height:2px; background:var(--fg); border-radius:2px; }
     body.combined-mode #nav-bar{ display:none !important; }
     body.combined-mode #toolbar{ display:none !important; }
@@ -578,7 +586,7 @@ body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; z-index:11
       display:none;
       position:fixed;
       bottom:12px; right:12px;
-      z-index:15;
+      z-index:1120;
       padding:5px 8px;
       background:rgba(5,11,16,0.82);
       border:1px solid rgba(255,255,255,0.15);
@@ -597,7 +605,7 @@ body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; z-index:11
       position:fixed;
       top:44px; left:0; bottom:0;
       width:220px;
-      z-index:35;
+      z-index:1110;
       background:var(--panel);
       border-right:1px solid var(--border);
       padding:16px 14px;
@@ -605,7 +613,7 @@ body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; z-index:11
       overflow-y:auto;
       flex-direction:column;
     }
-    body.combined-mode #combined-controls{ transform:translateX(-100%); transition:transform 0.25s ease; }
+    body.combined-mode #combined-controls{ display:flex; transform:translateX(-100%); transition:transform 0.25s ease; }
     body.combined-mode #combined-controls.open{ transform:translateX(0) !important; }
     body.combined-mode #combined-overlay{ display:none; }
     .combined-section{ display:flex; flex-direction:column; gap:8px; }
@@ -646,7 +654,7 @@ body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; z-index:11
     .dot-front{ background:#ff4040; }
     #combined-currents-legend{ display:none; }
     #combined-overlay{
-      position:fixed; inset:0; z-index:34;
+      position:fixed; inset:0; z-index:1105;
       background:rgba(0,0,0,0.4); display:none;
     }
     #combined-overlay.visible{ display:block; }
@@ -980,8 +988,8 @@ const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => ([0.02,0.1,1,10,60].includes(v)) 
 
 /* ========================= STATE ========================= */
 let lastUpdateTimestamp = null;
-let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [] };
-let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [] };
+let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [], combined: [] };
+let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [], combined: [] };
 const INITIAL_VAR = QUERY_PARAMS.get("var");
 let currentVar = VAR_LABELS[INITIAL_VAR] ? INITIAL_VAR : "chl";
 let currentFrameIdx = 0;
@@ -3505,18 +3513,6 @@ async function renderCombinedMode() {
   const cv0 = map.getTargetElement()?.querySelector("canvas");
   console.log("[combined]   canvas initial:", cv0 ? `${cv0.width}x${cv0.height}` : "NO CANVAS");
   console.log("[combined]   layers initial:", map.getLayers().getLength());
-  // Visual heartbeat: turn the OL viewport hot-pink immediately after map creation.
-  // This confirms (1) the map object exists, (2) the viewport div is accessible.
-  // If this flash appears but the final screen is black → layer rendering failed.
-  // If no flash appears at all → map creation itself failed silently.
-  const vpEl = map.getTargetElement()?.querySelector(".ol-viewport");
-  if (vpEl) {
-    vpEl.style.background = "#ff00ff";
-    console.log("[combined] viewport background set to #ff00ff");
-    // Reset to white after 2 seconds if the final render hasn't cleared it
-    setTimeout(() => { vpEl.style.background = ""; console.log("[combined] viewport background reset"); }, 2000);
-  }
-
   // Also attach a ResizeObserver on the target div — when DevTools opens the
   // viewport shrinks and the map re-centers, triggering a resize that OL handles.
   // This catches the same signal programmatically.
@@ -3678,7 +3674,7 @@ async function renderCombinedMode() {
   console.log("[combined] window._combinedFrontLineLayer:", !!window._combinedFrontLineLayer);
   // Log combined UI elements
   console.log("[combined] #combined-map:", !!combinedMapDiv, "display:", combinedMapDiv ? getComputedStyle(combinedMapDiv).display : "N/A", "size:", combinedMapDiv ? `${combinedMapDiv.clientWidth}x${combinedMapDiv.clientHeight}` : "N/A");
-  console.log("[combined] #combined-readout:", !!combinedReadout, "display:", combinedReadout ? getComputedStyle(combinedReadout).display : "N/A");
+  console.log("[combined] #combined-readout:", !!readoutEl, "display:", readoutEl ? getComputedStyle(readoutEl).display : "N/A");
   console.log("[combined] #combined-controls:", !!combinedControls, "display:", combinedControls ? getComputedStyle(combinedControls).display : "N/A");
   console.log("[combined] #combined-menu-btn:", !!combinedMenuBtn, "display:", combinedMenuBtn ? getComputedStyle(combinedMenuBtn).display : "N/A");
   return true;
@@ -3856,19 +3852,26 @@ function buildDesktopUvArrowLayer(data, grid) {
   const { xAxis, yAxis, nx, ny } = grid;
   if (!xAxis?.length || !yAxis?.length) return null;
   const features = [];
-  const step = Math.max(2, Math.floor(Math.min(nx, ny) / 60));
+  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 18));
+  const dxg = Math.abs((xAxis[1] ?? xAxis[0]) - xAxis[0]) || 0.01;
+  const dyg = Math.abs((yAxis[1] ?? yAxis[0]) - yAxis[0]) || 0.01;
+  const cell = Math.min(dxg, dyg);
+  const minSpeed = 0.035;
+  const maxSpeed = 1.2;
+  const minLen = 0.95 * cell;
+  const maxLen = 2.8 * cell;
   for (let row = 0; row < ny; row += step) {
     for (let col = 0; col < nx; col += step) {
       const u = uvData.u?.[row]?.[col];
       const v = uvData.v?.[row]?.[col];
       if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
       const spd = Math.sqrt(u * u + v * v);
-      if (spd < 0.01 || spd > 3) continue;
+      if (spd < minSpeed || spd > 3) continue;
       const lon = xAxis[col];
       const lat = yAxis[row];
-      const angle = Math.atan2(v, u) - Math.PI / 2;
-      const arrowLen = Math.min(spd * 10, 22);
-      const geom = buildArrowGeometry(lon, lat, angle, arrowLen);
+      const scaled = Math.min(spd, maxSpeed) / maxSpeed;
+      const arrowLen = minLen + (maxLen - minLen) * scaled;
+      const geom = buildArrowGeometry(lon, lat, u, v, arrowLen, cell);
       if (geom) features.push(new ol.Feature({ geometry: geom, speed: spd }));
     }
   }
@@ -3877,26 +3880,25 @@ function buildDesktopUvArrowLayer(data, grid) {
   const layer = new ol.layer.Vector({
     source,
     style: (feature) => new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: speedColor(feature.get("speed"), 0, 1.5), width: 1.5 })
+      stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.84)", width: 1.35, lineCap: "round", lineJoin: "round" })
     }),
     zIndex: 20
   });
   return layer;
 }
 
-function buildArrowGeometry(lon, lat, angle, len) {
+function buildArrowGeometry(lon, lat, u, v, len, cell) {
   try {
-    const dx = (len / 2) * Math.cos(angle);
-    const dy = (len / 2) * Math.sin(angle);
-    const headLen = Math.max(3, len * 0.35);
+    const spd = Math.hypot(u, v);
+    if (!Number.isFinite(spd) || spd <= 0) return null;
+    const lon1 = lon + (u / spd) * len;
+    const lat1 = lat + (v / spd) * len;
+    const theta = Math.atan2(lat1 - lat, lon1 - lon);
+    const headLen = Math.min(0.46 * len, 0.74 * cell);
     const headAng = Math.PI / 6;
-    const tx = lon + Math.cos(angle) * len;
-    const ty = lat + Math.sin(angle) * len;
-    const px1 = lon + Math.cos(angle + Math.PI - headAng) * headLen;
-    const py1 = lat + Math.sin(angle + Math.PI - headAng) * headLen;
-    const px2 = lon + Math.cos(angle + Math.PI + headAng) * headLen;
-    const py2 = lat + Math.sin(angle + Math.PI + headAng) * headLen;
-    return new ol.geom.LineString([[lon - dx, lat - dy], [tx, ty], [px1, py1], [tx, ty], [px2, py2], [lon - dx, lat - dy]]);
+    const left = [lon1 + headLen * Math.cos(theta + Math.PI - headAng), lat1 + headLen * Math.sin(theta + Math.PI - headAng)];
+    const right = [lon1 + headLen * Math.cos(theta + Math.PI + headAng), lat1 + headLen * Math.sin(theta + Math.PI + headAng)];
+    return new ol.geom.MultiLineString([[[lon, lat], [lon1, lat1]], [[lon1, lat1], left], [[lon1, lat1], right]]);
   } catch { return null; }
 }
 
@@ -3913,9 +3915,13 @@ function buildThermalFrontLineLayer(frontData) {
   const source = new ol.source.Vector({ wrapX: false });
   for (const feat of features) {
     const coords = feat.geometry?.coordinates || [];
-    for (const seg of coords) {
-      if (seg.length >= 2) {
-        source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+    if (feat.geometry?.type === "LineString" && coords.length >= 2) {
+      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(coords) }));
+    } else if (feat.geometry?.type === "MultiLineString") {
+      for (const seg of coords) {
+        if (Array.isArray(seg) && seg.length >= 2) {
+          source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+        }
       }
     }
   }
@@ -5179,8 +5185,9 @@ async function loadIndex() {
   const thermalSourceFrames = (fbv.thermal_fronts && fbv.thermal_fronts.length) ? fbv.thermal_fronts : (fbv.sst_front || []);
   framesByVar.thermal_fronts = filterFramesForVar("thermal_fronts", thermalSourceFrames);
   framesByVar.bathy = [{ json_path: BATHY_JSON_URL }];
+  framesByVar.combined = [{ json_path: "__combined_native__" }];
 
-  for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts"]) {
+  for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts","combined"]) {
     framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
