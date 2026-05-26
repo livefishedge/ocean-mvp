@@ -516,6 +516,10 @@
     #plot{ height: 100dvh; min-height: 200px; }
     body.mobile-map-ready #plot{ display:none; }
     body.mobile-map-ready #mobile-map{ display:block; }
+    body.thermal-fronts-mode #plot{ display:none !important; }
+    body.thermal-fronts-mode #ranges{ display:none !important; }
+    body.thermal-fronts-mode #menu-panel{ top:8px !important; right:8px !important; }
+    body.thermal-fronts-mode #hamburger-btn{ z-index:31; }
     #modebar-host{ display:none !important; }
     #readout{
       position:fixed;
@@ -578,6 +582,9 @@
   </div>
 
   <div id="mobile-map"></div>
+  <div id="mobile-time-badge"></div>
+  <div id="plot"></div>
+  <div id="readout"></div>
   <button id="hamburger-btn" aria-label="Open product menu">&#9776;</button>
 
   <div id="briefing-panel" aria-live="polite" style="display:none">
