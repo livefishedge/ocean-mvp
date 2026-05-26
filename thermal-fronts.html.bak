@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10, viewport-fit=cover" />
+  <title>Thermal Front History</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.4.0/ol.css">
+  <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
+  <style>
+    :root{ --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.90); --border:#1b2836; }
+    html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
+    #toolbar{
+      position:fixed; top:0; left:0; right:0; z-index:10;
+      display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+      padding:4px 8px; background:var(--panel); border-bottom:1px solid var(--border);
+      backdrop-filter:blur(6px);
+    }
+    #toolbar a, #toolbar button, #toolbar select{
+      min-height:28px; border:1px solid #273649; border-radius:5px;
+      background:#0c1723; color:var(--fg); font-weight:700; font-size:11px;
+    }
+    #toolbar a{ display:inline-flex; align-items:center; padding:0 8px; text-decoration:none; }
+    #toolbar button{ padding:0 10px; cursor:pointer; }
+    #toolbar button.active{ background:#1d4f91; border-color:#4d7dff; }
+    #region-select{ padding:0 8px; min-width:130px; }
+    #nav-bar{ display:flex; align-items:center; gap:6px; flex:1 1 340px; min-width:260px; }
+    #prev-btn, #next-btn{ min-width:32px; padding:0 6px; font-size:16px; font-weight:900; }
+    #frame-progress{ flex:1; min-width:120px; max-width:520px; accent-color:#d84bff; background:transparent; -webkit-appearance:none; appearance:none; }
+    #frame-progress::-webkit-slider-runnable-track{
+      height:6px; border-radius:3px;
+      background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
+    }
+    #frame-progress::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      width:16px; height:16px; border-radius:50%;
+      background:#fff; border:0; margin-top:-5px;
+      box-shadow:0 1px 5px rgba(0,0,0,0.42);
+    }
+    #frame-progress::-moz-range-track{
+      height:6px; border-radius:3px;
+      background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
+    }
+    #frame-progress::-moz-range-thumb{
+      width:16px; height:16px; border-radius:50%;
+      background:#fff; border:0; box-shadow:0 1px 5px rgba(0,0,0,0.42);
+    }
+    #frame-time{ font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    #all-day-toggle{ display:flex; align-items:center; gap:6px; white-space:nowrap; font-size:13px; font-weight:800; }
+    #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
+    #status{ color:#9fb0c3; font-size:12px; font-weight:700; white-space:nowrap; }
+    #plot{ width:100vw; height:100vh; min-height:100vh; touch-action:none; overflow:hidden; cursor:crosshair; background:#f8fbff; }
+    #legend{
+      position:fixed; left:12px; bottom:12px; z-index:11;
+      padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
+      border-radius:8px; color:#fff; font-size:12px; font-weight:800;
+      max-width:min(380px, calc(100vw - 24px));
+    }
+    #hamburger-btn{
+      position:fixed; top:8px; right:8px; z-index:30;
+      width:42px; height:42px; border:1px solid rgba(255,255,255,0.38); border-radius:8px;
+      background:rgba(5,11,16,0.92); color:#fff; font-size:22px; font-weight:900; cursor:pointer;
+      box-shadow:0 3px 12px rgba(0,0,0,0.42);
+    }
+    #menu-panel{
+      position:fixed; top:58px; right:8px; z-index:31; width:min(320px, calc(100vw - 16px));
+      display:none; flex-direction:column; gap:10px; padding:12px;
+      background:rgba(5,11,16,0.94); border:1px solid rgba(255,255,255,0.22); border-radius:8px;
+      box-shadow:0 12px 30px rgba(0,0,0,0.45); backdrop-filter:blur(8px);
+    }
+    #menu-panel.open{ display:flex; }
+    #menu-panel label{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:800; color:#9fb0c3; }
+    #menu-panel select, #menu-panel button{
+      min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
+      color:var(--fg); font-size:14px; font-weight:800; padding:0 10px;
+    }
+    #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
+    #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
+    #readout{
+      position:fixed;
+      right:12px;
+      bottom:calc(12px + env(safe-area-inset-bottom, 0px));
+      z-index:15;
+      padding:5px 8px;
+      background:rgba(5,11,16,0.82);
+      border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px;
+      font-size:13px;
+      font-variant-numeric:tabular-nums;
+      pointer-events:none;
+      white-space:nowrap;
+      color:#e0e6ee;
+      line-height:1.45;
+      display:none;
+      max-width:min(460px, calc(100vw - 24px));
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    #day-row.hidden, #all-day-toggle.hidden{ display:none; }
+    .ol-viewport{ background:#f8fbff; }
+    @media (max-width:720px){
+      #toolbar{ gap:6px; }
+      #toolbar{ padding-right:58px; }
+      #nav-bar{ order:1; flex-basis:100%; }
+      #status{ order:2; flex:1 1 100%; white-space:normal; }
+      #legend{
+        left:8px;
+        bottom:calc(8px + env(safe-area-inset-bottom, 0px));
+        font-size:11px;
+        max-width:calc(100vw - 16px);
+      }
+      #readout{
+        left:8px;
+        right:auto;
+        bottom:calc(44px + env(safe-area-inset-bottom, 0px));
+        max-width:calc(100vw - 16px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <span id="nav-bar">
+      <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
+      <input id="frame-progress" type="range" min="0" max="0" step="1" value="0" aria-label="Frame progress" />
+      <span id="frame-time"></span>
+      <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
+    </span>
+    <span id="status"></span>
+  </div>
+  <div id="plot"></div>
+  <div id="readout"></div>
+  <div id="legend" style="display:none"></div>
+  <button id="hamburger-btn" type="button" aria-label="Open product menu">&#9776;</button>
+  <div id="menu-panel">
+    <label>Region<select id="region-select">
+      <option value="usec_south">South-Atlantic</option>
+      <option value="usec_md">Mid-Atlantic</option>
+    </select></label>
+    <label>Product<select id="product-select"><option value="chl">Chlorophyll</option><option value="sst">Sea surface temperature</option><option value="uv">Currents/SSH</option><option value="bathy">Bathymetry</option><option value="thermal_fronts">Thermal Fronts</option><option value="combined">Combined View</option></select></label>
+    <label id="day-row">Day<select id="day-select"></select></label>
+    <label id="all-day-toggle">
+      <input id="all-day-cb" type="checkbox" />
+      <span id="all-day-label">All fronts this day</span>
+    </label>
+    <div class="mode-row">
+      <button id="mode-animation" class="active" type="button">Hourly</button>
+      <button id="mode-daily" type="button">Daily</button>
+    </div>
+    <button id="play-btn" type="button">Play</button>
+  </div>
+
+<script>
+const REGIONS = {
+  usec_south: { label: "US East Coast - South-Atlantic", index: "index-usec_south.json" },
+  usec_md: { label: "US East Coast - Mid-Atlantic", index: "index-usec_md.json" }
+};
+let regionId = new URLSearchParams(location.search).get("region") || "usec_south";
+if (!REGIONS[regionId]) regionId = "usec_south";
+let bbox = [-81,31,-71,40];
+let frames = [];
+let frameData = [];
+let sourceFrameCount = 0;
+let mode = "animation";
+let playing = false;
+let playTimer = null;
+let frameIdx = 0;
+let dailyFrames = [];
+let dailyDensityCache = new Map();
+let hourlyDays = [];
+let selectedDate = "";
+let map = null;
+let frontLayer = null;
+let densityLayer = null;
+let landLayer = null;
+let placeLayer = null;
+let cursorLayer = null;
+let cursorFeature = null;
+
+const plot = document.getElementById("plot");
+const statusEl = document.getElementById("status");
+const readoutEl = document.getElementById("readout");
+const regionSelect = document.getElementById("region-select");
+const animationBtn = document.getElementById("mode-animation");
+const dailyBtn = document.getElementById("mode-daily");
+const playBtn = document.getElementById("play-btn");
+const hamburgerBtn = document.getElementById("hamburger-btn");
+const prevBtn = document.getElementById("prev-btn");
+const nextBtn = document.getElementById("next-btn");
+const frameProgressEl = document.getElementById("frame-progress");
+const frameTimeEl = document.getElementById("frame-time");
+const dayRow = document.getElementById("day-row");
+const daySelect = document.getElementById("day-select");
+const allDayToggle = document.getElementById("all-day-toggle");
+const allDayCb = document.getElementById("all-day-cb");
+const allDayLabel = document.getElementById("all-day-label");
+const menuPanel = document.getElementById("menu-panel");
+const productSelect = document.getElementById("product-select");
+regionSelect.value = regionId;
+productSelect.value = "thermal_fronts";
+
+const PLACE_LABELS = [
+  {type:"city", name:"New York", lon:-74.0060, lat:40.7128},
+  {type:"city", name:"Philadelphia", lon:-75.1652, lat:39.9526},
+  {type:"city", name:"Atlantic City", lon:-74.4229, lat:39.3643},
+  {type:"city", name:"Baltimore", lon:-76.6122, lat:39.2904},
+  {type:"city", name:"Washington DC", lon:-77.0369, lat:38.9072},
+  {type:"city", name:"Norfolk", lon:-76.2859, lat:36.8508},
+  {type:"city", name:"Virginia Beach", lon:-75.9780, lat:36.8529},
+  {type:"city", name:"Wilmington", lon:-77.9447, lat:34.2257},
+  {type:"city", name:"Myrtle Beach", lon:-78.8867, lat:33.6891},
+  {type:"city", name:"Charleston", lon:-79.9311, lat:32.7765},
+  {type:"city", name:"Savannah", lon:-81.0998, lat:32.0809},
+  {type:"port", name:"Montauk", lon:-71.9448, lat:41.0359},
+  {type:"port", name:"Brielle / Manasquan", lon:-74.0565, lat:40.1079},
+  {type:"port", name:"Barnegat Light", lon:-74.1065, lat:39.7576},
+  {type:"port", name:"Cape May", lon:-74.9060, lat:38.9351},
+  {type:"port", name:"Ocean City MD", lon:-75.0849, lat:38.3365},
+  {type:"port", name:"Wachapreague", lon:-75.6896, lat:37.6057},
+  {type:"port", name:"Oregon Inlet", lon:-75.5488, lat:35.7957},
+  {type:"port", name:"Hatteras", lon:-75.6902, lat:35.2196},
+  {type:"port", name:"Morehead City", lon:-76.7260, lat:34.7229},
+  {type:"port", name:"Beaufort NC", lon:-76.6638, lat:34.7182},
+  {type:"port", name:"Wrightsville Beach", lon:-77.7950, lat:34.2085},
+  {type:"port", name:"Little River", lon:-78.6142, lat:33.8732},
+  {type:"port", name:"Georgetown", lon:-79.2945, lat:33.3768},
+  {type:"port", name:"Charleston Harbor", lon:-79.9237, lat:32.7810},
+  {type:"spot", name:"Wilmington Canyon", lon:-73.60, lat:38.10},
+  {type:"spot", name:"Norfolk Canyon", lon:-74.80, lat:36.90},
+  {type:"spot", name:"Cape May Rim", lon:-74.40, lat:38.90},
+  {type:"spot", name:"Polar Fork", lon:-72.80, lat:38.70},
+  {type:"spot", name:"Saxon State", lon:-73.40, lat:38.00},
+  {type:"spot", name:"Northern Rim", lon:-73.00, lat:38.60}
+];
+
+function framePathOf(f){ return String(f?.json_path || f?.path || f?.file || f?.url || f?.json || ""); }
+function parseFrameTime(f) {
+  if (f?.time_iso) {
+    const dt = new Date(f.time_iso);
+    if (!Number.isNaN(dt.getTime())) return dt.getTime();
+  }
+  const fn = framePathOf(f).split("/").pop() || "";
+  const m = fn.match(/^sstfront_.*?_(\d{4})(\d{3})_(\d{8})_(\d{2})_/);
+  if (!m) return null;
+  const y = Number(m[3].slice(0,4));
+  const mo = Number(m[3].slice(4,6)) - 1;
+  const d = Number(m[3].slice(6,8));
+  return Date.UTC(y, mo, d, Number(m[4]), 0, 0);
+}
+function formatAge(ms, latestMs) {
+  const mins = Math.max(0, Math.round((latestMs - ms) / 6e4));
+  if (mins < 60) return `${mins} mins ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
+function colorForAge(ms, latestMs, oldestMs) {
+  const span = Math.max(1, latestMs - oldestMs);
+  const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
+  const hue = 282 - 282 * t;
+  const light = 46 + 4 * t;
+  return `hsl(${hue}, 92%, ${light}%)`;
+}
+function dateKey(ms) {
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+}
+function frameTimeLabel(ms) {
+  return new Date(ms).toLocaleString(undefined, {timeZone:"UTC", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hour12:false}) + " UTC";
+}
+function framesForDate(date) {
+  return frameData.filter(item => dateKey(item.t) === date);
+}
+function activeFrameList() {
+  if (mode === "daily") return dailyFrames;
+  const dayItems = framesForDate(selectedDate);
+  return dayItems.length ? dayItems : frameData;
+}
+function displayedFrontItems() {
+  if (mode === "daily") {
+    return [];
+  }
+  const list = activeFrameList();
+  if (allDayCb.checked) return list;
+  const item = list[frameIdx];
+  return item ? [item] : [];
+}
+function numericOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function formatLonLat(lat, lon) {
+  return `${lat.toFixed(3)}, ${lon.toFixed(3)}`;
+}
+function viewportFromParams(params = new URLSearchParams(location.search)) {
+  const x0 = Number(params.get("x0"));
+  const x1 = Number(params.get("x1"));
+  const y0 = Number(params.get("y0"));
+  const y1 = Number(params.get("y1"));
+  if (![x0, x1, y0, y1].every(Number.isFinite)) return null;
+  const west = Math.min(x0, x1);
+  const east = Math.max(x0, x1);
+  const south = Math.min(y0, y1);
+  const north = Math.max(y0, y1);
+  if (east <= west || north <= south) return null;
+  return [west, south, east, north];
+}
+function currentMapExtent() {
+  if (!map) return null;
+  const size = map.getSize();
+  if (!size || size[0] <= 0 || size[1] <= 0) return null;
+  const extent = map.getView().calculateExtent(size);
+  if (!extent || extent.length < 4 || !extent.every(Number.isFinite)) return null;
+  return extent;
+}
+function appendViewportParams(url) {
+  const extent = currentMapExtent();
+  if (extent) {
+    url.searchParams.set("x0", extent[0].toFixed(6));
+    url.searchParams.set("x1", extent[2].toFixed(6));
+    url.searchParams.set("y0", extent[1].toFixed(6));
+    url.searchParams.set("y1", extent[3].toFixed(6));
+  }
+  const t = currentFrameTime();
+  if (Number.isFinite(t)) url.searchParams.set("t", String(Math.round(t)));
+  return url;
+}
+function requestedTimeFromParams(params = new URLSearchParams(location.search)) {
+  const t = Number(params.get("t"));
+  return Number.isFinite(t) ? t : null;
+}
+function currentFrameTime() {
+  if (mode === "daily") return dailyFrames[frameIdx]?.t ?? null;
+  if (mode === "animation") return activeFrameList()[frameIdx]?.t ?? null;
+  return activeFrameList().at(-1)?.t ?? null;
+}
+function closestFrameIndex(items, targetMs) {
+  if (!items.length || !Number.isFinite(targetMs)) return Math.max(0, items.length - 1);
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < items.length; i++) {
+    const t = Number(items[i]?.t);
+    if (!Number.isFinite(t)) continue;
+    const d = Math.abs(t - targetMs);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+function placeInRegion(p) {
+  const [w, s, e, n] = bbox.map(Number);
+  return p.lon >= w && p.lon <= e && p.lat >= s && p.lat <= n;
+}
+function segmentedLineStrings(coords, maxJumpDeg = 0.08) {
+  const segments = [];
+  let segment = [];
+  let prev = null;
+  for (const pt of coords) {
+    if (!Array.isArray(pt) || pt.length < 2) continue;
+    const lon = Number(pt[0]);
+    const lat = Number(pt[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) {
+      if (segment.length >= 2) segments.push(segment);
+      segment = [];
+    }
+    segment.push([lon, lat]);
+    prev = [lon, lat];
+  }
+  if (segment.length >= 2) segments.push(segment);
+  return segments;
+}
+function collectFrontPoints(items) {
+  const points = [];
+  for (const item of items) {
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sourceFeature of sourceFeatures) {
+      const coords = sourceFeature?.geometry?.coordinates || [];
+      const props = sourceFeature?.properties || {};
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const lon = Number(pt[0]);
+        const lat = Number(pt[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        const point = { lon, lat, t:item.t, grad:null };
+        const g = gradientForFeaturePoint(props, i);
+        if (Number.isFinite(g)) point.grad = g;
+        points.push(point);
+      }
+    }
+  }
+  return points;
+}
+function dailyDensityForDate(date) {
+  const key = `day:${date}`;
+  if (dailyDensityCache.has(key)) return dailyDensityCache.get(key);
+  const items = framesForDate(date);
+  const density = buildDensityField(collectFrontPoints(items), items.length, date);
+  dailyDensityCache.set(key, density);
+  return density;
+}
+function densityForDates(dates) {
+  const key = `dates:${dates.join("|")}`;
+  if (dailyDensityCache.has(key)) return dailyDensityCache.get(key);
+  const fields = dates.map(date => dailyDensityForDate(date));
+  const density = {
+    method:"spatial_kde_density_field_by_day",
+    label:`${dates[0]}..${dates.at(-1)}`,
+    fields,
+    hourlyCount:fields.reduce((sum, field) => sum + field.hourlyCount, 0),
+    points:fields.reduce((sum, field) => sum + field.points, 0),
+    dayCount:fields.length,
+    nx:fields[0]?.nx || 0,
+    ny:fields[0]?.ny || 0,
+    extent:fields[0]?.extent || bbox
+  };
+  dailyDensityCache.set(key, density);
+  return density;
+}
+// Full spectral ramp: purple(270°) → blue → cyan → green → yellow → orange → red(0°)
+function spectralRgb(t) {
+  // Hue: 270° (purple) → 360°/0° (red) via blue→cyan→green→yellow→orange
+  const hue = 270 - t * 270; // 270 → 0
+  const s = 0.85, l = 0.50;
+  return hslToRgb(hue, s, l);
+}
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+function colorForDensityDate(date) {
+  const idx = Math.max(0, hourlyDays.indexOf(date));
+  const denom = Math.max(1, hourlyDays.length - 1);
+  const t = idx / denom;
+  return spectralRgb(t);
+}
+function quantile(values, q) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a,b) => a - b);
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * q)));
+  return sorted[idx];
+}
+function buildDensityField(points, hourlyCount, label) {
+  const [west, south, east, north] = bbox.map(Number);
+  const cellDeg = 0.005;
+  const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
+  // Simple point-density: count how many front points land in each cell (no KDE smoothing)
+  const counts = new Int32Array(nx * ny);
+  for (const point of points) {
+    const cx = Math.round((point.lon - west) / cellDeg);
+    const cy = Math.round((point.lat - south) / cellDeg);
+    if (cx < 0 || cx >= nx || cy < 0 || cy >= ny) continue;
+    counts[cy * nx + cx]++;
+  }
+  const nonzero = Array.from(counts).filter(v => v > 0);
+  const max = Math.max(1, ...nonzero);
+  // Cutoff: only show cells hit by at least 2 hourly frames (or 15% of max)
+  const cutoff = Math.max(2, Math.round(max * 0.15));
+  return { method:"spatial_count_field", label, color:colorForDensityDate(label), points:points.length, hourlyCount, nx, ny, cellDeg, extent:[west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg], counts, max, cutoff };
+}
+function activeFrontItems() {
+  return displayedFrontItems();
+}
+function styleForPlace(feature) {
+  const type = feature.get("type");
+  const isSpot = type === "spot";
+  const isPort = type === "port";
+  return new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: isSpot ? 5 : isPort ? 4 : 3,
+      fill: new ol.style.Fill({ color: isSpot ? "#ff6b35" : isPort ? "#ffb000" : "#7bdff2" }),
+      stroke: new ol.style.Stroke({ color: "#050b10", width: 1.5 })
+    }),
+    text: new ol.style.Text({
+      text: feature.get("name"),
+      offsetY: isSpot ? -13 : isPort ? 15 : -11,
+      font: "700 12px system-ui, -apple-system, Segoe UI, sans-serif",
+      fill: new ol.style.Fill({ color: isSpot ? "#ffb000" : isPort ? "#846000" : "#163248" }),
+      stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.92)", width: 3 })
+    })
+  });
+}
+function ensurePlaceLayer() {
+  if (!map) return;
+  const features = PLACE_LABELS.filter(placeInRegion).map(p => new ol.Feature({
+    geometry: new ol.geom.Point([p.lon, p.lat]),
+    name: p.name,
+    type: p.type
+  }));
+  if (placeLayer) map.removeLayer(placeLayer);
+  placeLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({ features }),
+    style: styleForPlace,
+    zIndex: 20,
+    declutter: true
+  });
+  map.addLayer(placeLayer);
+}
+async function ensureLandLayer(indexMeta) {
+  if (!map) return;
+  try {
+    const path = indexMeta?.region_meta?.bathy_path || "gebco_bath_latest/gebco_bathy.json";
+    const res = await fetch(`data/${regionId}/${path}?t=${Date.now()}`);
+    if (!res.ok) return;
+    const bathy = await res.json();
+    const xAxis = bathy.xAxis || bathy.x || [];
+    const yAxis = bathy.yAxis || bathy.y || [];
+    const depth = bathy.depth || bathy.z || [];
+    if (!xAxis.length || !yAxis.length || !Array.isArray(depth)) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = xAxis.length;
+    canvas.height = yAxis.length;
+    const ctx = canvas.getContext("2d");
+    const img = ctx.createImageData(canvas.width, canvas.height);
+    const yAsc = yAxis[0] <= yAxis[yAxis.length - 1];
+    for (let row = 0; row < canvas.height; row++) {
+      const srcRow = yAsc ? canvas.height - 1 - row : row;
+      for (let col = 0; col < canvas.width; col++) {
+        const k = (row * canvas.width + col) * 4;
+        const v = Number(depth[srcRow]?.[col]);
+        if (Number.isFinite(v) && v <= 0) {
+          img.data[k] = 201; img.data[k + 1] = 208; img.data[k + 2] = 214; img.data[k + 3] = 255;
+        } else {
+          img.data[k + 3] = 0;
+        }
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const extent = [
+      Math.min(xAxis[0], xAxis.at(-1)),
+      Math.min(yAxis[0], yAxis.at(-1)),
+      Math.max(xAxis[0], xAxis.at(-1)),
+      Math.max(yAxis[0], yAxis.at(-1))
+    ];
+    if (landLayer) map.removeLayer(landLayer);
+    landLayer = new ol.layer.Image({
+      source: new ol.source.ImageStatic({
+        url: canvas.toDataURL("image/png"),
+        imageExtent: extent,
+        projection: "EPSG:4326",
+        interpolate: false
+      }),
+      zIndex: 5
+    });
+    map.addLayer(landLayer);
+  } catch (err) {
+    console.warn("Land mask failed", err);
+  }
+}
+function ensureCursorLayer() {
+  if (!map || cursorLayer) return;
+  cursorFeature = new ol.Feature({ geometry: new ol.geom.Point([(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2]) });
+  cursorFeature.setStyle(new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: 3,
+      fill: new ol.style.Fill({ color: "rgba(255,255,255,0.45)" }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.55)", width: 1 })
+    })
+  }));
+  cursorLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({ features: [cursorFeature] }),
+    zIndex: 60
+  });
+  map.addLayer(cursorLayer);
+}
+function initMap() {
+  const defaultInteractionsFactory = typeof ol.interaction?.defaults === "function"
+    ? ol.interaction.defaults
+    : ol.interaction?.defaults?.defaults;
+  map = new ol.Map({
+    target: plot,
+    layers: [],
+    controls: [],
+    interactions: typeof defaultInteractionsFactory === "function" ? defaultInteractionsFactory({
+      altShiftDragRotate: false,
+      doubleClickZoom: true,
+      dragPan: true,
+      mouseWheelZoom: true,
+      pinchRotate: false,
+      pinchZoom: true
+    }) : undefined,
+    view: new ol.View({
+      projection: "EPSG:4326",
+      center: [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2],
+      zoom: 6,
+      minZoom: 4,
+      maxZoom: 13,
+      enableRotation: false
+    })
+  });
+  ensureCursorLayer();
+  map.on("pointermove", ev => renderReadout(ev.coordinate, ev.pixel, false));
+  map.on("click", ev => renderReadout(ev.coordinate, ev.pixel, true));
+}
+function featureStyle(feature) {
+  return new ol.style.Style({
+    stroke: new ol.style.Stroke({
+      color: feature.get("color") || "#111",
+      width: feature.get("lineWidth") || 2,
+      lineCap: "round",
+      lineJoin: "round"
+    })
+  });
+}
+function activeDensityField() {
+  if (mode !== "daily") return null;
+  if (allDayCb.checked) return densityForDates(dailyFrames.map(item => item.date));
+  const dayItem = dailyFrames[frameIdx];
+  return dayItem ? dailyDensityForDate(dayItem.date) : null;
+}
+function densityCanvas(field) {
+  if (!field) return null;
+  if (Array.isArray(field.fields)) return compositeDensityCanvas(field);
+  const counts = field.counts;
+  if (!counts?.length) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = field.nx;
+  canvas.height = field.ny;
+  const ctx = canvas.getContext("2d");
+  const max = Math.max(field.max || 1, 1);
+  const cutoff = Math.max(field.cutoff || 2, Math.round(max * 0.15));
+  const span = Math.max(1, max - cutoff);
+  const color = field.color || [19, 74, 136];
+  const radiusPx = 4; // pixel radius of each hit cell
+  for (let row = 0; row < field.ny; row++) {
+    // canvas row 0 = north edge (y = ny-1), canvas row ny-1 = south edge (y = 0)
+    const y = field.ny - 1 - row;
+    for (let x = 0; x < field.nx; x++) {
+      const v = counts[row * field.nx + x];
+      if (v < cutoff) continue;
+      const norm = Math.min(1, (v - cutoff) / span);
+      const alpha = Math.round(40 + 215 * norm);
+      ctx.beginPath();
+      ctx.arc(x, y, radiusPx, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(alpha / 255).toFixed(3)})`;
+      ctx.fill();
+    }
+  }
+  return canvas;
+}
+function compositeDensityCanvas(field) {
+  const fields = field.fields || [];
+  const first = fields[0];
+  if (!first) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = first.nx;
+  canvas.height = first.ny;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(first.nx, first.ny);
+  const pixelCount = first.nx * first.ny;
+  const radiusPx = 4;
+  for (let i = 0; i < pixelCount; i++) {
+    let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+    for (const dayField of fields) {
+      const v = dayField.counts ? dayField.counts[i] : 0;
+      const max = Math.max(dayField.max || 1, 1);
+      const cutoff = Math.max(dayField.cutoff || 2, Math.round(max * 0.15));
+      if (v < cutoff) continue;
+      const alpha = Math.min(1, v / max);
+      const color = dayField.color || [19, 74, 136];
+      rSum += color[0] * alpha;
+      gSum += color[1] * alpha;
+      bSum += color[2] * alpha;
+      aSum += alpha;
+    }
+    if (aSum <= 0) continue;
+    const row = Math.floor(i / first.nx);
+    const col = i - row * first.nx;
+    const k = ((first.ny - 1 - row) * first.nx + col) * 4;
+    img.data[k] = Math.round(rSum / aSum);
+    img.data[k + 1] = Math.round(gSum / aSum);
+    img.data[k + 2] = Math.round(bSum / aSum);
+    img.data[k + 3] = Math.min(245, Math.round(100 + 145 * Math.min(1, aSum)));
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+function renderDensityLayer() {
+  if (!map) return;
+  if (mode !== "daily") {
+    if (densityLayer) densityLayer.setSource(null);
+    return;
+  }
+  const field = activeDensityField();
+  const canvas = densityCanvas(field);
+  if (!field || !canvas) {
+    if (densityLayer) densityLayer.setSource(null);
+    return;
+  }
+  const source = new ol.source.ImageStatic({
+    url: canvas.toDataURL("image/png"),
+    imageExtent: field.extent,
+    projection: "EPSG:4326",
+    interpolate: true
+  });
+  if (densityLayer) densityLayer.setSource(source);
+  else {
+    densityLayer = new ol.layer.Image({ source, zIndex: 28, opacity: 1 });
+    map.addLayer(densityLayer);
+  }
+}
+function renderFrontLayer() {
+  if (!map) return;
+  if (mode === "daily") {
+    const source = new ol.source.Vector({ features: [] });
+    if (frontLayer) frontLayer.setSource(source);
+    else {
+      frontLayer = new ol.layer.Vector({ source, style: featureStyle, zIndex: 30, updateWhileAnimating: true, updateWhileInteracting: true });
+      map.addLayer(frontLayer);
+    }
+    return;
+  }
+  const items = activeFrontItems();
+  const latestMs = items.at(-1)?.t ?? Date.now();
+  const oldestMs = items[0]?.t ?? latestMs;
+  const features = [];
+  for (const item of items) {
+    const color = mode === "daily"
+      ? colorForAge(item.t, dailyFrames.at(-1)?.t ?? item.t, dailyFrames[0]?.t ?? item.t)
+      : colorForAge(item.t, latestMs, oldestMs);
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sourceFeature of sourceFeatures) {
+      const coords = sourceFeature?.geometry?.coordinates || [];
+      const props = sourceFeature?.properties || {};
+      for (const segment of segmentedLineStrings(coords)) {
+        const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
+        feature.setProperties({
+          sourceProps: props,
+          sourceCoords: coords,
+          frameTime: item.t,
+          color,
+          lineWidth: items.length === 1 ? 2.8 : 1.7
+        });
+        features.push(feature);
+      }
+    }
+  }
+  const source = new ol.source.Vector({ features });
+  if (frontLayer) frontLayer.setSource(source);
+  else {
+    frontLayer = new ol.layer.Vector({ source, style: featureStyle, zIndex: 30, updateWhileAnimating: true, updateWhileInteracting: true });
+    map.addLayer(frontLayer);
+  }
+}
+function gradientForFeaturePoint(props, index) {
+  const gradMap = Array.isArray(props?.gradient_map) ? props.gradient_map : null;
+  if (gradMap && index < gradMap.length) {
+    const exact = numericOrNull(gradMap[index]);
+    if (Number.isFinite(exact)) return exact;
+    for (let offset = 1; offset < gradMap.length; offset++) {
+      const left = index - offset;
+      const right = index + offset;
+      const leftValue = left >= 0 ? numericOrNull(gradMap[left]) : null;
+      if (Number.isFinite(leftValue)) return leftValue;
+      const rightValue = right < gradMap.length ? numericOrNull(gradMap[right]) : null;
+      if (Number.isFinite(rightValue)) return rightValue;
+    }
+  }
+  return numericOrNull(props?.gradient_per_km);
+}
+function deltaSstForFeature(props) {
+  const median = numericOrNull(props?.strength_median);
+  const max = numericOrNull(props?.strength_max);
+  if (Number.isFinite(median)) return { label: "ΔSST", value: median };
+  if (Number.isFinite(max)) return { label: "ΔSST max", value: max };
+  return null;
+}
+function nearestGradient(coord) {
+  const lon = coord[0];
+  const lat = coord[1];
+  let bestDist = Infinity;
+  let bestGrad = null;
+  let bestPoint = null;
+  let bestDelta = null;
+  for (const item of activeFrontItems()) {
+    const features = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      const props = feature?.properties || {};
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const ptLon = Number(pt[0]);
+        const ptLat = Number(pt[1]);
+        if (!Number.isFinite(ptLon) || !Number.isFinite(ptLat)) continue;
+        const d = Math.hypot(ptLon - lon, ptLat - lat);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPoint = [ptLon, ptLat];
+          bestGrad = gradientForFeaturePoint(props, i);
+          bestDelta = deltaSstForFeature(props);
+        }
+      }
+    }
+  }
+  return { dist: bestDist, gradient: bestGrad, point: bestPoint, deltaSst: bestDelta };
+}
+function setReadout(txt) {
+  readoutEl.textContent = txt || "";
+  readoutEl.style.display = txt ? "inline-block" : "none";
+}
+function renderReadout(coord, pixel, persist) {
+  if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) return;
+  let cursorCoord = coord;
+  let readoutCoord = coord;
+  let gradient = null;
+  let deltaSst = null;
+  const hit = nearestGradient(coord);
+  if (pixel && hit.point && Number.isFinite(hit.gradient)) {
+    const hitPixel = map.getPixelFromCoordinate(hit.point);
+    if (hitPixel) {
+      const pixelDist = Math.hypot(hitPixel[0] - pixel[0], hitPixel[1] - pixel[1]);
+      if (pixelDist <= 14) {
+        cursorCoord = hit.point;
+        readoutCoord = hit.point;
+        gradient = hit.gradient;
+        deltaSst = hit.deltaSst;
+      }
+    }
+  }
+  if (cursorFeature) cursorFeature.getGeometry().setCoordinates(cursorCoord);
+  const base = formatLonLat(readoutCoord[1], readoutCoord[0]);
+  if (Number.isFinite(gradient)) {
+    const parts = [`${gradient.toFixed(3)} °C/km`];
+    if (deltaSst && Number.isFinite(deltaSst.value)) parts.push(`${deltaSst.label} ${deltaSst.value.toFixed(2)}°C`);
+    setReadout(`${base}, ${parts.join(", ")}`);
+  } else setReadout(base);
+}
+async function render() {
+  if (!map) initMap();
+  if (!frameData.length) {
+    statusEl.textContent = "No thermal-front frames available for this region.";
+    renderFrontLayer();
+    return;
+  }
+  const list = activeFrameList();
+  frameIdx = Math.max(0, Math.min(frameIdx, Math.max(0, list.length - 1)));
+  renderDensityLayer();
+  renderFrontLayer();
+  if (mode === "daily") {
+    const dayItem = dailyFrames[frameIdx];
+    const count = dayItem ? framesForDate(dayItem.date).length : 0;
+    const field = activeDensityField();
+    const shownDays = allDayCb.checked ? dailyFrames.length : 1;
+    const sourceText = shownDays === 1 ? `${count} hourly frames` : `${field?.hourlyCount || 0} hourly frames across ${shownDays} days`;
+    statusEl.textContent = `${frameIdx+1}/${dailyFrames.length} daily frames • ${dayItem?.date || ""} • density shade from ${sourceText}`;
+  } else {
+    const item = list[frameIdx];
+    const total = allDayCb.checked ? list.length : 1;
+    statusEl.textContent = `${frameIdx+1}/${list.length} hourly frames • ${selectedDate || ""} • showing ${total}`;
+  }
+  updateLegend();
+  updateNavBar();
+}
+function setMode(next) {
+  const priorTime = currentFrameTime();
+  mode = next;
+  animationBtn.classList.toggle("active", mode === "animation");
+  dailyBtn.classList.toggle("active", mode === "daily");
+  dayRow.classList.toggle("hidden", mode !== "animation");
+  allDayToggle.classList.toggle("hidden", false);
+  allDayCb.checked = false;
+  if (mode === "daily") {
+    const previousDate = selectedDate || dateKey(activeFrameList()[frameIdx]?.t || Date.now());
+    frameIdx = Math.max(0, dailyFrames.findIndex(item => item.date === previousDate));
+  } else if (selectedDate) {
+    frameIdx = closestFrameIndex(activeFrameList(), priorTime);
+  }
+  render();
+}
+function updateNavBar() {
+  const list = activeFrameList();
+  if (mode === "daily") {
+    const dayItem = dailyFrames[frameIdx];
+    frameTimeEl.textContent = dayItem ? dayItem.date : "";
+    prevBtn.disabled = dailyFrames.length <= 1;
+    nextBtn.disabled = dailyFrames.length <= 1;
+  } else if (mode === "animation") {
+    const item = list[frameIdx];
+    frameTimeEl.textContent = item ? frameTimeLabel(item.t) : "";
+    prevBtn.disabled = list.length <= 1;
+    nextBtn.disabled = list.length <= 1;
+  } else {
+    frameTimeEl.textContent = "";
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+  }
+  playBtn.disabled = list.length <= 1;
+  allDayLabel.textContent = mode === "daily" ? "All days this period" : "All fronts this day";
+  updateProgress();
+}
+function updateLegend() {
+  const legendEl = document.getElementById("legend");
+  if (!legendEl) return;
+  if (mode === "daily") {
+    legendEl.style.display = "";
+    legendEl.textContent = allDayCb.checked ? "Color = day; shade = hourly front-point density" : "Shade = hourly front-point density";
+    return;
+  }
+  const displayedCount = displayedFrontItems().length;
+  legendEl.style.display = displayedCount > 1 ? "" : "none";
+  legendEl.textContent = displayedCount > 1 ? "Color = time: purple (oldest) -> red (newest)" : "";
+}
+function updateProgress() {
+  const list = activeFrameList();
+  if (!frameProgressEl) return;
+  frameProgressEl.min = 0;
+  frameProgressEl.max = Math.max(0, list.length - 1);
+  frameProgressEl.value = Math.max(0, Math.min(frameIdx, list.length - 1));
+  frameProgressEl.disabled = list.length <= 1;
+}
+function buildDailyFrames() {
+  dailyFrames = [];
+  const seen = new Set();
+  const sorted = [...frameData].sort((a,b) => a.t - b.t);
+  for (const item of sorted) {
+    const dateStr = dateKey(item.t);
+    if (!seen.has(dateStr)) {
+      seen.add(dateStr);
+      dailyFrames.push({ date: dateStr, t: item.t, item });
+    }
+  }
+  hourlyDays = dailyFrames.map(item => item.date);
+}
+function syncDaySelect() {
+  daySelect.innerHTML = "";
+  for (const date of hourlyDays) {
+    const opt = document.createElement("option");
+    opt.value = date;
+    opt.textContent = date;
+    daySelect.appendChild(opt);
+  }
+  if (!selectedDate || !hourlyDays.includes(selectedDate)) selectedDate = hourlyDays.at(-1) || "";
+  daySelect.value = selectedDate;
+}
+function step(delta) {
+  const list = activeFrameList();
+  if (!list.length) return;
+  frameIdx = (frameIdx + delta + list.length) % list.length;
+  render();
+}
+function setPlaying(on) {
+  playing = on;
+  playBtn.textContent = playing ? "Pause" : "Play";
+  if (playTimer) clearInterval(playTimer);
+  playTimer = playing ? setInterval(() => step(1), 750) : null;
+}
+async function init() {
+  if (!window.ol) throw new Error("OpenLayers failed to load");
+  const idxRes = await fetch(REGIONS[regionId].index + "?t=" + Date.now());
+  if (!idxRes.ok) throw new Error(`Failed to load ${REGIONS[regionId].index}`);
+  const idx = await idxRes.json();
+  if (idx.region_meta?.bbox?.length >= 4) bbox = idx.region_meta.bbox.map(Number);
+  initMap();
+  await ensureLandLayer(idx);
+  ensurePlaceLayer();
+  const requestedViewport = viewportFromParams();
+  map.getView().fit(requestedViewport || bbox, { size: map.getSize(), padding: [58, 0, 0, 0], nearest: true });
+  frames = ((idx.frames || idx.frames_by_var || {}).sst_front || [])
+    .map(f => ({ ...f, t: parseFrameTime(f) }))
+    .filter(f => Number.isFinite(f.t))
+    .sort((a,b) => a.t - b.t);
+  const latest = frames.at(-1)?.t;
+  if (latest) frames = frames.filter(f => latest - f.t <= 21 * 864e5);
+  sourceFrameCount = frames.length;
+  frameData = await Promise.all(frames.map(async f => {
+    const res = await fetch(framePathOf(f) + "?t=" + Date.now());
+    return { meta:f, t:f.t, data: res.ok ? await res.json() : { features:[] } };
+  }));
+  frameData = frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
+  buildDailyFrames();
+  const requestedMs = requestedTimeFromParams();
+  const requestedIdx = closestFrameIndex(frameData, requestedMs);
+  selectedDate = Number.isFinite(requestedMs) ? dateKey(frameData[requestedIdx]?.t || requestedMs) : (hourlyDays.at(-1) || "");
+  syncDaySelect();
+  frameIdx = closestFrameIndex(activeFrameList(), requestedMs);
+  window.__thermalFrontsState = { frames, frameData, map };
+  if (new URLSearchParams(location.search).get("mode") === "daily") setMode("daily");
+  else await render();
+}
+
+regionSelect.addEventListener("change", () => {
+  const url = new URL(location.href);
+  url.searchParams.set("region", regionSelect.value);
+  location.href = appendViewportParams(url).toString();
+});
+hamburgerBtn.addEventListener("click", () => menuPanel.classList.toggle("open"));
+productSelect.addEventListener("change", () => {
+  const url = new URL("index.html", location.href);
+  if (productSelect.value === "thermal_fronts") {
+    url.pathname = url.pathname.replace("thermal-fronts.html", "combined-viewer.html");
+  } else {
+    url.searchParams.set("var", productSelect.value);
+  }
+  url.searchParams.set("region", regionId);
+  location.href = appendViewportParams(url).toString();
+});
+animationBtn.addEventListener("click", () => setMode("animation"));
+dailyBtn.addEventListener("click", () => setMode("daily"));
+allDayCb.addEventListener("change", () => render());
+playBtn.addEventListener("click", () => setPlaying(!playing));
+if (prevBtn) prevBtn.addEventListener("click", () => { setPlaying(false); step(-1); });
+if (nextBtn) nextBtn.addEventListener("click", () => { setPlaying(false); step(+1); });
+if (frameProgressEl) {
+  frameProgressEl.addEventListener("input", () => {
+    frameIdx = Number(frameProgressEl.value);
+    setPlaying(false);
+    render();
+  });
+}
+if (daySelect) {
+  daySelect.addEventListener("change", () => {
+    selectedDate = daySelect.value;
+    frameIdx = 0;
+    setPlaying(false);
+    render();
+  });
+}
+window.addEventListener("resize", () => { if (map) setTimeout(() => map.updateSize(), 50); });
+window.addEventListener("orientationchange", () => { if (map) setTimeout(() => map.updateSize(), 150); });
+
+init().catch(err => {
+  console.error(err);
+  statusEl.textContent = err.message;
+});
+</script>
+</body>
+</html>

@@ -16,46 +16,145 @@
     :root{ --bg:#050b10; --fg:#e0e6ee; --panel:rgba(5,11,16,0.90); --border:#1b2836; }
     html,body{ height:100%; margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
 
-    /* ======= Toolbar (fixed top bar - replaces #controls) ======= */
-    #toolbar{
+    /* ======= Controls (fixed top bar) ======= */
+    #controls{
       position:fixed; top:0; left:0; right:0; z-index:10;
-      display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-      padding:4px 8px; background:var(--panel); border-bottom:1px solid var(--border);
-      backdrop-filter:blur(6px);
+      display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+      padding:4px 8px; background:var(--panel); border-bottom:1px solid var(--border); backdrop-filter:blur(6px);
     }
-    #toolbar a, #toolbar button, #toolbar select{
-      min-height:28px; border:1px solid #273649; border-radius:5px;
-      background:#0c1723; color:var(--fg); font-weight:700; font-size:11px;
+
+    .row{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
     }
-    #toolbar a{ display:inline-flex; align-items:center; padding:0 8px; text-decoration:none; }
-    #toolbar button{ padding:0 10px; cursor:pointer; }
-    #toolbar button.active{ background:#1d4f91; border-color:#4d7dff; }
-    #region-select{ padding:0 8px; min-width:130px; }
-    #nav-bar{ display:flex; align-items:center; gap:6px; flex:1 1 340px; min-width:260px; }
-    #prev-btn, #next-btn, #play-btn{ min-width:32px; padding:0 6px; font-size:16px; font-weight:900; }
-    #frame-slider{ flex:1; min-width:120px; max-width:520px; accent-color:#d84bff; background:transparent; -webkit-appearance:none; appearance:none; }
-    #frame-slider::-webkit-slider-runnable-track{
-      height:6px; border-radius:3px;
-      background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
+
+    #row-region,
+    #row-var,
+    #row-play{ flex: 0 0 auto; }
+    #row-slider{ flex: 1 1 520px; min-width:320px; }
+
+    .control-group{
+      display:flex;
+      align-items:center;
+      gap:7px;
+      min-height:44px;
     }
-    #frame-slider::-webkit-slider-thumb{
-      -webkit-appearance:none;
-      width:16px; height:16px; border-radius:50%;
-      background:#fff; border:0; margin-top:-5px;
-      box-shadow:0 1px 5px rgba(0,0,0,0.42);
+    .control-select,
+    #region-select,
+    #var-select{
+      background:#0c1723;
+      color:var(--fg);
+      border:1px solid #273649;
+      border-radius:10px;
+      padding:9px 12px;
+      font-size:16px;
+      font-weight:800;
+      min-height:42px;
+      max-width:280px;
     }
-    #frame-slider::-moz-range-track{
-      height:6px; border-radius:3px;
-      background:linear-gradient(to right, #7b2cff 0%, #d84bff 38%, #ff7a45 72%, #e6252e 100%);
+    #var-select{ min-width:168px; }
+    #region-select{ min-width:250px; }
+    #row-fronts-overlay{
+      display:none;
+      align-items:center;
+      gap:12px;
+      font-size:13px;
+      font-weight:700;
+      color:#c8d3df;
+      min-height:32px;
     }
-    #frame-slider::-moz-range-thumb{
-      width:16px; height:16px; border-radius:50%;
-      background:#fff; border:0; box-shadow:0 1px 5px rgba(0,0,0,0.42);
+    #row-fronts-overlay label{
+      display:none;
+      align-items:center;
+      gap:6px;
+      white-space:nowrap;
     }
-    #frame-label{ font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
-    #all-day-toggle{ display:flex; align-items:center; gap:6px; white-space:nowrap; font-size:13px; font-weight:800; }
-    #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
-    #toolbar-status{ color:#9fb0c3; font-size:12px; font-weight:700; white-space:nowrap; }
+    #row-fronts-overlay input{
+      width:16px;
+      height:16px;
+      accent-color:#e0e6ee;
+    }
+
+    button{
+      background:#0c1723;
+      color:var(--fg);
+      border:1px solid #273649;
+      border-radius:10px;
+      padding:10px 12px;
+      font-size:16px;
+      min-height:44px;
+      cursor:pointer;
+    }
+    button:disabled{ opacity:.45; cursor:default; }
+    #row-play{
+      gap:8px;
+    }
+    #prev-btn,
+    #next-btn{
+      min-width:58px;
+      min-height:52px;
+      padding:8px 14px;
+      font-size:30px;
+      line-height:1;
+      font-weight:900;
+    }
+    #play-btn{
+      min-height:52px;
+      padding:8px 16px;
+      font-weight:800;
+    }
+
+    #frame-slider{ flex:1; min-width:120px; height:24px; }
+    #frame-slider::-webkit-slider-runnable-track {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
+    }
+    #frame-slider::-moz-range-track {
+      height: 6px;
+      border-radius: 3px;
+      background: linear-gradient(to right, #74c7ff 0%, #f7e65c 50%, #ff7c7c 100%);
+    }
+    #frame-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      border: 2px solid #333;
+      margin-top: -5px;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    #frame-label{
+      min-width:0;
+      text-align:right;
+      font-size:18px;
+      font-weight:800;
+      font-variant-numeric: tabular-nums;
+      white-space:nowrap;
+      flex-shrink:0;
+    }
+
+
+    #speed-wrap{
+      display:flex;
+      align-items:center;
+      gap:4px;
+      margin-left:8px;
+      white-space:nowrap;
+    }
+    #speed-select{
+      background:#0c1723;
+      color:var(--fg);
+      border:1px solid #273649;
+      border-radius:10px;
+      padding:8px 10px;
+      font-size:14px;
+      min-height:36px;
+    }
 
     /* Modebar host: NEW CSS for floating inside the plot at upper-left */
     #modebar-host{
@@ -342,7 +441,7 @@
     body.mobile-device #readout,
     body.portrait-mode #readout{ display:inline-block !important; }
 
-    /* ======= Bottom colorbar bar ======= */
+    /* ======= Bottom ranges (sticky): Reduced Padding ======= */
     #ranges{
       position: sticky;
       bottom: 0;
@@ -353,13 +452,38 @@
       padding:4px 10px;
       padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
       display:flex;
-      justify-content:center;
+      flex-wrap:wrap;
+      gap:10px;
       align-items:center;
       font-size:14px;
+    }
+
+    /* Ranges row layout with footer colorbar on the right */
+    #ranges{ justify-content: space-between; }
+    #ranges-left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    #ranges-right{
+      display:flex;
+      align-items:center;
+      margin-left:auto;
     }
     #cbar{
       width:320px;
       height:72px;
+    }
+    .range-block{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      padding:4px 8px; /* REDUCED PADDING */
+      border:1px solid var(--border);
+      border-radius:12px;
+      background: rgba(12,23,35,0.65);
     }
     .range-name{
       font-weight:900;
@@ -477,7 +601,27 @@
     }
     #briefing-full.open{ display:block; }
 
-    /* Hamburger button and menu panel */
+    /* Controls hamburger toggle button: visible in portrait only */
+    #controls-hamburger-toggle-btn{
+      display: none;
+      position: fixed;
+      top: 6px;
+      right: 6px;
+      z-index: 160;
+      width: 44px;
+      height: 44px;
+      background: rgba(5,11,16,0.94);
+      border: 1px solid rgba(255,255,255,0.42);
+      border-radius: 8px;
+      color: #ffffff;
+      font-size: 22px;
+      cursor: pointer;
+      padding: 0;
+      align-items: center;
+      justify-content: center;
+      box-shadow:0 3px 12px rgba(0,0,0,0.5);
+    }
+    #controls-hamburger-toggle-btn{ display: flex !important; }
     #hamburger-btn{
       position:fixed; top:8px; right:8px; z-index:30;
       width:42px; height:42px; border:1px solid rgba(255,255,255,0.38); border-radius:8px;
@@ -498,52 +642,132 @@
       min-height:38px; border:1px solid #273649; border-radius:8px; background:#0c1723;
       color:var(--fg); font-size:14px; font-weight:800; padding:0 10px; box-sizing:border-box;
     }
-    #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
-    #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
     #hamburger-cbar{ width:100%; height:54px; overflow:hidden; }
     #hamburger-cbar svg{ display:block; max-width:100%; height:54px; }
-    #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
+    #mobile-range-controls{ display:none; }
 
-    @media (max-width:720px){
-      #toolbar{ gap:6px; padding-right:58px; }
-      #nav-bar{ order:1; flex-basis:100%; }
-      #toolbar-status{ order:2; flex:1 1 100%; white-space:normal; }
-      #menu-panel{ top:58px; right:8px; }
-    }
+    @media (orientation: portrait) {
+      #controls-hamburger-toggle-btn{ display: none !important; }
+      /* no desktop-mode override needed - base rule handles portrait/mobile hiding */
+      /* In portrait, the existing controls bar becomes the hamburger panel. */
+      #controls{
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 150;
+        background: rgba(5,11,16,0.92);
+        backdrop-filter: blur(8px);
+        flex-direction: column;
+        align-items: stretch;
+        padding: 16px;
+        gap: 12px;
+        overflow-y: auto;
+      }
+      #controls.open{ display: flex; }
+      #row-region-and-var{ display:flex; flex-wrap:nowrap; gap:8px; width:100%; }
+      #row-region, #row-var{ flex:1 1 50%; }
+      #row-fronts-overlay{ width:100%; padding:0 2px; }
+      #region-select, #var-select{
+        width:100%;
+        min-width:0;
+        font-size:14px;
+        padding:8px 10px;
+        min-height:40px;
+        border-radius:8px;
+      }
+      #row-slider-and-play{ display:flex; width:100%; }
+      #row-slider{ display:flex; flex-wrap:wrap; gap:8px; width:100%; min-width:0; }
+      #frame-label{ flex:1 1 100%; min-width:0 !important; font-size:14px !important; white-space:nowrap; }
+      #row-play{ display:flex; gap:8px; flex:0 0 auto; }
+      #row-play button{ min-width:42px; min-height:42px; font-size:16px; }
+      #row-play #prev-btn,
+      #row-play #next-btn{ min-width:56px; min-height:48px; font-size:28px; }
+      #frame-slider{ width:100%; min-width:0 !important; flex:1 1 100% !important; }
+      #speed-wrap{ flex: 0 0 auto; }
+      #mobile-range-controls{
+        display:flex;
+        flex-direction:column;
+        gap:10px;
+        width:100%;
+        padding-top:8px;
+        border-top:1px solid rgba(255,255,255,0.12);
+      }
+      #mobile-range-row{
+        display:flex;
+        align-items:center;
+        gap:8px;
+        flex-wrap:wrap;
+      }
+      #mobile-range-title{
+        flex:1 1 100%;
+        font-size:13px;
+        font-weight:800;
+        color:#9fb0c3;
+      }
+      #mobile-range-row input{
+        flex:1 1 72px;
+        min-width:0;
+        min-height:38px;
+        font-size:14px;
+      }
+      #mobile-range-row button{
+        min-height:38px;
+        font-size:13px;
+        padding:7px 10px;
+      }
+      #mobile-cbar{ width:100%; height:64px; }
 
-    /* Plot: full viewport */
-    #plot{ height: 100dvh; min-height: 200px; }
-    body.mobile-map-ready #plot{ display:none; }
-    body.mobile-map-ready #mobile-map{ display:block; }
-    #modebar-host{ display:none !important; }
-    #readout{
-      position:fixed;
-      right:12px;
-      bottom:calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index:15;
-      padding:5px 8px;
-      background:rgba(5,11,16,0.82);
-      border:1px solid rgba(255,255,255,0.15);
-      border-radius:10px;
-      font-size:13px;
-      font-variant-numeric:tabular-nums;
-      pointer-events:none;
-      white-space:nowrap;
-      color:#e0e6ee;
-      line-height:1.45;
-      display:none;
-      max-width:min(460px, calc(100vw - 24px));
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    #legend{
-      position:fixed; left:12px; bottom:12px; z-index:11;
-      padding:8px 10px; background:rgba(5,11,16,0.78); border:1px solid rgba(255,255,255,0.18);
-      border-radius:8px; color:#fff; font-size:12px; font-weight:800;
-      max-width:min(380px, calc(100vw - 24px));
-    }
-    #hamburger-btn{ z-index:30; }
+      /* Modebar below map */
+      #modebar-host{
+        position: absolute !important;
+        top: auto !important;
+        left: 4px !important;
+        right: auto !important;
+        bottom: 0 !important;
+      }
+      #modebar-host .modebar{
+        background: rgba(5,11,16,0.75) !important;
+        border-radius: 0 8px 8px 0 !important;
+        padding: 4px 6px !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        justify-content: flex-start !important;
+      }
+      #modebar-host .modebar-btn{ margin-left: 6px !important; margin-right: 6px !important; }
+      #modebar-host .modebar-group{ gap: 8px !important; }
+
+      /* Readout: always bottom-right, regardless of orientation */
+      #readout{
+        left: auto !important;
+        right: 72px;
+        top: auto;
+        bottom: 12px;
+        font-size: 11px;
+        width: max-content;
+        min-width: 160px;
+        max-width: calc(100vw - 96px);
+        padding: 4px 8px;
+        z-index: 130;
+        line-height: 1.5;
+        display: inline-block;
+        pointer-events:none;
+      }
+      #temp-unit-toggle{ min-width:38px; min-height:32px; padding:3px 8px; font-size:12px; }
+
+      /* Plot: full viewport; controls/date strip are hidden until the hamburger opens. */
+      #plot{ height: 100dvh; min-height: 200px; }
+      body.mobile-map-ready #plot{ display:none; }
+      body.mobile-map-ready #mobile-map{ display:block; }
+      body.mobile-map-ready #mobile-time-badge.has-time{ display:block; }
+      body.mobile-map-ready #controls.open ~ #mobile-time-badge{ display:none; }
+      #modebar-host{ display:none !important; }
+
+      /* Ranges bar hidden on portrait */
+      #ranges{ display: none; }
+
+      /* ====== Ranges bar: hidden on portrait ====== */
+      #ranges{ display: none; }}
+      body.desktop-mode #controls{ display:none !important; }
 
 
       /* ====== Hamburger: floating toggle + collapsible panel ====== */
@@ -566,17 +790,95 @@
 
 
 
-  <div id="toolbar">
-    <span id="nav-bar">
-      <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
-      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" aria-label="Frame progress" />
+  <div id="controls">
+    <div id="row-region-and-var">
+    <div class="row control-group" id="row-region">
+      <select id="region-select" class="control-select" title="Region">
+        <option value="usec_md">US East Coast - Mid-Atlantic</option>
+        <option value="usec_south">US East Coast - South-Atlantic</option>
+      </select>
+    </div>
+
+    <div class="row control-group" id="row-var">
+      <select id="var-select" class="control-select" title="Product">
+        <option value="chl">Chlorophyll</option>
+        <option value="sst">Temperature</option>
+        <option value="uv">Currents/SSH</option>
+        <option value="bathy">Bathymetry</option>
+        <option value="thermal_fronts">Thermal Fronts</option>
+      </select>
+      <button id="temp-unit-toggle" type="button" title="Temperature unit">°C</button>
+    </div>
+    </div>
+
+    <div id="row-fronts-overlay">
+      <label id="chl-front-overlay-wrap">
+        <input id="chl-front-overlay" type="checkbox" />
+        CHL fronts
+      </label>
+      <label id="sst-front-overlay-wrap">
+        <input id="sst-front-overlay" type="checkbox" />
+        SST fronts
+      </label>
+    </div>
+
+    <div id="row-slider-and-play">
+    <div class="row" id="row-slider">
       <span id="frame-label"></span>
-      <button id="play-btn" type="button" title="Play/Pause" style="min-width:52px;font-size:13px;font-weight:900;">Play</button>
-      <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
-    </span>
-    <span id="toolbar-status"></span>
+      <div class="row" id="row-play">
+        <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
+        <button id="play-btn">Play</button>
+        <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
+      </div>
+      <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" style="flex:1;min-width:80px;" />
+      <label id="speed-wrap">
+        <select id="speed-select" title="Animation speed">
+          <option value="0.25">1⁄4×</option>
+          <option value="0.5">1⁄2×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="4">4×</option>
+        </select>
+      </label>
+      <button id="fs-btn" title="Fullscreen">⛶</button>
+      <button id="briefing-toggle" title="Captain briefing" style="display:none">Briefing</button>
+    </div>
   </div>
 
+    <div id="mobile-range-controls">
+      <div id="mobile-range-row">
+        <span id="mobile-range-title">Chlorophyll</span>
+        <input id="mobile-vmin" type="number" step="any" inputmode="decimal" aria-label="Color scale minimum" />
+        <input id="mobile-vmax" type="number" step="any" inputmode="decimal" aria-label="Color scale maximum" />
+        <button id="mobile-apply">Apply</button>
+        <button id="mobile-reset">Reset</button>
+      </div>
+      <div id="mobile-cbar"></div>
+    </div>
+  </div>
+
+  <div id="mobile-time-badge"></div>
+  <div id="map-status-toolbar">
+    <button id="map-prev-btn" class="map-time-step" type="button" title="Previous frame" aria-label="Previous frame">&#8249;</button>
+    <span id="map-time-status"></span>
+    <button id="map-next-btn" class="map-time-step" type="button" title="Next frame" aria-label="Next frame">&#8250;</button>
+    <label id="thermal-front-toolbar" title="Overlay nearest thermal front on the current product">
+      <input id="global-sst-front-overlay" type="checkbox" />
+      Fronts
+    </label>
+  </div>
+  <div id="readout"></div>
+  <div id="feedback-float">
+    <button id="feedback-toggle" title="Send feedback">&#9993;</button>
+    <div id="feedback-panel" style="display:none;">
+      <input type="text" id="feedbackInput" placeholder="Questions / comments..." />
+      <button id="feedbackSubmit">Send</button>
+    </div>
+  </div>
+  <div id="modebar-host">
+    <div id="modebar-tip" style="display:none;"></div>
+  </div>
+  <div id="plot"></div>
   <div id="mobile-map"></div>
   <button id="hamburger-btn" aria-label="Open product menu">&#9776;</button>
 
@@ -618,7 +920,30 @@
     </div>
 
   <div id="ranges">
-    <div id="cbar"></div>
+    <div id="ranges-left">
+    <div class="range-block">
+      <span class="range-name" id="range-title">Chlorophyll</span>
+      <span class="mini-label">min</span><input id="vmin-input" type="number" step="any" inputmode="decimal" />
+      <span class="mini-label">max</span><input id="vmax-input" type="number" step="any" inputmode="decimal" />
+      <div class="range-actions">
+        <button id="apply-range">Apply</button>
+        <button id="reset-range">Reset</button>
+      </div>
+    </div>
+
+    <div id="arrow-legend" class="range-block" style="display:none;">
+      <span class="range-name">Currents</span>
+      <svg id="arrow-svg" width="100" height="36" viewBox="0 0 100 36">
+        <line x1="10" y1="18" x2="80" y2="18" stroke="#e0e6ee" stroke-width="1"/>
+        <polyline points="75,14 85,18 75,22" fill="none" stroke="#e0e6ee" stroke-width="1"/>
+      </svg>
+      <span class="mini-label">1 m/s</span>
+    </div>
+    </div>
+
+    <div id="ranges-right">
+      <div id="cbar"></div>
+    </div>
   </div>
 
 
@@ -661,8 +986,7 @@ const DEFAULT_RANGES = {
   chl_front: { vmin: 1.0, vmax: 3.0, unit: "fold/km" },
   sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
   uv:    { vmin: 0.0,  vmax: 1.6,  unit: "m" }, /* ADT/SSH range: actual data 0.005-1.625m */
-  bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" },
-  thermal_fronts: { vmin: 0.0, vmax: 1.0, unit: "°C/km" }
+  bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" }
 };
 
 let userRanges = {
@@ -671,8 +995,7 @@ let userRanges = {
   chl_front: { ...DEFAULT_RANGES.chl_front },
   sst_front: { ...DEFAULT_RANGES.sst_front },
   uv:    { ...DEFAULT_RANGES.uv },
-  bathy: { ...DEFAULT_RANGES.bathy },
-  thermal_fronts: { ...DEFAULT_RANGES.thermal_fronts }
+  bathy: { ...DEFAULT_RANGES.bathy }
 };
 
 let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
@@ -748,10 +1071,10 @@ const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => ([0.02,0.1,1,10,60].includes(v)) 
 
 /* ========================= STATE ========================= */
 let lastUpdateTimestamp = null;
-let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [] };
-let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [] };
+let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
+let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [] };
 const INITIAL_VAR = QUERY_PARAMS.get("var");
-let currentVar = VAR_LABELS[INITIAL_VAR] ? INITIAL_VAR : "chl";
+let currentVar = VAR_LABELS[INITIAL_VAR] && INITIAL_VAR !== "thermal_fronts" ? INITIAL_VAR : "chl";
 let currentFrameIdx = 0;
 let playing = false;
 let playTimer = null;
@@ -1030,7 +1353,7 @@ async function renderDesktopFrame(frameMeta) {
   try {
     console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "desktopMapState.ready:", desktopMapState.ready);
 
-  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts") return false;
+  if (currentVar === "chl_front" || currentVar === "sst_front") return false;
   const needsMapInit = !desktopMapState.map;
   let loadDiv = null;
   if (needsMapInit) {
@@ -1247,7 +1570,55 @@ function resetViewportToWidthFit() {
 
 
 
-// ===== Hamburger panel toggle (floating dropdown) =====
+// ===== Controls hamburger panel toggle (portrait) =====
+const controlsPanel = document.getElementById("controls");
+
+function updateControlsHamburgerVisibility() {
+  syncViewportClasses();
+  const isMobile = isMobileDevice();
+  const btn = document.getElementById("controls-hamburger-toggle-btn");
+  if (!btn) return;
+  // Show the top-right button on all devices (desktop shows hamburger, mobile shows full-screen)
+  btn.style.display = "flex";
+  // On desktop, toggle hamburgerPanel visibility; on mobile, toggle controlsPanel
+  const panel = isMobile ? controlsPanel : hamburgerPanel;
+  btn.textContent = panel?.classList.contains("open") ? "×" : "☰";
+  syncFloatingViewportUi();
+}
+
+const controlsHamburgerToggleBtn = document.getElementById("controls-hamburger-toggle-btn");
+if (controlsHamburgerToggleBtn) {
+  controlsHamburgerToggleBtn.addEventListener("click", () => {
+    if (!controlsPanel) return;
+    const isDesktop = !isMobileDevice();
+    if (isDesktop) {
+      // Desktop: open floating dropdown panel instead of full-screen controls
+      hamburgerPanel.classList.toggle("open");
+      updateControlsHamburgerVisibility();
+    } else {
+      // Mobile/portrait: full-screen controls overlay
+      controlsPanel.classList.toggle("open");
+      updateControlsHamburgerVisibility();
+    }
+  });
+}
+updateControlsHamburgerVisibility();
+
+window.addEventListener("orientationchange", () => {
+  setTimeout(() => {
+    lastViewportPortrait = isPortrait();
+    syncViewportClasses();
+    updateControlsHamburgerVisibility();
+    if (!isMobileDevice() && controlsPanel) {
+      controlsPanel.classList.remove("open");
+    }
+    resetViewportToWidthFit();
+    syncFloatingViewportUi();
+    showFrame();
+  }, 150);
+});
+
+// ===== Hamburger panel toggle + actions (portrait) =====
 const hamburgerToggle = document.getElementById("hamburger-btn");
 const hamburgerPanel = document.getElementById("menu-panel");
 const hamburgerRegionSelect = document.getElementById("hamburger-region-select");
@@ -1256,24 +1627,11 @@ const hVmin = document.getElementById("hamburger-vmin");
 const hVmax = document.getElementById("hamburger-vmax");
 const hApply = document.getElementById("hamburger-apply");
 const hReset = document.getElementById("hamburger-reset");
-
-if (hamburgerToggle && hamburgerPanel) {
-  hamburgerToggle.addEventListener("click", (e) => {
-    e.stopPropagation();
-    hamburgerPanel.classList.toggle("open");
-  });
-  // Close when tapping outside
-  document.addEventListener("click", (e) => {
-    if (!hamburgerPanel.contains(e.target) && !hamburgerToggle.contains(e.target)) {
-      hamburgerPanel.classList.remove("open");
-    }
-  });
-}
-const hamburgerProductSelect = document.getElementById("hamburger-product-select");
-const hVmin = document.getElementById("hamburger-vmin");
-const hVmax = document.getElementById("hamburger-vmax");
-const hApply = document.getElementById("hamburger-apply");
-const hReset = document.getElementById("hamburger-reset");
+const mobileVmin = document.getElementById("mobile-vmin");
+const mobileVmax = document.getElementById("mobile-vmax");
+const mobileApply = document.getElementById("mobile-apply");
+const mobileReset = document.getElementById("mobile-reset");
+const mobileRangeTitle = document.getElementById("mobile-range-title");
 
 if (hamburgerToggle && hamburgerPanel) {
   hamburgerToggle.addEventListener("click", (e) => {
@@ -1300,6 +1658,12 @@ if (hamburgerRegionSelect) {
 if (hamburgerProductSelect) {
   hamburgerProductSelect.value = currentVar;
   hamburgerProductSelect.addEventListener("change", () => {
+    if (hamburgerProductSelect.value === "thermal_fronts") {
+      const url = new URL("thermal-fronts.html", location.href);
+      url.searchParams.set("region", REGION_ID);
+      location.href = appendViewportParams(url).toString();
+      return;
+    }
     setPlaying(false);
     setCurrentVar(hamburgerProductSelect.value, true);
     hamburgerPanel?.classList.remove("open");
@@ -1313,6 +1677,9 @@ if (hApply) {
     if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
     userRanges[currentVar].vmin = vmin;
     userRanges[currentVar].vmax = vmax;
+    // Also update the ranges-bar inputs for landscape so they stay in sync
+    if (vminInput) vminInput.value = vmin;
+    if (vmaxInput) vmaxInput.value = vmax;
     showFrame();
     hamburgerPanel?.classList.remove("open");
   });
@@ -1323,9 +1690,31 @@ if (hReset) {
     const def = DEFAULT_RANGES[currentVar];
     if (hVmin) hVmin.value = def.vmin;
     if (hVmax) hVmax.value = def.vmax;
+    if (vminInput) vminInput.value = def.vmin;
+    if (vmaxInput) vmaxInput.value = def.vmax;
+    showFrame();
+    hamburgerPanel?.classList.remove("open");
+  });
+}
+
+if (mobileApply) {
+  mobileApply.addEventListener("click", () => {
+    const vmin = Number(mobileVmin?.value);
+    const vmax = Number(mobileVmax?.value);
+    if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+    userRanges[currentVar].vmin = vmin;
+    userRanges[currentVar].vmax = vmax;
+    syncRangeInputsToVar();
     showFrame();
   });
-
+}
+if (mobileReset) {
+  mobileReset.addEventListener("click", () => {
+    userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
+    syncRangeInputsToVar();
+    showFrame();
+  });
+}
 /* Marker state */
 let markers = [];
 let markerMode = "off"; // "off" | "add" | "remove"
@@ -1546,9 +1935,25 @@ const playBtn   = document.getElementById("play-btn");
 const prevBtn   = document.getElementById("prev-btn");
 const nextBtn   = document.getElementById("next-btn");
 const tempUnitToggle = document.getElementById("temp-unit-toggle");
+const frontsOverlayRow = document.getElementById("row-fronts-overlay");
+const chlFrontOverlayWrap = document.getElementById("chl-front-overlay-wrap");
+const sstFrontOverlayWrap = document.getElementById("sst-front-overlay-wrap");
+const chlFrontOverlayInput = document.getElementById("chl-front-overlay");
+const sstFrontOverlayInput = document.getElementById("sst-front-overlay");
 const globalSstFrontOverlayInput = document.getElementById("global-sst-front-overlay");
+const mapTimeStatus = document.getElementById("map-time-status");
+const mapPrevBtn = document.getElementById("map-prev-btn");
+const mapNextBtn = document.getElementById("map-next-btn");
+
 const readoutDiv = document.getElementById("readout");
+const modebarHost = document.getElementById("modebar-host");
 const cbarDiv = document.getElementById("cbar");
+
+const rangeTitle = document.getElementById("range-title");
+const vminInput = document.getElementById("vmin-input");
+const vmaxInput = document.getElementById("vmax-input");
+const applyBtn = document.getElementById("apply-range");
+const resetBtn = document.getElementById("reset-range");
 
 const rowPlay = document.getElementById("row-play"); /* NEW */
 const rowSlider = document.getElementById("row-slider"); /* NEW */
@@ -1878,7 +2283,6 @@ function filterFramesForVar(varKey, frames) {
     if (varKey === "chl_front" && !fn.startsWith("chlfront_")) continue;
     if (varKey === "sst_front" && !fn.startsWith("sstfront_")) continue;
     if (varKey === "uv"  && !fn.startsWith("uv_")) continue;
-    if (varKey === "thermal_fronts" && !fn.startsWith("sstfront_")) continue;
     out.push(f);
   }
   return out;
@@ -2987,7 +3391,7 @@ function fitMobileMapWidth(map, extent) {
 }
 
 async function renderMobileFrame(frameMeta) {
-  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts") return false;
+  if (currentVar === "chl_front" || currentVar === "sst_front") return false;
   const map = initMobileMapIfNeeded();
   if (!map) return false;
 
@@ -3048,6 +3452,7 @@ async function renderMobileFrame(frameMeta) {
   }
 
   await renderFooterColorbarToDiv(document.getElementById("hamburger-cbar"), currentVar);
+  await renderFooterColorbarToDiv(document.getElementById("mobile-cbar"), currentVar);
   updateSliderUI();
   return true;
 }
@@ -3225,17 +3630,16 @@ function updateReadoutPosition() {
 function updateTempUnitUI() {
   document.body.classList.toggle("show-temp-unit", currentVar === "sst");
   if (tempUnitToggle) tempUnitToggle.textContent = tempUnitLabel();
-}
-
-function syncThermalFrontsVisibility() {
-  // Show/hide product-specific controls based on whether thermal_fronts is active
-  const isThermal = currentVar === "thermal_fronts";
-  document.body.classList.toggle("thermal-fronts-mode", isThermal);
-  if (tempUnitToggle) tempUnitToggle.style.display = isThermal ? "none" : "";
+  if (mobileRangeTitle) {
+    mobileRangeTitle.textContent = currentVar === "sst" ? `${VAR_LABELS[currentVar]} (${tempUnitLabel()})` : VAR_LABELS[currentVar];
+  }
 }
 
 function syncRangeInputsToVar() {
-  // Keep hamburger inputs in sync with current variable
+  rangeTitle.textContent = VAR_LABELS[currentVar];
+  vminInput.value = userRanges[currentVar].vmin;
+  vmaxInput.value = userRanges[currentVar].vmax;
+  // Keep hamburger inputs in sync
   const hVmin = document.getElementById("hamburger-vmin");
   const hVmax = document.getElementById("hamburger-vmax");
   const hTitle = document.getElementById("hamburger-range-title");
@@ -3244,6 +3648,9 @@ function syncRangeInputsToVar() {
   if (hTitle) hTitle.textContent = VAR_LABELS[currentVar];
   if (hamburgerProductSelect) hamburgerProductSelect.value = currentVar;
   if (hamburgerRegionSelect) hamburgerRegionSelect.value = REGION_ID;
+  if (mobileVmin) mobileVmin.value = userRanges[currentVar].vmin;
+  if (mobileVmax) mobileVmax.value = userRanges[currentVar].vmax;
+  if (mobileRangeTitle) mobileRangeTitle.textContent = VAR_LABELS[currentVar];
   updateTempUnitUI();
 }
 
@@ -3259,8 +3666,20 @@ function updateSliderUI() {
 
   prevBtn.disabled = n <= 1;
   nextBtn.disabled = n <= 1;
+  if (mapPrevBtn) mapPrevBtn.disabled = n <= 1;
+  if (mapNextBtn) mapNextBtn.disabled = n <= 1;
   playBtn.disabled = n <= 1;
-  rowSlider.style.display = isBathy || isThermal ? "none" : "flex";
+
+  frameLbl.textContent = n ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
+  if (mapTimeStatus) mapTimeStatus.textContent = n ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
+  updateMobileTimeBadge();
+}
+
+function syncTimeControls() {
+  const isBathy = (currentVar === "bathy");
+  // Hides the play buttons and the slider/date bar for bathymetry
+  rowPlay.style.display = isBathy ? "none" : "flex";
+  rowSlider.style.display = isBathy ? "none" : "flex";
 }
 
 function syncArrowLegend() {
@@ -3270,13 +3689,12 @@ function syncArrowLegend() {
 
 function syncFrontOverlayControls() {
   if (!frontsOverlayRow) return;
-  const isThermal = (currentVar === "thermal_fronts");
   const showChl = currentVar === "chl";
   const showSst = currentVar === "sst";
   const chlCount = (framesByVar.chl_front || []).length;
   const sstCount = (framesByVar.sst_front || []).length;
 
-  frontsOverlayRow.style.display = (showChl || showSst) && !isThermal ? "flex" : "none";
+  frontsOverlayRow.style.display = (showChl || showSst) ? "flex" : "none";
   if (chlFrontOverlayWrap) chlFrontOverlayWrap.style.display = showChl ? "flex" : "none";
   if (sstFrontOverlayWrap) sstFrontOverlayWrap.style.display = showSst ? "flex" : "none";
   if (chlFrontOverlayInput) {
@@ -3363,7 +3781,6 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   syncTimeControls(); /* NEW */
   syncArrowLegend(); /* NEW */
   syncFrontOverlayControls();
-  syncThermalFrontsVisibility(); /* hide temp-unit, map-toolbar for thermal */
 
   if (frames.length) await showFrame();
   else Plotly.purge(plotDiv);
@@ -3501,10 +3918,9 @@ async function loadIndex() {
   framesByVar.chl_front = filterFramesForVar("chl_front", fbv.chl_front || []);
   framesByVar.sst_front = filterFramesForVar("sst_front", fbv.sst_front || []);
   framesByVar.uv  = filterFramesForVar("uv",  fbv.uv  || []);
-  framesByVar.thermal_fronts = filterFramesForVar("thermal_fronts", fbv.thermal_fronts || fbv.sst_front || []);
   framesByVar.bathy = [{ json_path: BATHY_JSON_URL }];
 
-  for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts"]) {
+  for (const v of ["chl","sst","chl_front","sst_front","uv","bathy"]) {
     framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
@@ -3714,14 +4130,6 @@ async function showFrame() {
   console.log("[showFrame] currentVar:", currentVar, "IS_TOUCH:", IS_TOUCH, "isDesktopMapMode():", isDesktopMapMode(), "isMobileMapMode():", isMobileMapMode());
   updateReadoutPosition();
 
-  // thermal_fronts uses a dedicated canvas renderer — not Plotly, not standard OL raster
-  if (currentVar === "thermal_fronts") {
-    // Hide the Plotly div and skip Plotly event handler setup
-    const plotDivEl = document.getElementById("plot");
-    if (plotDivEl) plotDivEl.style.display = "none";
-    return;
-  }
-
   const frames = framesByVar[currentVar] || [];
   if (!frames.length) return;
   currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, frames.length - 1));
@@ -3785,7 +4193,15 @@ async function showFrame() {
 
 /* ========================= EVENTS ========================= */
 varSelect.addEventListener("change", () => {
+  if (varSelect.value === "thermal_fronts") {
+    const url = new URL("thermal-fronts.html", location.href);
+    url.searchParams.set("region", REGION_ID);
+    location.href = appendViewportParams(url).toString();
+    return;
+  }
   setPlaying(false);
+  // Preserve the user's viewed timestamp and land on the nearest daytime frame
+  // in the newly selected product. This is the actual product-switch path.
   setCurrentVar(varSelect.value, true);
 });
 
