@@ -5351,8 +5351,10 @@ async function showFrame() {
 
   // Desktop: use OpenLayers
   if (isDesktopMapMode()) {
+    console.log("[showFrame] entering desktop OL path, currentVar:", currentVar, "frameMeta:", !!frameMeta);
     try {
       const renderedDesktop = await renderDesktopFrame(frameMeta);
+      console.log("[showFrame] renderDesktopFrame returned:", renderedDesktop);
       if (renderedDesktop) {
         await renderFooterColorbarToDiv(document.getElementById("hamburger-cbar"), currentVar);
         updateSliderUI();
