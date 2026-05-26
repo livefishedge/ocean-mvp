@@ -20,7 +20,7 @@
     #toolbar{
       position:fixed; top:0; left:0; right:0; z-index:940;
       display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-      padding:4px 8px; background:var(--panel); border-bottom:1px solid var(--border);
+      padding:4px 70px 4px 8px; background:var(--panel); border-bottom:1px solid var(--border);
       backdrop-filter:blur(6px);
     }
     #toolbar a, #toolbar button, #toolbar select{
@@ -531,10 +531,40 @@
     #plot{ height: 100dvh; min-height: 200px; }
     body.mobile-map-ready #plot{ display:none; }
     body.mobile-map-ready #mobile-map{ display:block; }
-    body.thermal-fronts-mode #plot{ display:none !important; }
+    body.thermal-fronts-mode #plot{
+      display:block !important;
+      width:100vw;
+      height:100dvh;
+      cursor:crosshair;
+      background:#f8fbff;
+    }
+    body.thermal-fronts-mode #mobile-map{ display:none !important; }
     body.thermal-fronts-mode #ranges{ display:none !important; }
-    body.thermal-fronts-mode #menu-panel{ top:8px !important; right:8px !important; }
-    body.thermal-fronts-mode #hamburger-btn{ z-index:1000; }
+    body.thermal-fronts-mode #mobile-time-badge{ display:none !important; }
+    body.thermal-fronts-mode #toolbar{ display:flex !important; }
+    body.thermal-fronts-mode #nav-bar{ display:flex !important; }
+    body.thermal-fronts-mode #hamburger-cbar,
+    body.thermal-fronts-mode .hamburger-range-block{ display:none !important; }
+    #thermal-front-controls{
+      display:none;
+      flex-direction:column;
+      gap:10px;
+    }
+    body.thermal-fronts-mode #thermal-front-controls{ display:flex; }
+    #thermal-day-row.hidden,
+    #thermal-all-day-toggle.hidden{ display:none !important; }
+    #thermal-all-day-toggle{
+      display:flex;
+      flex-direction:row !important;
+      align-items:center;
+      gap:8px;
+      color:var(--fg) !important;
+    }
+    #thermal-all-day-cb{
+      width:15px;
+      height:15px;
+      accent-color:#d84bff;
+    }
     #modebar-host{ display:none !important; }
     #readout{
       position:fixed;
@@ -627,8 +657,22 @@
           <option value="uv">Currents/SSH</option>
           <option value="bathy">Bathymetry</option>
           <option value="thermal_fronts">Thermal Fronts</option>
+          <option value="combined">Combined</option>
         </select>
       </label>
+      <div id="thermal-front-controls">
+        <label id="thermal-day-row">Day
+          <select id="thermal-day-select"></select>
+        </label>
+        <label id="thermal-all-day-toggle">
+          <input id="thermal-all-day-cb" type="checkbox" />
+          <span id="thermal-all-day-label">All fronts this day</span>
+        </label>
+        <div class="mode-row">
+          <button id="thermal-mode-hourly" class="active" type="button">Hourly</button>
+          <button id="thermal-mode-daily" type="button">Daily</button>
+        </div>
+      </div>
       <div class="hamburger-range-block">
         <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
         <input id="hamburger-vmin" type="number" step="any" inputmode="decimal" />
@@ -668,7 +712,8 @@ const VAR_LABELS = {
   chl_front:"CHL Fronts", sst_front:"SST Fronts",
   uv:"Currents/SSH",
   bathy:"Bathymetry",
-  thermal_fronts:"Thermal Fronts"
+  thermal_fronts:"Thermal Fronts",
+  combined:"Combined"
 };
 
 const VAR_TO_GRID = {
@@ -686,7 +731,8 @@ const DEFAULT_RANGES = {
   sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
   uv:    { vmin: 0.0,  vmax: 1.6,  unit: "m" }, /* ADT/SSH range: actual data 0.005-1.625m */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" },
-  thermal_fronts: { vmin: 0.0, vmax: 1.0, unit: "°C/km" }
+  thermal_fronts: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
+  combined: { vmin: 0.0, vmax: 1.0, unit: "" }
 };
 
 let userRanges = {
@@ -696,7 +742,8 @@ let userRanges = {
   sst_front: { ...DEFAULT_RANGES.sst_front },
   uv:    { ...DEFAULT_RANGES.uv },
   bathy: { ...DEFAULT_RANGES.bathy },
-  thermal_fronts: { ...DEFAULT_RANGES.thermal_fronts }
+  thermal_fronts: { ...DEFAULT_RANGES.thermal_fronts },
+  combined: { ...DEFAULT_RANGES.combined }
 };
 
 let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
@@ -813,6 +860,10 @@ function mapViewportRanges(map) {
   return { xRange: [extent[0], extent[2]], yRange: [extent[1], extent[3]] };
 }
 function currentViewportRanges() {
+  if (currentVar === "thermal_fronts" && thermalFrontState.map) {
+    const thermalVp = mapViewportRanges(thermalFrontState.map);
+    if (thermalVp) return thermalVp;
+  }
   return mapViewportRanges(mobileMapState.map)
     || mapViewportRanges(desktopMapState.map)
     || (viewState.hasRange && viewState.xRange && viewState.yRange
@@ -875,9 +926,29 @@ let desktopMapState = {
   landLayer: null,
   placeLayer: null,
   arrowLayer: null,
+  bathyContourLayer: null,
   currentGridInfo: null,
   currentDataObj: null,
   ready: false
+};
+
+let thermalFrontState = {
+  map: null,
+  frames: [],
+  frameData: [],
+  mode: "animation",
+  frameIdx: 0,
+  selectedDate: "",
+  dailyFrames: [],
+  hourlyDays: [],
+  densityCache: new Map(),
+  frontLayer: null,
+  densityLayer: null,
+  cursorLayer: null,
+  cursorFeature: null,
+  initialized: false,
+  loading: false,
+  loadedRegion: null
 };
 
 function isDesktopMapMode() {
@@ -1052,9 +1123,10 @@ function installDesktopReadoutHandlersOnce(map) {
 
 async function renderDesktopFrame(frameMeta) {
   try {
-    console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "desktopMapState.ready:", desktopMapState.ready);
+    console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "IS_TOUCH:", IS_TOUCH, "isDesktopMapMode():", isDesktopMapMode(), "isMobileMapMode():", isMobileMapMode());
+    updateReadoutPosition();
 
-  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts") return false;
+  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts" || currentVar === "combined") return false;
   const needsMapInit = !desktopMapState.map;
   let loadDiv = null;
   if (needsMapInit) {
@@ -1068,6 +1140,12 @@ async function renderDesktopFrame(frameMeta) {
   if (!map) {
     if (loadDiv) loadDiv.remove();
     return false;
+  }
+
+  // Combined: render all layers simultaneously as a snapshot
+  if (currentVar === "combined") {
+    await renderCombinedMode(map);
+    return true;
   }
 
   let dataObj, gridInfo;
@@ -1101,6 +1179,7 @@ async function renderDesktopFrame(frameMeta) {
   });
   if (desktopMapState.imageLayer) {
     desktopMapState.imageLayer.setSource(source);
+    desktopMapState.imageLayer.setVisible(true);
     console.log("[OL] desktop image source updated");
   } else {
     desktopMapState.imageLayer = new ol.layer.Image({ source, zIndex: 10 });
@@ -1116,6 +1195,10 @@ async function renderDesktopFrame(frameMeta) {
     desktopMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
     if (desktopMapState.arrowLayer) map.addLayer(desktopMapState.arrowLayer);
   }
+  if (desktopMapState.arrowLayer) desktopMapState.arrowLayer.setVisible(currentVar === "uv");
+  if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setVisible(false);
+  if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setVisible(false);
+  if (thermalFrontState.cursorLayer) thermalFrontState.cursorLayer.setVisible(false);
 
   installDesktopReadoutHandlersOnce(map);
   console.log("[OL] readout handlers installed");
@@ -1142,6 +1225,13 @@ async function renderDesktopFrame(frameMeta) {
   }
   await ensureDesktopLandLayer(map);
   await ensureDesktopPlaceLayer(map);
+
+  // Bathymetry contours rendered as OL vector layer
+  if (currentVar === "bathy") {
+    await ensureDesktopBathyContourLayer(map, dataObj, gridInfo);
+  } else if (desktopMapState.bathyContourLayer) {
+    desktopMapState.bathyContourLayer.setVisible(false);
+  }
 
   // Preserve an existing viewport when switching pages/products; otherwise fit to data.
   console.log("[OL] view fit - size:", map.getSize(), "extent:", extent, "locked:", viewState.hasRange);
@@ -1561,6 +1651,14 @@ const nextBtn   = document.getElementById("next-btn");
 const globalSstFrontOverlayInput = document.getElementById("global-sst-front-overlay");
 const readoutDiv = document.getElementById("readout");
 const cbarDiv = document.getElementById("cbar");
+const toolbarStatus = document.getElementById("toolbar-status");
+const thermalDaySelect = document.getElementById("thermal-day-select");
+const thermalDayRow = document.getElementById("thermal-day-row");
+const thermalAllDayToggle = document.getElementById("thermal-all-day-toggle");
+const thermalAllDayCb = document.getElementById("thermal-all-day-cb");
+const thermalAllDayLabel = document.getElementById("thermal-all-day-label");
+const thermalModeHourlyBtn = document.getElementById("thermal-mode-hourly");
+const thermalModeDailyBtn = document.getElementById("thermal-mode-daily");
 
 function setReadout(txt) {
   if (!readoutDiv) return;
@@ -2771,6 +2869,135 @@ async function ensureDesktopPlaceLayer(map) {
   map.addLayer(layer);
 }
 
+async function ensureDesktopBathyContourLayer(map, bathyData, gridInfo) {
+  if (!map) return;
+  // Re-use existing layer or create new one
+  let layer = desktopMapState.bathyContourLayer;
+  if (!layer) {
+    const source = new ol.source.Vector({ wrapX: false });
+    layer = new ol.layer.Vector({
+      source,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({ color: "#8bb8d4", width: 0.8 })
+      }),
+      zIndex: 15
+    });
+    desktopMapState.bathyContourLayer = layer;
+    map.addLayer(layer);
+  }
+  layer.setVisible(true);
+
+  const bd = {
+    xAxis: bathyData.xAxis,
+    yAxis: bathyData.yAxis,
+    depth: bathyData.depth,
+    nx: bathyData.xAxis.length,
+    ny: bathyData.yAxis.length
+  };
+  window._bathyData = bd;
+  window._bathyLayer = layer;
+
+  // Update contours for current viewport
+  updateBathyContours(map);
+
+  // Re-draw on every pan/zoom
+  map.on("moveend", () => {
+    if (desktopMapState.bathyContourLayer?.getVisible()) {
+      updateBathyContours(map);
+    }
+  });
+}
+
+function updateBathyContours(map) {
+  const bd = window._bathyData;
+  const layer = window._bathyLayer;
+  if (!bd || !layer) return;
+  const source = layer.getSource();
+  source.clear();
+
+  const extent = map.getView().calculateExtent(map.getSize());
+  const [vx0, vy0, vx1, vy1] = extent;
+
+  const maxW = 400, maxH = 600;
+  const sx = Math.max(1, Math.floor(bd.nx / maxW));
+  const sy = Math.max(1, Math.floor(bd.ny / maxH));
+
+  const maxDepth = depthMaxInExtent(bd, extent, sx, sy);
+  const levels = generateContourLevels(maxDepth);
+
+  for (const level of levels) {
+    const segs = extractContourSegments(bd, level, sx, sy, extent);
+    for (const seg of segs) {
+      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+    }
+  }
+}
+
+function depthMaxInExtent(bd, extent, sx, sy) {
+  const [vx0, vy0, vx1, vy1] = extent;
+  let maxD = 0;
+  for (let row = 0; row < bd.ny; row += sy) {
+    const lat = bd.yAxis[row];
+    if (lat < vy0 || lat > vy1) continue;
+    for (let col = 0; col < bd.nx; col += sx) {
+      const lon = bd.xAxis[col];
+      if (lon < vx0 || lon > vx1) continue;
+      const d = bd.depth[row][col];
+      if (d > maxD) maxD = d;
+    }
+  }
+  return maxD;
+}
+
+function generateContourLevels(maxDepth) {
+  const std = [50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+  if (maxDepth < 200) return [50, 100, 200].filter(l => l <= maxDepth + 200);
+  return std.filter(l => l <= maxDepth + 200);
+}
+
+function extractContourSegments(bd, level, sx, sy, extent) {
+  const [vx0, vy0, vx1, vy1] = extent;
+  const segments = [];
+  for (let row = 1; row < bd.ny - 1; row += sy) {
+    const lat = bd.yAxis[row];
+    if (lat < vy0 || lat > vy1) continue;
+    const nextLat = bd.yAxis[Math.min(row + sy, bd.ny - 1)];
+    for (let col = 1; col < bd.nx - 1; col += sx) {
+      const lon = bd.xAxis[col];
+      if (lon < vx0 || lon > vx1) continue;
+      const nextLon = bd.xAxis[Math.min(col + sx, bd.nx - 1)];
+      const tl = bd.depth[row][col];
+      const tr = bd.depth[row][Math.min(col + sx, bd.nx - 1)];
+      const br = bd.depth[Math.min(row + sy, bd.ny - 1)][Math.min(col + sx, bd.nx - 1)];
+      const bl = bd.depth[Math.min(row + sy, bd.ny - 1)][col];
+      const crossings = [];
+      if ((tl < level) !== (tr < level)) {
+        const t = (level - tl) / (tr - tl);
+        crossings.push([[lon + t * (nextLon - lon), lat], "top"]);
+      }
+      if ((bl < level) !== (br < level)) {
+        const t = (level - bl) / (br - bl);
+        crossings.push([[lon + t * (nextLon - lon), nextLat], "bottom"]);
+      }
+      if ((tl < level) !== (bl < level)) {
+        const t = (level - tl) / (bl - tl);
+        crossings.push([[lon, lat + t * (nextLat - lat)], "left"]);
+      }
+      if ((tr < level) !== (br < level)) {
+        const t = (level - tr) / (br - tr);
+        crossings.push([[nextLon, lat + t * (nextLat - lat)], "right"]);
+      }
+      if (crossings.length >= 2) {
+        const coords = crossings.slice(0, 2).map(c => c[0]);
+        if (coords[0] && coords[1] && Math.hypot(coords[0][0] - coords[1][0], coords[0][1] - coords[1][1]) > 0.01) {
+          segments.push(coords);
+        }
+      }
+    }
+  }
+  return segments;
+}
+
 async function ensureMobileLandLayer(map) {
   if (mobileMapState.landLayer) return;
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
@@ -2997,10 +3224,177 @@ function fitMobileMapWidth(map, extent) {
   map.getView().setResolution(widthRes);
 }
 
+/* ====================== COMBINED MODE RENDERER ====================== */
+async function renderCombinedMode(map) {
+  if (!map) return;
+  if (!desktopMapState.map) {
+    await initDesktopMapIfNeeded();
+  }
+  const m = desktopMapState.map || map;
+
+  // ── Land ─────────────────────────────────────────────────
+  await ensureDesktopLandLayer(m);
+  await ensureDesktopPlaceLayer(m);
+
+  // ── CHL raster (latest frame) ─────────────────────────────
+  const chlFrames = framesByVar.chl || [];
+  if (chlFrames.length) {
+    const frame = chlFrames[chlFrames.length - 1];
+    const data = await fetchFrameData("chl", frame);
+    const grid = await loadGridForVar("chl", data);
+    const canvas = makeMobileRasterCanvas("chl", grid, data);
+    const url = canvas.toDataURL("image/png");
+    if (url && url.startsWith("data:image/png")) {
+      const extent = frameExtentFromGrid(grid);
+      const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+      if (desktopMapState.imageLayer) {
+        desktopMapState.imageLayer.setSource(src);
+        desktopMapState.imageLayer.setVisible(true);
+      } else {
+        desktopMapState.imageLayer = new ol.layer.Image({ source: src, zIndex: 10 });
+        m.addLayer(desktopMapState.imageLayer);
+      }
+    }
+  }
+
+  // ── Bathymetry contours ──────────────────────────────────
+  const bathyData = await loadBathymetryJson(BATHY_JSON_URL);
+  await ensureDesktopBathyContourLayer(m, bathyData, { xAxis: bathyData.xAxis, yAxis: bathyData.yAxis });
+  if (desktopMapState.bathyContourLayer) desktopMapState.bathyContourLayer.setVisible(true);
+
+  // ── UV arrows (latest frame) ─────────────────────────────
+  const uvFrames = framesByVar.uv || [];
+  if (uvFrames.length) {
+    const frame = uvFrames[uvFrames.length - 1];
+    const data = await fetchFrameData("uv", frame);
+    const grid = await loadGridForVar("uv", data);
+    if (desktopMapState.arrowLayer) {
+      m.removeLayer(desktopMapState.arrowLayer);
+      desktopMapState.arrowLayer = null;
+    }
+    desktopMapState.arrowLayer = buildMobileUvArrowLayer(data, grid);
+    if (desktopMapState.arrowLayer) {
+      m.addLayer(desktopMapState.arrowLayer);
+      desktopMapState.arrowLayer.setVisible(true);
+    }
+  }
+
+  // ── Thermal fronts (latest day) ──────────────────────────
+  const tfFrames = framesByVar.thermal_fronts || [];
+  if (tfFrames.length) {
+    // Find the latest frame
+    const latestFrame = tfFrames[tfFrames.length - 1];
+    const frontData = await fetchFrameData("thermal_fronts", latestFrame);
+    const grid = await loadGridForVar("thermal_fronts", frontData);
+    desktopMapState.currentGridInfo = grid;
+    desktopMapState.currentDataObj = frontData;
+    // Build front canvas and add as layer if not already present
+    const frontCanvas = await buildThermalFrontDensityCanvas(frontData, grid);
+    if (frontCanvas) {
+      const extent = frameExtentFromGrid(grid);
+      const src = new ol.source.ImageStatic({ url: frontCanvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+      // Reuse or create thermal overlay layer
+      if (thermalFrontState.densityLayer) {
+        thermalFrontState.densityLayer.setSource(src);
+        thermalFrontState.densityLayer.setVisible(true);
+      } else {
+        const layer = new ol.layer.Image({ source: src, zIndex: 30, opacity: 0.85 });
+        m.addLayer(layer);
+        thermalFrontState.densityLayer = layer;
+      }
+    }
+    // Also render front line features if available
+    if (frontData.features?.length) {
+      if (!thermalFrontState.frontLayer) {
+        const fs = new ol.source.Vector({ wrapX: false });
+        const layer = new ol.layer.Vector({ source: fs, style: new ol.style.Style({ stroke: new ol.style.Stroke({ color: "#ff4040", width: 1.4 }) }), zIndex: 32 });
+        m.addLayer(layer);
+        thermalFrontState.frontLayer = layer;
+      }
+      const src = thermalFrontState.frontLayer.getSource();
+      src.clear();
+      for (const feat of frontData.features) {
+        const coords = feat.geometry?.coordinates || [];
+        for (const seg of coords) {
+          if (seg.length >= 2) {
+            src.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+          }
+        }
+      }
+      thermalFrontState.frontLayer.setVisible(true);
+    }
+  }
+
+  // Hide Plotly
+  const plotDivEl = document.getElementById("plot");
+  if (plotDivEl) {
+    plotDivEl.style.display = "block";
+    plotDivEl.classList.remove("js-plotly-plot");
+  }
+
+  // Colorbar inside hamburger only
+  await renderFooterColorbarToDiv(document.getElementById("hamburger-cbar"), "chl");
+  updateSliderUI();
+  return true;
+}
+
+async function buildThermalFrontDensityCanvas(frontData, grid) {
+  // Fallback: build a simple density heatmap from front point features
+  const features = frontData.features || [];
+  if (!features.length) return null;
+  const cellDeg = 0.014;
+  const nx = Math.max(2, Math.ceil((BBOX[2] - BBOX[0]) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((BBOX[3] - BBOX[1]) / cellDeg) + 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = nx;
+  canvas.height = ny;
+  const ctx = canvas.getContext("2d");
+  const counts = new Uint8Array(nx * ny);
+  const radiusPx = 2;
+
+  for (const feat of features) {
+    const coords = feat.geometry?.coordinates || [];
+    for (const pt of coords) {
+      if (!pt || pt.length < 2) continue;
+      const [lon, lat] = pt;
+      const cx = Math.round((lon - BBOX[0]) / cellDeg);
+      const cy = Math.round((BBOX[3] - lat) / cellDeg);
+      if (cx < 0 || cx >= nx || cy < 0 || cy >= ny) continue;
+      if (counts[cy * nx + cx] < 255) counts[cy * nx + cx]++;
+    }
+  }
+
+  for (let row = 0; row < ny; row++) {
+    for (let x = 0; x < nx; x++) {
+      const c = counts[row * nx + x];
+      if (c > 0) {
+        const alpha = Math.min(200, c * 25);
+        ctx.beginPath();
+        ctx.arc(x, row, radiusPx, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+        ctx.fill();
+      }
+    }
+  }
+
+  return canvas;
+}
+
 async function renderMobileFrame(frameMeta) {
-  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts") return false;
+  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts" || currentVar === "combined") return false;
   const map = initMobileMapIfNeeded();
   if (!map) return false;
+
+  // Combined: not yet supported on mobile — fall through to single-product path
+  if (currentVar === "combined") {
+    // Show a toast instead of an error
+    const toast = document.createElement("div");
+    toast.textContent = "Combined view is desktop-only";
+    toast.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:999;color:#fff;background:rgba(0,80,0,0.85);padding:14px 20px;border-radius:8px;font-size:14px;text-align:center;";
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 2500);
+    return false;
+  }
 
   let dataObj, gridInfo;
   if (currentVar === "bathy") {
@@ -3257,6 +3651,10 @@ function syncRangeInputsToVar() {
 }
 
 function updateSliderUI() {
+  if (currentVar === "thermal_fronts") {
+    updateThermalFrontsNav();
+    return;
+  }
   const frames = framesByVar[currentVar] || [];
   const n = frames.length;
   if (n) currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, n - 1));
@@ -3285,9 +3683,8 @@ function syncArrowLegend() {
 
 function syncTimeControls() {
   const isBathy = (currentVar === "bathy");
-  const isThermal = (currentVar === "thermal_fronts");
   const navBar = document.getElementById("nav-bar");
-  if (navBar) navBar.style.display = isBathy || isThermal ? "none" : "flex";
+  if (navBar) navBar.style.display = isBathy ? "none" : "flex";
 }
 
 function syncFrontOverlayControls() {
@@ -3296,6 +3693,635 @@ function syncFrontOverlayControls() {
   if (globalSstFrontOverlayInput) {
     globalSstFrontOverlayInput.disabled = (framesByVar.thermal_fronts || []).length === 0;
   }
+}
+
+function thermalDateKey(ms) {
+  const d = new Date(ms);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+function thermalFrameTimeLabel(ms) {
+  return new Date(ms).toLocaleString(undefined, {
+    timeZone: "UTC",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }) + " UTC";
+}
+
+function thermalFramesForDate(date) {
+  return thermalFrontState.frameData.filter(item => thermalDateKey(item.t) === date);
+}
+
+function thermalActiveFrameList() {
+  if (thermalFrontState.mode === "daily") return thermalFrontState.dailyFrames;
+  const dayItems = thermalFramesForDate(thermalFrontState.selectedDate);
+  return dayItems.length ? dayItems : thermalFrontState.frameData;
+}
+
+function thermalDisplayedFrontItems() {
+  if (thermalFrontState.mode === "daily") return [];
+  const list = thermalActiveFrameList();
+  if (thermalAllDayCb?.checked) return list;
+  const item = list[thermalFrontState.frameIdx];
+  return item ? [item] : [];
+}
+
+function thermalCurrentFrameTime() {
+  if (thermalFrontState.mode === "daily") return thermalFrontState.dailyFrames[thermalFrontState.frameIdx]?.t ?? null;
+  return thermalActiveFrameList()[thermalFrontState.frameIdx]?.t ?? null;
+}
+
+function thermalClosestFrameIndex(items, targetMs) {
+  if (!items.length || !Number.isFinite(targetMs)) return Math.max(0, items.length - 1);
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < items.length; i++) {
+    const t = Number(items[i]?.t);
+    if (!Number.isFinite(t)) continue;
+    const d = Math.abs(t - targetMs);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  return bestIdx;
+}
+
+function thermalSegmentedLineStrings(coords, maxJumpDeg = 0.08) {
+  const segments = [];
+  let segment = [];
+  let prev = null;
+  for (const pt of coords || []) {
+    if (!Array.isArray(pt) || pt.length < 2) continue;
+    const lon = Number(pt[0]);
+    const lat = Number(pt[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+    if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) {
+      if (segment.length >= 2) segments.push(segment);
+      segment = [];
+    }
+    segment.push([lon, lat]);
+    prev = [lon, lat];
+  }
+  if (segment.length >= 2) segments.push(segment);
+  return segments;
+}
+
+function thermalGradientForFeaturePoint(props, index) {
+  const gradMap = Array.isArray(props?.gradient_map) ? props.gradient_map : null;
+  if (gradMap && index < gradMap.length) {
+    const exact = Number(gradMap[index]);
+    if (Number.isFinite(exact)) return exact;
+    for (let offset = 1; offset < gradMap.length; offset++) {
+      const left = index - offset;
+      const right = index + offset;
+      const leftValue = left >= 0 ? Number(gradMap[left]) : NaN;
+      if (Number.isFinite(leftValue)) return leftValue;
+      const rightValue = right < gradMap.length ? Number(gradMap[right]) : NaN;
+      if (Number.isFinite(rightValue)) return rightValue;
+    }
+  }
+  const g = Number(props?.gradient_per_km);
+  return Number.isFinite(g) ? g : null;
+}
+
+function thermalDeltaSstForFeature(props) {
+  const median = Number(props?.strength_median);
+  const max = Number(props?.strength_max);
+  if (Number.isFinite(median)) return { label: "ΔSST", value: median };
+  if (Number.isFinite(max)) return { label: "ΔSST max", value: max };
+  return null;
+}
+
+function thermalCollectFrontPoints(items) {
+  const points = [];
+  for (const item of items) {
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sourceFeature of sourceFeatures) {
+      const coords = sourceFeature?.geometry?.coordinates || [];
+      const props = sourceFeature?.properties || {};
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const lon = Number(pt[0]);
+        const lat = Number(pt[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        points.push({ lon, lat, t: item.t, grad: thermalGradientForFeaturePoint(props, i) });
+      }
+    }
+  }
+  return points;
+}
+
+function thermalHslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60) { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else { r = c; g = 0; b = x; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+function thermalColorForDensityDate(date) {
+  const idx = Math.max(0, thermalFrontState.hourlyDays.indexOf(date));
+  const denom = Math.max(1, thermalFrontState.hourlyDays.length - 1);
+  return thermalHslToRgb(270 - (idx / denom) * 270, 0.85, 0.50);
+}
+
+function thermalColorForAge(ms, latestMs, oldestMs) {
+  const span = Math.max(1, latestMs - oldestMs);
+  const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
+  return `hsl(${282 - 282 * t}, 92%, ${46 + 4 * t}%)`;
+}
+
+function thermalBuildDensityField(points, hourlyCount, label) {
+  const [west, south, east, north] = BBOX.map(Number);
+  const cellDeg = 0.005;
+  const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
+  const counts = new Int32Array(nx * ny);
+  for (const point of points) {
+    const cx = Math.round((point.lon - west) / cellDeg);
+    const cy = Math.round((point.lat - south) / cellDeg);
+    if (cx < 0 || cx >= nx || cy < 0 || cy >= ny) continue;
+    counts[cy * nx + cx]++;
+  }
+  const nonzero = Array.from(counts).filter(v => v > 0);
+  const max = Math.max(1, ...nonzero);
+  const cutoff = Math.max(2, Math.round(max * 0.15));
+  return {
+    label,
+    color: thermalColorForDensityDate(label),
+    points: points.length,
+    hourlyCount,
+    nx,
+    ny,
+    extent: [west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg],
+    counts,
+    max,
+    cutoff
+  };
+}
+
+function thermalDailyDensityForDate(date) {
+  const key = `day:${date}`;
+  if (thermalFrontState.densityCache.has(key)) return thermalFrontState.densityCache.get(key);
+  const items = thermalFramesForDate(date);
+  const density = thermalBuildDensityField(thermalCollectFrontPoints(items), items.length, date);
+  thermalFrontState.densityCache.set(key, density);
+  return density;
+}
+
+function thermalDensityForDates(dates) {
+  const key = `dates:${dates.join("|")}`;
+  if (thermalFrontState.densityCache.has(key)) return thermalFrontState.densityCache.get(key);
+  const fields = dates.map(date => thermalDailyDensityForDate(date));
+  const density = {
+    label: `${dates[0]}..${dates.at(-1)}`,
+    fields,
+    hourlyCount: fields.reduce((sum, field) => sum + field.hourlyCount, 0),
+    nx: fields[0]?.nx || 0,
+    ny: fields[0]?.ny || 0,
+    extent: fields[0]?.extent || BBOX
+  };
+  thermalFrontState.densityCache.set(key, density);
+  return density;
+}
+
+function thermalActiveDensityField() {
+  if (thermalFrontState.mode !== "daily") return null;
+  if (thermalAllDayCb?.checked) return thermalDensityForDates(thermalFrontState.dailyFrames.map(item => item.date));
+  const dayItem = thermalFrontState.dailyFrames[thermalFrontState.frameIdx];
+  return dayItem ? thermalDailyDensityForDate(dayItem.date) : null;
+}
+
+function thermalDensityCanvas(field) {
+  if (!field) return null;
+  if (Array.isArray(field.fields)) return thermalCompositeDensityCanvas(field);
+  if (!field.counts?.length) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = field.nx;
+  canvas.height = field.ny;
+  const ctx = canvas.getContext("2d");
+  const max = Math.max(field.max || 1, 1);
+  const cutoff = Math.max(field.cutoff || 2, Math.round(max * 0.15));
+  const span = Math.max(1, max - cutoff);
+  const color = field.color || [19, 74, 136];
+  for (let row = 0; row < field.ny; row++) {
+    const y = field.ny - 1 - row;
+    for (let x = 0; x < field.nx; x++) {
+      const v = field.counts[row * field.nx + x];
+      if (v < cutoff) continue;
+      const norm = Math.min(1, (v - cutoff) / span);
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(0.16 + 0.84 * norm).toFixed(3)})`;
+      ctx.fill();
+    }
+  }
+  return canvas;
+}
+
+function thermalCompositeDensityCanvas(field) {
+  const fields = field.fields || [];
+  const first = fields[0];
+  if (!first) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = first.nx;
+  canvas.height = first.ny;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(first.nx, first.ny);
+  for (let i = 0; i < first.nx * first.ny; i++) {
+    let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
+    for (const dayField of fields) {
+      const v = dayField.counts ? dayField.counts[i] : 0;
+      const max = Math.max(dayField.max || 1, 1);
+      const cutoff = Math.max(dayField.cutoff || 2, Math.round(max * 0.15));
+      if (v < cutoff) continue;
+      const alpha = Math.min(1, v / max);
+      const color = dayField.color || [19, 74, 136];
+      rSum += color[0] * alpha;
+      gSum += color[1] * alpha;
+      bSum += color[2] * alpha;
+      aSum += alpha;
+    }
+    if (aSum <= 0) continue;
+    const row = Math.floor(i / first.nx);
+    const col = i - row * first.nx;
+    const k = ((first.ny - 1 - row) * first.nx + col) * 4;
+    img.data[k] = Math.round(rSum / aSum);
+    img.data[k + 1] = Math.round(gSum / aSum);
+    img.data[k + 2] = Math.round(bSum / aSum);
+    img.data[k + 3] = Math.min(245, Math.round(100 + 145 * Math.min(1, aSum)));
+  }
+  ctx.putImageData(img, 0, 0);
+  return canvas;
+}
+
+function thermalFeatureStyle(feature) {
+  return new ol.style.Style({
+    stroke: new ol.style.Stroke({
+      color: feature.get("color") || "#111",
+      width: feature.get("lineWidth") || 2,
+      lineCap: "round",
+      lineJoin: "round"
+    })
+  });
+}
+
+function thermalEnsureCursorLayer(map) {
+  if (!map || thermalFrontState.cursorLayer) return;
+  thermalFrontState.cursorFeature = new ol.Feature({
+    geometry: new ol.geom.Point([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2])
+  });
+  thermalFrontState.cursorFeature.setStyle(new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: 3,
+      fill: new ol.style.Fill({ color: "rgba(255,255,255,0.45)" }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.55)", width: 1 })
+    })
+  }));
+  thermalFrontState.cursorLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({ features: [thermalFrontState.cursorFeature] }),
+    zIndex: 60
+  });
+  map.addLayer(thermalFrontState.cursorLayer);
+}
+
+function thermalNearestGradient(coord) {
+  const lon = coord[0];
+  const lat = coord[1];
+  let bestDist = Infinity;
+  let bestGrad = null;
+  let bestPoint = null;
+  let bestDelta = null;
+  for (const item of thermalDisplayedFrontItems()) {
+    const features = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      const props = feature?.properties || {};
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const ptLon = Number(pt[0]);
+        const ptLat = Number(pt[1]);
+        if (!Number.isFinite(ptLon) || !Number.isFinite(ptLat)) continue;
+        const d = Math.hypot(ptLon - lon, ptLat - lat);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPoint = [ptLon, ptLat];
+          bestGrad = thermalGradientForFeaturePoint(props, i);
+          bestDelta = thermalDeltaSstForFeature(props);
+        }
+      }
+    }
+  }
+  return { dist: bestDist, gradient: bestGrad, point: bestPoint, deltaSst: bestDelta };
+}
+
+function thermalRenderReadout(coord, pixel) {
+  if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) return;
+  let cursorCoord = coord;
+  let readoutCoord = coord;
+  let gradient = null;
+  let deltaSst = null;
+  const hit = thermalNearestGradient(coord);
+  if (pixel && hit.point && Number.isFinite(hit.gradient)) {
+    const hitPixel = thermalFrontState.map?.getPixelFromCoordinate(hit.point);
+    if (hitPixel && Math.hypot(hitPixel[0] - pixel[0], hitPixel[1] - pixel[1]) <= 14) {
+      cursorCoord = hit.point;
+      readoutCoord = hit.point;
+      gradient = hit.gradient;
+      deltaSst = hit.deltaSst;
+    }
+  }
+  if (thermalFrontState.cursorFeature) thermalFrontState.cursorFeature.getGeometry().setCoordinates(cursorCoord);
+  const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
+  if (Number.isFinite(gradient)) {
+    const parts = [`${gradient.toFixed(3)} °C/km`];
+    if (deltaSst && Number.isFinite(deltaSst.value)) parts.push(`${deltaSst.label} ${deltaSst.value.toFixed(2)}°C`);
+    setReadout(`${base}, ${parts.join(", ")}`);
+  } else {
+    setReadout(base);
+  }
+}
+
+async function thermalInitMap() {
+  document.body.classList.remove("mobile-map-ready");
+  const map = await initDesktopMapIfNeeded();
+  thermalFrontState.map = map;
+  if (desktopMapState.imageLayer) desktopMapState.imageLayer.setVisible(false);
+  if (desktopMapState.arrowLayer) desktopMapState.arrowLayer.setVisible(false);
+  if (desktopMapState.landLayer) desktopMapState.landLayer.setVisible(true);
+  if (desktopMapState.placeLayer) desktopMapState.placeLayer.setVisible(true);
+  await ensureDesktopLandLayer(map);
+  await ensureDesktopPlaceLayer(map);
+  thermalEnsureCursorLayer(map);
+  if (thermalFrontState.cursorLayer) thermalFrontState.cursorLayer.setVisible(true);
+  if (!map.__thermalReadoutInstalled) {
+    map.__thermalReadoutInstalled = true;
+    map.on("pointermove", ev => {
+      if (currentVar === "thermal_fronts") thermalRenderReadout(ev.coordinate, ev.pixel);
+    });
+    map.on("click", ev => {
+      if (currentVar === "thermal_fronts") thermalRenderReadout(ev.coordinate, ev.pixel);
+    });
+  }
+  return map;
+}
+
+function thermalRenderDensityLayer() {
+  const map = thermalFrontState.map;
+  if (!map) return;
+  if (thermalFrontState.mode !== "daily") {
+    if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setSource(null);
+    return;
+  }
+  const field = thermalActiveDensityField();
+  const canvas = thermalDensityCanvas(field);
+  if (!field || !canvas) {
+    if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setSource(null);
+    return;
+  }
+  const source = new ol.source.ImageStatic({
+    url: canvas.toDataURL("image/png"),
+    imageExtent: field.extent,
+    projection: "EPSG:4326",
+    interpolate: true
+  });
+  if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setSource(source);
+  else {
+    thermalFrontState.densityLayer = new ol.layer.Image({ source, zIndex: 42, opacity: 1 });
+    map.addLayer(thermalFrontState.densityLayer);
+  }
+  thermalFrontState.densityLayer.setVisible(true);
+}
+
+function thermalRenderFrontLayer() {
+  const map = thermalFrontState.map;
+  if (!map) return;
+  if (thermalFrontState.mode === "daily") {
+    const empty = new ol.source.Vector({ features: [] });
+    if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(empty);
+    return;
+  }
+  const items = thermalDisplayedFrontItems();
+  const latestMs = items.at(-1)?.t ?? Date.now();
+  const oldestMs = items[0]?.t ?? latestMs;
+  const features = [];
+  for (const item of items) {
+    const color = thermalColorForAge(item.t, latestMs, oldestMs);
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sourceFeature of sourceFeatures) {
+      const coords = sourceFeature?.geometry?.coordinates || [];
+      const props = sourceFeature?.properties || {};
+      for (const segment of thermalSegmentedLineStrings(coords)) {
+        const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
+        feature.setProperties({
+          sourceProps: props,
+          sourceCoords: coords,
+          frameTime: item.t,
+          color,
+          lineWidth: items.length === 1 ? 2.8 : 1.7
+        });
+        features.push(feature);
+      }
+    }
+  }
+  const source = new ol.source.Vector({ features });
+  if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(source);
+  else {
+    thermalFrontState.frontLayer = new ol.layer.Vector({
+      source,
+      style: thermalFeatureStyle,
+      zIndex: 45,
+      updateWhileAnimating: true,
+      updateWhileInteracting: true
+    });
+    map.addLayer(thermalFrontState.frontLayer);
+  }
+  thermalFrontState.frontLayer.setVisible(true);
+}
+
+function thermalBuildDailyFrames() {
+  thermalFrontState.dailyFrames = [];
+  const seen = new Set();
+  for (const item of [...thermalFrontState.frameData].sort((a, b) => a.t - b.t)) {
+    const date = thermalDateKey(item.t);
+    if (seen.has(date)) continue;
+    seen.add(date);
+    thermalFrontState.dailyFrames.push({ date, t: item.t, item });
+  }
+  thermalFrontState.hourlyDays = thermalFrontState.dailyFrames.map(item => item.date);
+}
+
+function thermalSyncDaySelect() {
+  if (!thermalDaySelect) return;
+  thermalDaySelect.innerHTML = "";
+  for (const date of thermalFrontState.hourlyDays) {
+    const opt = document.createElement("option");
+    opt.value = date;
+    opt.textContent = date;
+    thermalDaySelect.appendChild(opt);
+  }
+  if (!thermalFrontState.selectedDate || !thermalFrontState.hourlyDays.includes(thermalFrontState.selectedDate)) {
+    thermalFrontState.selectedDate = thermalFrontState.hourlyDays.at(-1) || "";
+  }
+  thermalDaySelect.value = thermalFrontState.selectedDate;
+}
+
+function updateThermalFrontsNav() {
+  const list = thermalActiveFrameList();
+  thermalFrontState.frameIdx = Math.max(0, Math.min(thermalFrontState.frameIdx, Math.max(0, list.length - 1)));
+  if (slider) {
+    slider.min = 0;
+    slider.max = Math.max(0, list.length - 1);
+    slider.value = thermalFrontState.frameIdx;
+    slider.disabled = list.length <= 1;
+  }
+  if (prevBtn) prevBtn.disabled = list.length <= 1;
+  if (nextBtn) nextBtn.disabled = list.length <= 1;
+  if (playBtn) playBtn.disabled = list.length <= 1;
+  if (frameLbl) {
+    const label = thermalFrontState.mode === "daily"
+      ? (thermalFrontState.dailyFrames[thermalFrontState.frameIdx]?.date || "")
+      : (list[thermalFrontState.frameIdx] ? thermalFrameTimeLabel(list[thermalFrontState.frameIdx].t) : "");
+    frameLbl.textContent = label;
+    frameLbl.style.display = label ? "inline-flex" : "none";
+  }
+  if (thermalAllDayLabel) {
+    thermalAllDayLabel.textContent = thermalFrontState.mode === "daily" ? "All days this period" : "All fronts this day";
+  }
+}
+
+function thermalUpdateLegendAndStatus() {
+  const legendEl = document.getElementById("legend");
+  const list = thermalActiveFrameList();
+  if (thermalFrontState.mode === "daily") {
+    const dayItem = thermalFrontState.dailyFrames[thermalFrontState.frameIdx];
+    const count = dayItem ? thermalFramesForDate(dayItem.date).length : 0;
+    const field = thermalActiveDensityField();
+    const shownDays = thermalAllDayCb?.checked ? thermalFrontState.dailyFrames.length : 1;
+    const sourceText = shownDays === 1 ? `${count} hourly frames` : `${field?.hourlyCount || 0} hourly frames across ${shownDays} days`;
+    if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${thermalFrontState.dailyFrames.length} daily frames - ${dayItem?.date || ""} - density from ${sourceText}`;
+    if (legendEl) {
+      legendEl.style.display = "";
+      legendEl.textContent = thermalAllDayCb?.checked ? "Color = day; shade = hourly front-point density" : "Shade = hourly front-point density";
+    }
+  } else {
+    const total = thermalAllDayCb?.checked ? list.length : 1;
+    if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${list.length} hourly frames - ${thermalFrontState.selectedDate || ""} - showing ${total}`;
+    const displayedCount = thermalDisplayedFrontItems().length;
+    if (legendEl) {
+      legendEl.style.display = displayedCount > 1 ? "" : "none";
+      legendEl.textContent = displayedCount > 1 ? "Color = time: purple oldest -> red newest" : "";
+    }
+  }
+}
+
+function thermalSetMode(mode) {
+  const priorTime = thermalCurrentFrameTime();
+  thermalFrontState.mode = mode;
+  thermalModeHourlyBtn?.classList.toggle("active", mode === "animation");
+  thermalModeDailyBtn?.classList.toggle("active", mode === "daily");
+  thermalDayRow?.classList.toggle("hidden", mode !== "animation");
+  thermalAllDayToggle?.classList.remove("hidden");
+  if (thermalAllDayCb) thermalAllDayCb.checked = false;
+  if (mode === "daily") {
+    const previousDate = thermalFrontState.selectedDate || thermalDateKey(thermalActiveFrameList()[thermalFrontState.frameIdx]?.t || Date.now());
+    thermalFrontState.frameIdx = Math.max(0, thermalFrontState.dailyFrames.findIndex(item => item.date === previousDate));
+  } else {
+    thermalFrontState.frameIdx = thermalClosestFrameIndex(thermalActiveFrameList(), priorTime);
+  }
+  renderThermalFrontsNative();
+}
+
+function thermalStep(delta) {
+  const list = thermalActiveFrameList();
+  if (!list.length) return;
+  thermalFrontState.frameIdx = (thermalFrontState.frameIdx + delta + list.length) % list.length;
+  renderThermalFrontsNative();
+}
+
+function thermalSetFrame(idx) {
+  thermalFrontState.frameIdx = Number(idx) || 0;
+  setPlaying(false);
+  renderThermalFrontsNative();
+}
+
+async function thermalLoadData() {
+  if (thermalFrontState.loading) return;
+  if (thermalFrontState.initialized && thermalFrontState.loadedRegion === REGION_ID) return;
+  thermalFrontState.loading = true;
+  if (toolbarStatus) toolbarStatus.textContent = "Loading thermal fronts...";
+  try {
+    const idx = await loadIndex();
+    const fbv = idx.frames || idx.framesByVar || idx.frames_by_var || {};
+    const sourceFrames = (fbv.thermal_fronts && fbv.thermal_fronts.length) ? fbv.thermal_fronts : (fbv.sst_front || []);
+    thermalFrontState.frames = sourceFrames
+      .map(f => ({ ...f, t: epochMsForFrame("sst_front", f) ?? epochMsForFrame("thermal_fronts", f) }))
+      .filter(f => Number.isFinite(f.t))
+      .sort((a, b) => a.t - b.t);
+    const latest = thermalFrontState.frames.at(-1)?.t;
+    if (latest) thermalFrontState.frames = thermalFrontState.frames.filter(f => latest - f.t <= 21 * 864e5);
+    thermalFrontState.frameData = await Promise.all(thermalFrontState.frames.map(async f => {
+      const res = await fetch(framePathOf(f) + "?t=" + Date.now());
+      return { meta: f, t: f.t, data: res.ok ? await res.json() : { features: [] } };
+    }));
+    thermalFrontState.frameData = thermalFrontState.frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
+    thermalFrontState.densityCache = new Map();
+    thermalBuildDailyFrames();
+    const requestedMs = Number(QUERY_PARAMS.get("t"));
+    const requestedIdx = thermalClosestFrameIndex(thermalFrontState.frameData, requestedMs);
+    thermalFrontState.selectedDate = Number.isFinite(requestedMs)
+      ? thermalDateKey(thermalFrontState.frameData[requestedIdx]?.t || requestedMs)
+      : (thermalFrontState.hourlyDays.at(-1) || "");
+    thermalSyncDaySelect();
+    thermalFrontState.frameIdx = thermalClosestFrameIndex(thermalActiveFrameList(), requestedMs);
+    thermalFrontState.initialized = true;
+    thermalFrontState.loadedRegion = REGION_ID;
+    window.__thermalFrontsState = thermalFrontState;
+  } finally {
+    thermalFrontState.loading = false;
+  }
+}
+
+async function renderThermalFrontsNative() {
+  syncThermalFrontsVisibility();
+  document.body.classList.remove("mobile-map-ready");
+  plotDiv.style.display = "block";
+  const map = await thermalInitMap();
+  await thermalLoadData();
+  if (!thermalFrontState.frameData.length) {
+    if (toolbarStatus) toolbarStatus.textContent = "No thermal-front frames available for this region.";
+    return;
+  }
+  const requestedViewport = viewportFromParams();
+  if (!map.__thermalInitialFitDone) {
+    map.updateSize();
+    map.getView().fit(requestedViewport ? [requestedViewport.xRange[0], requestedViewport.yRange[0], requestedViewport.xRange[1], requestedViewport.yRange[1]] : BBOX.map(Number), {
+      size: map.getSize(),
+      padding: [58, 0, 0, 0],
+      nearest: true
+    });
+    map.__thermalInitialFitDone = true;
+  }
+  const list = thermalActiveFrameList();
+  thermalFrontState.frameIdx = Math.max(0, Math.min(thermalFrontState.frameIdx, Math.max(0, list.length - 1)));
+  thermalRenderDensityLayer();
+  thermalRenderFrontLayer();
+  updateThermalFrontsNav();
+  thermalUpdateLegendAndStatus();
+  map.updateSize();
 }
 
 async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
@@ -3374,6 +4400,10 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
 }
 
 function stepFrame(delta) {
+  if (currentVar === "thermal_fronts") {
+    thermalStep(delta);
+    return;
+  }
   const frames = framesByVar[currentVar] || [];
   const n = frames.length;
   if (!n) return;
@@ -3505,7 +4535,8 @@ async function loadIndex() {
   framesByVar.chl_front = filterFramesForVar("chl_front", fbv.chl_front || []);
   framesByVar.sst_front = filterFramesForVar("sst_front", fbv.sst_front || []);
   framesByVar.uv  = filterFramesForVar("uv",  fbv.uv  || []);
-  framesByVar.thermal_fronts = filterFramesForVar("thermal_fronts", fbv.thermal_fronts || fbv.sst_front || []);
+  const thermalSourceFrames = (fbv.thermal_fronts && fbv.thermal_fronts.length) ? fbv.thermal_fronts : (fbv.sst_front || []);
+  framesByVar.thermal_fronts = filterFramesForVar("thermal_fronts", thermalSourceFrames);
   framesByVar.bathy = [{ json_path: BATHY_JSON_URL }];
 
   for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts"]) {
@@ -3710,9 +4741,7 @@ async function showFrame() {
 
   // thermal_fronts uses a dedicated canvas renderer — not Plotly, not standard OL raster
   if (currentVar === "thermal_fronts") {
-    // Hide the Plotly div and skip Plotly event handler setup
-    const plotDivEl = document.getElementById("plot");
-    if (plotDivEl) plotDivEl.style.display = "none";
+    await renderThermalFrontsNative();
     return;
   }
 
@@ -3783,7 +4812,21 @@ if (globalSstFrontOverlayInput) {
   });
 }
 
+thermalModeHourlyBtn?.addEventListener("click", () => thermalSetMode("animation"));
+thermalModeDailyBtn?.addEventListener("click", () => thermalSetMode("daily"));
+thermalAllDayCb?.addEventListener("change", () => renderThermalFrontsNative());
+thermalDaySelect?.addEventListener("change", () => {
+  thermalFrontState.selectedDate = thermalDaySelect.value;
+  thermalFrontState.frameIdx = 0;
+  setPlaying(false);
+  renderThermalFrontsNative();
+});
+
 slider.addEventListener("input", () => {
+  if (currentVar === "thermal_fronts") {
+    thermalSetFrame(slider.value);
+    return;
+  }
   currentFrameIdx = Number(slider.value) || 0;
   showFrame();
 });
