@@ -1306,6 +1306,8 @@ async function renderDesktopFrame(frameMeta) {
   // Combined: render all layers simultaneously as a snapshot
   if (currentVar === "combined") {
     await renderCombinedMode();
+    const staleLoadDiv = document.getElementById("ol-loading");
+    if (staleLoadDiv) staleLoadDiv.remove();
     return;
   }
 
