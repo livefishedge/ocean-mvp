@@ -1286,7 +1286,7 @@ async function renderDesktopFrame(frameMeta) {
     updateReadoutPosition();
 
   if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts" || currentVar === "combined") return false;
-  const needsMapInit = !desktopMapState.map;
+  const needsMapInit = !desktopMapState.map && currentVar !== "combined";
   let loadDiv = null;
   if (needsMapInit) {
     loadDiv = document.createElement("div");
@@ -1302,7 +1302,7 @@ async function renderDesktopFrame(frameMeta) {
   }
 
   // Combined: render all layers simultaneously as a snapshot
-    if (currentVar === "combined") {
+  if (currentVar === "combined") {
     await renderCombinedMode();
     return;
   }
