@@ -3475,7 +3475,7 @@ async function renderCombinedMode() {
     console.log("[combined] CLEANUP: disposing prev combined map");
     try { window._combinedMap.dispose(); } catch (_) {}
     window._combinedMap.setTarget(undefined);
-    window._combinedMap = null;
+    window._combinedMap = null; // null BEFORE building new — so subsequent calls see a clean slate
     window._combinedLandLayer = null;
     window._combinedPlaceLayer = null;
     window._combinedChlLayer = null;
@@ -3483,9 +3483,10 @@ async function renderCombinedMode() {
     window._combinedUvLayer = null;
     window._combinedFrontDensityLayer = null;
     window._combinedFrontLineLayer = null;
-    window._combinedRenderLocked = false;
     console.log("[combined] CLEANUP: all combined state cleared");
   }
+  // NOTE: do NOT unlock _combinedRenderLocked here — it must stay set while the
+  // function is building the new map. Unlock only after the new map is complete.
 
   const view = new ol.View({ projection: "EPSG:4326", extent: BBOX });
   console.log("[combined] creating OL map, combinedMapDiv:", combinedMapDiv, "size:", combinedMapDiv?.clientWidth, combinedMapDiv?.clientHeight);
