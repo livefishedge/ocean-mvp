@@ -1269,24 +1269,6 @@ if (hamburgerToggle && hamburgerPanel) {
     }
   });
 }
-const hamburgerProductSelect = document.getElementById("hamburger-product-select");
-const hVmin = document.getElementById("hamburger-vmin");
-const hVmax = document.getElementById("hamburger-vmax");
-const hApply = document.getElementById("hamburger-apply");
-const hReset = document.getElementById("hamburger-reset");
-
-if (hamburgerToggle && hamburgerPanel) {
-  hamburgerToggle.addEventListener("click", (e) => {
-    e.stopPropagation();
-    hamburgerPanel.classList.toggle("open");
-  });
-  // Close when tapping outside
-  document.addEventListener("click", (e) => {
-    if (!hamburgerPanel.contains(e.target) && !hamburgerToggle.contains(e.target)) {
-      hamburgerPanel.classList.remove("open");
-    }
-  });
-}
 
 if (hamburgerRegionSelect) {
   hamburgerRegionSelect.value = REGION_ID;
