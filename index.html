@@ -3476,8 +3476,40 @@ async function renderCombinedMode() {
   window._combinedMap = map;
   console.log("[combined] OL map created, target:", !!map.getTargetElement(), "size:", map.getSize());
 
-  // Fit to region bbox
-  view.fit(BBOX, { size: map.getSize() });
+  // Also attach a ResizeObserver on the target div — when DevTools opens the
+  // viewport shrinks and the map re-centers, triggering a resize that OL handles.
+  // This catches the same signal programmatically.
+  const ro = new ResizeObserver(() => {
+    console.log("[combined] ResizeObserver fired, map size:", map.getSize());
+    if (map.getSize().every(s => s === 0)) {
+      map.updateSize();
+      console.log("[combined] updateSize from RO, new size:", map.getSize());
+    }
+  });
+  ro.observe(combinedMapDiv);
+
+  // Force OL to remeasure after layout is ready — #combined-map is position:absolute
+  // with explicit top/left/right/bottom but may have 0x0 size at construction time
+  // (browser hasn't laid it out yet). DevTools opening causes a reflow that fixes this.
+  // Trigger the same remeasure via updateSize() after the first animation frame.
+  if (map.getSize().every(s => s === 0)) {
+    console.log("[combined] map size is 0x0 — scheduling updateSize()");
+    requestAnimationFrame(() => {
+      if (window._combinedMap) {
+        window._combinedMap.updateSize();
+        console.log("[combined] updateSize ran, new size:", window._combinedMap.getSize());
+        // Now fit once we have real pixels
+        const sz = window._combinedMap.getSize();
+        if (sz[0] > 0 && sz[1] > 0) {
+          const view = window._combinedMap.getView();
+          view.fit(BBOX, { size: sz });
+          console.log("[combined] view.fit retried, zoom:", view.getZoom());
+        }
+      }
+    });
+  } else {
+    view.fit(BBOX, { size: map.getSize() });
+  }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
   // Layer order: land(5) → CHL(10) → bathy contours(15) → UV(20) → place labels(40) → fronts(30/32)
