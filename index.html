@@ -52,7 +52,20 @@
       width:16px; height:16px; border-radius:50%;
       background:#fff; border:0; box-shadow:0 1px 5px rgba(0,0,0,0.42);
     }
-    #frame-label{ font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    #frame-label{
+      min-height:28px;
+      display:inline-flex;
+      align-items:center;
+      padding:0 8px;
+      border:1px solid rgba(255,255,255,0.22);
+      border-radius:6px;
+      background:rgba(12,23,35,0.86);
+      color:#e0e6ee;
+      font-size:12px;
+      font-weight:800;
+      font-variant-numeric:tabular-nums;
+      white-space:nowrap;
+    }
     #all-day-toggle{ display:flex; align-items:center; gap:6px; white-space:nowrap; font-size:13px; font-weight:800; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
     #toolbar-status{ color:#9fb0c3; font-size:12px; font-weight:700; white-space:nowrap; }
@@ -326,7 +339,7 @@
       position:fixed;
       right:12px;
       bottom:calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index:15;
+      z-index:150;
       padding:5px 8px;
       background:rgba(5,11,16,0.82);
       border:1px solid rgba(255,255,255,0.15);
@@ -352,7 +365,7 @@
       backdrop-filter: blur(6px);
       padding:4px 10px;
       padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
-      display:flex;
+      display:none;
       justify-content:center;
       align-items:center;
       font-size:14px;
@@ -501,8 +514,8 @@
     #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
     #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
-    #hamburger-cbar{ width:100%; height:54px; overflow:hidden; }
-    #hamburger-cbar svg{ display:block; max-width:100%; height:54px; }
+    #hamburger-cbar{ width:100%; height:68px; overflow:hidden; }
+    #hamburger-cbar svg{ display:block; max-width:100%; height:68px; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
@@ -525,7 +538,7 @@
       position:fixed;
       right:12px;
       bottom:calc(12px + env(safe-area-inset-bottom, 0px));
-      z-index:15;
+      z-index:150;
       padding:5px 8px;
       background:rgba(5,11,16,0.82);
       border:1px solid rgba(255,255,255,0.15);
@@ -574,9 +587,9 @@
     <span id="nav-bar">
       <button id="prev-btn" type="button" title="Previous frame" aria-label="Previous frame">&#8592;</button>
       <input id="frame-slider" type="range" min="0" max="0" step="1" value="0" aria-label="Frame progress" />
-      <span id="frame-label"></span>
       <button id="play-btn" type="button" title="Play/Pause" style="min-width:52px;font-size:13px;font-weight:900;">Play</button>
       <button id="next-btn" type="button" title="Next frame" aria-label="Next frame">&#8594;</button>
+      <span id="frame-label"></span>
     </span>
     <span id="toolbar-status"></span>
   </div>
@@ -1091,6 +1104,15 @@ async function renderDesktopFrame(frameMeta) {
     console.log("[OL] desktop image layer created");
   }
 
+  if (desktopMapState.arrowLayer) {
+    map.removeLayer(desktopMapState.arrowLayer);
+    desktopMapState.arrowLayer = null;
+  }
+  if (currentVar === "uv") {
+    desktopMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
+    if (desktopMapState.arrowLayer) map.addLayer(desktopMapState.arrowLayer);
+  }
+
   installDesktopReadoutHandlersOnce(map);
   console.log("[OL] readout handlers installed");
 
@@ -1536,7 +1558,11 @@ const globalSstFrontOverlayInput = document.getElementById("global-sst-front-ove
 const readoutDiv = document.getElementById("readout");
 const cbarDiv = document.getElementById("cbar");
 
-function setReadout(txt) { readoutDiv.textContent = txt || ""; }
+function setReadout(txt) {
+  if (!readoutDiv) return;
+  readoutDiv.textContent = txt || "";
+  readoutDiv.style.display = txt ? "inline-block" : "none";
+}
 
 let _wheelInstalled = false;
 let _lastWheelTime = 0;
@@ -2706,7 +2732,6 @@ function makeMobileLandCanvas(bathy) {
 
 async function ensureDesktopLandLayer(map) {
   if (!map || desktopMapState.landLayer) return;
-  if (currentVar === "bathy") return;
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
   const canvas = makeMobileLandCanvas(bathy);
   if (!canvas) return;
@@ -2743,7 +2768,7 @@ async function ensureDesktopPlaceLayer(map) {
 }
 
 async function ensureMobileLandLayer(map) {
-  if (mobileMapState.landLayer || currentVar === "bathy") return;
+  if (mobileMapState.landLayer) return;
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
   const canvas = makeMobileLandCanvas(bathy);
   if (!canvas) return;
@@ -3240,6 +3265,11 @@ function updateSliderUI() {
   prevBtn.disabled = n <= 1;
   nextBtn.disabled = n <= 1;
   playBtn.disabled = n <= 1;
+  if (frameLbl) {
+    const label = n ? productFrameLabel(currentVar, frames[currentFrameIdx]) : "";
+    frameLbl.textContent = label;
+    frameLbl.style.display = label ? "inline-flex" : "none";
+  }
 }
 
 function syncArrowLegend() {
@@ -3706,7 +3736,7 @@ async function showFrame() {
     try {
       const renderedDesktop = await renderDesktopFrame(frameMeta);
       if (renderedDesktop) {
-        await renderFooterColorbar(currentVar);
+        await renderFooterColorbarToDiv(document.getElementById("hamburger-cbar"), currentVar);
         updateSliderUI();
         return;
       }
@@ -3724,8 +3754,7 @@ async function showFrame() {
   noOlDiv.textContent = "Map failed to load. Please refresh.";
   noOlDiv.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:997;color:#fff;background:rgba(80,0,0,0.9);padding:20px 30px;border-radius:8px;font-size:16px;text-align:center;";
   document.body.appendChild(noOlDiv);
-  await renderFooterColorbar(currentVar);
-  // Also render colorbar inside the portrait hamburger panel
+  // Render colorbar only inside the hamburger panel.
   const hCbar = document.getElementById("hamburger-cbar");
   if (hCbar) await renderFooterColorbarToDiv(hCbar, currentVar);
 
