@@ -545,6 +545,97 @@
     body.thermal-fronts-mode #nav-bar{ display:flex !important; }
     body.thermal-fronts-mode #hamburger-cbar,
     body.thermal-fronts-mode .hamburger-range-block{ display:none !important; }
+    /* Combined mode: hide single-product slider/progress, show sidebar */
+    body.combined-mode #nav-bar{ display:none !important; }
+    body.combined-mode #toolbar{ display:none !important; }
+    body.combined-mode #hamburger-btn{ display:none !important; }
+    body.combined-mode #combined-menu-btn{ display:flex !important; }
+    body.combined-mode #combined-map{ display:block !important; }
+    body.combined-mode #combined-readout{ display:block !important; }
+    body.combined-mode #status{ display:none !important; }
+
+    /* Combined standalone map (no toolbar conflicts) */
+    #combined-map{
+      display:none;
+      position:fixed;
+      top:0; left:0; right:0; bottom:0;
+      z-index:0;
+    }
+    #combined-map .ol-viewport{ background:#f8fbff; }
+    #combined-readout{
+      display:none;
+      position:fixed;
+      bottom:12px; right:12px;
+      z-index:15;
+      padding:5px 8px;
+      background:rgba(5,11,16,0.82);
+      border:1px solid rgba(255,255,255,0.15);
+      border-radius:10px;
+      font-size:13px;
+      font-variant-numeric:tabular-nums;
+      pointer-events:none;
+      color:#e0e6ee;
+      line-height:1.45;
+      white-space:nowrap;
+    }
+
+    /* Combined sidebar */
+    #combined-controls{
+      display:none;
+      position:fixed;
+      top:44px; left:0; bottom:0;
+      width:220px;
+      z-index:35;
+      background:var(--panel);
+      border-right:1px solid var(--border);
+      padding:16px 14px;
+      gap:12px;
+      overflow-y:auto;
+      flex-direction:column;
+    }
+    body.combined-mode #combined-controls{ display:flex; }
+    .combined-section{ display:flex; flex-direction:column; gap:8px; }
+    .combined-section-title{
+      font-size:11px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:0.8px;
+      color:#7a8fa8;
+      margin-bottom:4px;
+    }
+    #combined-region-select{
+      width:100%; padding:7px 10px;
+      background:rgba(12,23,35,0.9); border:1px solid #2a3a50;
+      border-radius:6px; color:var(--fg); font-size:13px; cursor:pointer;
+    }
+    .combined-toggle{
+      display:flex; align-items:center; gap:7px; cursor:pointer;
+      user-select:none; padding:5px 10px;
+      border:1px solid #2a3a50; border-radius:6px;
+      background:rgba(12,23,35,0.8); transition:background 0.15s;
+    }
+    .combined-toggle:hover{ background:rgba(29,79,145,0.4); }
+    .combined-toggle input{ display:none; }
+    .combined-toggle .box{
+      width:16px; height:16px; border-radius:3px;
+      border:2px solid #4d7dff; display:flex;
+      align-items:center; justify-content:center;
+      background:#0c1723; transition:background 0.15s; flex-shrink:0;
+    }
+    .combined-toggle input:checked ~ .box{ background:#1d4f91; }
+    .combined-toggle input:checked ~ .box::after{ content:"✓"; color:#fff; font-size:12px; font-weight:700; }
+    .combined-toggle label{ font-size:13px; font-weight:700; white-space:nowrap; color:var(--fg); }
+    .combined-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    .dot-chl{ background:#1d8aff; }
+    .dot-uv{ background:#00c8ff; }
+    .dot-bathy{ background:#8bb8d4; }
+    .dot-front{ background:#ff4040; }
+    #combined-currents-legend{ display:none; }
+    #combined-overlay{
+      position:fixed; inset:0; z-index:34;
+      background:rgba(0,0,0,0.4); display:none;
+    }
+    #combined-overlay.visible{ display:block; }
     #thermal-front-controls{
       display:none;
       flex-direction:column;
@@ -632,7 +723,61 @@
   <div id="mobile-time-badge"></div>
   <div id="plot"></div>
   <div id="readout">Lat/Lon: -- | Value: --</div>
-  <button id="hamburger-btn" aria-label="Open product menu">&#9776;</button>
+  <button id="hamburger-btn" aria-label="Open product menu">☰</button>
+  <div id="combined-map"></div>
+  <div id="combined-readout">Lat: — Lon: —</div>
+  <div id="combined-overlay"></div>
+  <div id="combined-controls">
+    <div class="combined-section">
+      <div class="combined-section-title">Region</div>
+      <select id="combined-region-select">
+        <option value="usec_south">US East Coast - South-Atlantic</option>
+        <option value="usec_md">US East Coast - Mid-Atlantic</option>
+      </select>
+    </div>
+    <div class="combined-section">
+      <div class="combined-section-title">Layers</div>
+      <label class="combined-toggle">
+        <input type="checkbox" id="chk-combined-chl" checked>
+        <span class="box"></span>
+        <span class="combined-dot dot-chl"></span>
+        <label>Chlorophyll (CHL)</label>
+      </label>
+      <label class="combined-toggle">
+        <input type="checkbox" id="chk-combined-uv" checked>
+        <span class="box"></span>
+        <span class="combined-dot dot-uv"></span>
+        <label>Currents (UV)</label>
+      </label>
+      <label class="combined-toggle">
+        <input type="checkbox" id="chk-combined-bathy" checked>
+        <span class="box"></span>
+        <span class="combined-dot dot-bathy"></span>
+        <label>Bathymetry</label>
+      </label>
+      <label class="combined-toggle">
+        <input type="checkbox" id="chk-combined-front" checked>
+        <span class="box"></span>
+        <span class="combined-dot dot-front"></span>
+        <label>Thermal Fronts</label>
+      </label>
+    </div>
+    <div class="combined-section" id="combined-currents-legend">
+      <div class="combined-section-title">Currents</div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#9fb0c3;">
+        <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;">
+          <line x1="2" y1="10" x2="58" y2="10" stroke="rgba(255,255,255,0.7)" stroke-width="2.5" stroke-linecap="round"/>
+          <polygon points="58,10 48,6 48,14" fill="rgba(255,255,255,0.7)"/>
+        </svg>
+        <span style="font-weight:700;color:rgba(255,255,255,0.85);">0.5 m/s</span>
+      </div>
+    </div>
+  </div>
+  <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:0;left:0;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-right:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
+    <span style="display:block;width:18px;height:2px;background:var(--fg);border-radius:2px;"></span>
+    <span style="display:block;width:18px;height:2px;background:var(--fg);border-radius:2px;"></span>
+    <span style="display:block;width:18px;height:2px;background:var(--fg);border-radius:2px;"></span>
+  </button>
 
   <div id="briefing-panel" aria-live="polite" style="display:none">
     <h2>Captain Briefing</h2>
@@ -1143,9 +1288,9 @@ async function renderDesktopFrame(frameMeta) {
   }
 
   // Combined: render all layers simultaneously as a snapshot
-  if (currentVar === "combined") {
-    await renderCombinedMode(map);
-    return true;
+    if (currentVar === "combined") {
+    await renderCombinedMode();
+    return;
   }
 
   let dataObj, gridInfo;
@@ -1431,6 +1576,52 @@ if (hReset) {
     showFrame();
   });
 }
+/* Combined sidebar controls */
+const combinedMenuBtn = document.getElementById("combined-menu-btn");
+const combinedControls = document.getElementById("combined-controls");
+const combinedOverlay = document.getElementById("combined-overlay");
+const combinedRegionSelect = document.getElementById("combined-region-select");
+if (combinedMenuBtn) {
+  combinedMenuBtn.style.display = "flex";
+  combinedMenuBtn.addEventListener("click", () => {
+    combinedControls?.classList.toggle("open");
+    combinedOverlay?.classList.toggle("visible");
+  });
+}
+if (combinedOverlay) {
+  combinedOverlay.addEventListener("click", () => {
+    combinedControls?.classList.remove("open");
+    combinedOverlay?.classList.remove("visible");
+  });
+}
+if (combinedRegionSelect) {
+  combinedRegionSelect.value = REGION_ID;
+  combinedRegionSelect.addEventListener("change", () => {
+    const url = new URL(location.href);
+    url.searchParams.set("region", combinedRegionSelect.value);
+    location.href = url.toString();
+  });
+}
+
+/* Combined layer toggle wiring */
+const chkChl = document.getElementById("chk-combined-chl");
+const chkUv = document.getElementById("chk-combined-uv");
+const chkBathy = document.getElementById("chk-combined-bathy");
+const chkFront = document.getElementById("chk-combined-front");
+if (chkChl) chkChl.addEventListener("change", e => {
+  if (window._combinedChlLayer) window._combinedChlLayer.setVisible(e.target.checked);
+});
+if (chkUv) chkUv.addEventListener("change", e => {
+  if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
+});
+if (chkBathy) chkBathy.addEventListener("change", e => {
+  if (window._combinedBathyLayer) window._combinedBathyLayer.setVisible(e.target.checked);
+  if (window._combinedLandLayer) window._combinedLandLayer.setVisible(e.target.checked);
+});
+if (chkFront) chkFront.addEventListener("change", e => {
+  if (window._combinedFrontDensityLayer) window._combinedFrontDensityLayer.setVisible(e.target.checked);
+  if (window._combinedFrontLineLayer) window._combinedFrontLineLayer.setVisible(e.target.checked);
+});
 
 /* Marker state */
 let markers = [];
@@ -3225,18 +3416,38 @@ function fitMobileMapWidth(map, extent) {
 }
 
 /* ====================== COMBINED MODE RENDERER ====================== */
-async function renderCombinedMode(map) {
-  if (!map) return;
-  if (!desktopMapState.map) {
-    await initDesktopMapIfNeeded();
+/* ====================== COMBINED MODE RENDERER ====================== */
+async function renderCombinedMode() {
+  document.body.classList.add("combined-mode");
+
+  // ── Build a standalone OL map in #combined-map ─────────────────────────
+  const combinedMapDiv = document.getElementById("combined-map");
+  if (!combinedMapDiv) return;
+
+  // Destroy previous instance if any
+  if (window._combinedMap) {
+    window._combinedMap.setTarget(null);
+    window._combinedMap = null;
   }
-  const m = desktopMapState.map || map;
 
-  // ── Land ─────────────────────────────────────────────────
-  await ensureDesktopLandLayer(m);
-  await ensureDesktopPlaceLayer(m);
+  const view = new ol.View({ projection: "EPSG:4326", extent: BBOX });
+  const map = new ol.Map({
+    target: combinedMapDiv,
+    view,
+    layers: [],
+    overlays: [],
+    controls: ol.control.defaults.defaults({ zoom: true, attribution: false })
+  });
+  window._combinedMap = map;
 
-  // ── CHL raster (latest frame) ─────────────────────────────
+  // Fit to region bbox
+  view.fit(BBOX, { size: map.getSize() });
+
+  // ── Layer: land ───────────────────────────────────────────────────────
+  await ensureCombinedLandLayer(map);
+  await ensureCombinedPlaceLayer(map);
+
+  // ── Layer: CHL raster ────────────────────────────────────────────────
   const chlFrames = framesByVar.chl || [];
   if (chlFrames.length) {
     const frame = chlFrames[chlFrames.length - 1];
@@ -3247,95 +3458,354 @@ async function renderCombinedMode(map) {
     if (url && url.startsWith("data:image/png")) {
       const extent = frameExtentFromGrid(grid);
       const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-      if (desktopMapState.imageLayer) {
-        desktopMapState.imageLayer.setSource(src);
-        desktopMapState.imageLayer.setVisible(true);
-      } else {
-        desktopMapState.imageLayer = new ol.layer.Image({ source: src, zIndex: 10 });
-        m.addLayer(desktopMapState.imageLayer);
-      }
+      const layer = new ol.layer.Image({ source: src, zIndex: 10 });
+      map.addLayer(layer);
+      window._combinedChlLayer = layer;
     }
   }
 
-  // ── Bathymetry contours ──────────────────────────────────
+  // ── Layer: Bathymetry contours ───────────────────────────────────────
   const bathyData = await loadBathymetryJson(BATHY_JSON_URL);
-  await ensureDesktopBathyContourLayer(m, bathyData, { xAxis: bathyData.xAxis, yAxis: bathyData.yAxis });
-  if (desktopMapState.bathyContourLayer) desktopMapState.bathyContourLayer.setVisible(true);
+  const bathyGridInfo = { xAxis: bathyData.xAxis, yAxis: bathyData.yAxis, nx: bathyData.xAxis.length, ny: bathyData.yAxis.length };
+  const bathyLayer = buildBathyContourLayer(bathyData, bathyGridInfo);
+  if (bathyLayer) { map.addLayer(bathyLayer); window._combinedBathyLayer = bathyLayer; }
 
-  // ── UV arrows (latest frame) ─────────────────────────────
+  // ── Layer: UV arrows ─────────────────────────────────────────────────
   const uvFrames = framesByVar.uv || [];
   if (uvFrames.length) {
     const frame = uvFrames[uvFrames.length - 1];
     const data = await fetchFrameData("uv", frame);
     const grid = await loadGridForVar("uv", data);
-    if (desktopMapState.arrowLayer) {
-      m.removeLayer(desktopMapState.arrowLayer);
-      desktopMapState.arrowLayer = null;
-    }
-    desktopMapState.arrowLayer = buildMobileUvArrowLayer(data, grid);
-    if (desktopMapState.arrowLayer) {
-      m.addLayer(desktopMapState.arrowLayer);
-      desktopMapState.arrowLayer.setVisible(true);
-    }
+    const arrowLayer = buildDesktopUvArrowLayer(data, grid);
+    if (arrowLayer) { map.addLayer(arrowLayer); window._combinedUvLayer = arrowLayer; }
   }
 
-  // ── Thermal fronts (latest day) ──────────────────────────
+  // ── Layer: Thermal front density + line features ──────────────────────
   const tfFrames = framesByVar.thermal_fronts || [];
   if (tfFrames.length) {
-    // Find the latest frame
     const latestFrame = tfFrames[tfFrames.length - 1];
     const frontData = await fetchFrameData("thermal_fronts", latestFrame);
     const grid = await loadGridForVar("thermal_fronts", frontData);
-    desktopMapState.currentGridInfo = grid;
-    desktopMapState.currentDataObj = frontData;
-    // Build front canvas and add as layer if not already present
-    const frontCanvas = await buildThermalFrontDensityCanvas(frontData, grid);
+    window._combinedFrontGrid = grid;
+    window._combinedFrontData = frontData;
+
+    const frontCanvas = buildThermalFrontDensityCanvas(frontData, grid);
     if (frontCanvas) {
       const extent = frameExtentFromGrid(grid);
       const src = new ol.source.ImageStatic({ url: frontCanvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-      // Reuse or create thermal overlay layer
-      if (thermalFrontState.densityLayer) {
-        thermalFrontState.densityLayer.setSource(src);
-        thermalFrontState.densityLayer.setVisible(true);
-      } else {
-        const layer = new ol.layer.Image({ source: src, zIndex: 30, opacity: 0.85 });
-        m.addLayer(layer);
-        thermalFrontState.densityLayer = layer;
-      }
+      const layer = new ol.layer.Image({ source: src, zIndex: 30, opacity: 0.85 });
+      map.addLayer(layer);
+      window._combinedFrontDensityLayer = layer;
     }
-    // Also render front line features if available
-    if (frontData.features?.length) {
-      if (!thermalFrontState.frontLayer) {
-        const fs = new ol.source.Vector({ wrapX: false });
-        const layer = new ol.layer.Vector({ source: fs, style: new ol.style.Style({ stroke: new ol.style.Stroke({ color: "#ff4040", width: 1.4 }) }), zIndex: 32 });
-        m.addLayer(layer);
-        thermalFrontState.frontLayer = layer;
+
+    const frontLineLayer = buildThermalFrontLineLayer(frontData);
+    if (frontLineLayer) { map.addLayer(frontLineLayer); window._combinedFrontLineLayer = frontLineLayer; }
+  }
+
+  // ── Cursor readout ───────────────────────────────────────────────────
+  const readoutEl = document.getElementById("combined-readout");
+  map.on("pointermove", (ev) => {
+    if (!ev.coordinate) return;
+    const [lon, lat] = ev.coordinate;
+    const base = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    // Sample CHL if available
+    let value = "";
+    if (window._combinedChlLayer && window._combinedFrontGrid) {
+      const g = window._combinedFrontGrid;
+      const col = Math.round((lon - g.xAxis[0]) / (g.xAxis[1] - g.xAxis[0]));
+      const row = Math.round((g.yAxis[0] - lat) / (g.yAxis[0] - g.yAxis[1]));
+      const chl = window._combinedFrontData?.chl?.[row]?.[col];
+      if (chl > 0) value = ` CHL ${chl.toFixed(2)}`;
+    }
+    if (readoutEl) readoutEl.textContent = `Lat: ${lat.toFixed(4)} Lon: ${lon.toFixed(4)}${value}`;
+  });
+  map.on("click", (ev) => {
+    if (!ev.coordinate) return;
+    const [lon, lat] = ev.coordinate;
+    if (readoutEl) readoutEl.textContent = `Lat: ${lat.toFixed(4)} Lon: ${lon.toFixed(4)}`;
+  });
+
+  return true;
+}
+
+// ── Helpers for combined mode ──────────────────────────────────────────────
+
+function buildBathyContourLayer(bathyData, gridInfo) {
+  const source = new ol.source.Vector({ wrapX: false });
+  const layer = new ol.layer.Vector({
+    source,
+    style: new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: "#8bb8d4", width: 0.8 })
+    }),
+    zIndex: 15
+  });
+  window._bathyData = {
+    xAxis: bathyData.xAxis, yAxis: bathyData.yAxis,
+    depth: bathyData.depth,
+    nx: bathyData.xAxis.length, ny: bathyData.yAxis.length
+  };
+  window._bathyContourSource = source;
+  updateBathyContoursForMap(window._combinedMap);
+  window._combinedMap?.on("moveend", () => updateBathyContoursForMap(window._combinedMap));
+  return layer;
+}
+
+function updateBathyContoursForMap(map) {
+  const bd = window._bathyData;
+  const source = window._bathyContourSource;
+  if (!bd || !source || !map) return;
+  source.clear();
+  const extent = map.getView().calculateExtent(map.getSize());
+  const [vx0, vy0, vx1, vy1] = extent;
+  const maxW = 400, maxH = 600;
+  const sx = Math.max(1, Math.floor(bd.nx / maxW));
+  const sy = Math.max(1, Math.floor(bd.ny / maxH));
+  const maxDepth = depthMaxInExtent(bd, extent, sx, sy);
+  const levels = generateContourLevels(maxDepth);
+  for (const level of levels) {
+    const segs = extractContourSegments(bd, level, sx, sy, extent);
+    for (const seg of segs) {
+      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+    }
+  }
+}
+
+function depthMaxInExtent(bd, extent, sx, sy) {
+  const [vx0, vy0, vx1, vy1] = extent;
+  let maxD = 0;
+  for (let row = 0; row < bd.ny; row += sy) {
+    const lat = bd.yAxis[row];
+    if (lat < vy0 || lat > vy1) continue;
+    for (let col = 0; col < bd.nx; col += sx) {
+      const lon = bd.xAxis[col];
+      if (lon < vx0 || lon > vx1) continue;
+      const d = bd.depth[row][col];
+      if (d > maxD) maxD = d;
+    }
+  }
+  return maxD;
+}
+
+function generateContourLevels(maxDepth) {
+  const std = [50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000];
+  if (maxDepth < 200) return [50, 100, 200].filter(l => l <= maxDepth + 200);
+  return std.filter(l => l <= maxDepth + 200);
+}
+
+function extractContourSegments(bd, level, sx, sy, extent) {
+  const [vx0, vy0, vx1, vy1] = extent;
+  const segments = [];
+  for (let row = 1; row < bd.ny - 1; row += sy) {
+    const lat = bd.yAxis[row];
+    if (lat < vy0 || lat > vy1) continue;
+    const nextLat = bd.yAxis[Math.min(row + sy, bd.ny - 1)];
+    for (let col = 1; col < bd.nx - 1; col += sx) {
+      const lon = bd.xAxis[col];
+      if (lon < vx0 || lon > vx1) continue;
+      const nextLon = bd.xAxis[Math.min(col + sx, bd.nx - 1)];
+      const tl = bd.depth[row][col];
+      const tr = bd.depth[row][Math.min(col + sx, bd.nx - 1)];
+      const br = bd.depth[Math.min(row + sy, bd.ny - 1)][Math.min(col + sx, bd.nx - 1)];
+      const bl = bd.depth[Math.min(row + sy, bd.ny - 1)][col];
+      const crossings = [];
+      if ((tl < level) !== (tr < level)) {
+        const t = (level - tl) / (tr - tl);
+        crossings.push([[lon + t * (nextLon - lon), lat], "top"]);
       }
-      const src = thermalFrontState.frontLayer.getSource();
-      src.clear();
-      for (const feat of frontData.features) {
-        const coords = feat.geometry?.coordinates || [];
-        for (const seg of coords) {
-          if (seg.length >= 2) {
-            src.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
-          }
+      if ((bl < level) !== (br < level)) {
+        const t = (level - bl) / (br - bl);
+        crossings.push([[lon + t * (nextLon - lon), nextLat], "bottom"]);
+      }
+      if ((tl < level) !== (bl < level)) {
+        const t = (level - tl) / (bl - tl);
+        crossings.push([[lon, lat + t * (nextLat - lat)], "left"]);
+      }
+      if ((tr < level) !== (br < level)) {
+        const t = (level - tr) / (br - tr);
+        crossings.push([[nextLon, lat + t * (nextLat - lat)], "right"]);
+      }
+      if (crossings.length >= 2) {
+        const coords = crossings.slice(0, 2).map(c => c[0]);
+        if (coords[0] && coords[1] && Math.hypot(coords[0][0] - coords[1][0], coords[0][1] - coords[1][1]) > 0.01) {
+          segments.push(coords);
         }
       }
-      thermalFrontState.frontLayer.setVisible(true);
     }
   }
+  return segments;
+}
 
-  // Hide Plotly
-  const plotDivEl = document.getElementById("plot");
-  if (plotDivEl) {
-    plotDivEl.style.display = "block";
-    plotDivEl.classList.remove("js-plotly-plot");
+async function ensureCombinedLandLayer(map) {
+  if (!map) return;
+  if (window._combinedLandLayer) { map.addLayer(window._combinedLandLayer); return; }
+  const bathy = await loadBathymetryJson(BATHY_JSON_URL);
+  const landCanvas = makeLandMaskCanvas(bathy);
+  if (!landCanvas) return;
+  const extent = BBOX;
+  const src = new ol.source.ImageStatic({
+    url: landCanvas.toDataURL("image/png"),
+    imageExtent: extent,
+    projection: "EPSG:4326",
+    interpolate: false
+  });
+  const layer = new ol.layer.Image({ source: src, zIndex: 5 });
+  map.addLayer(layer);
+  window._combinedLandLayer = layer;
+}
+
+async function ensureCombinedPlaceLayer(map) {
+  if (!map || window._combinedPlaceLayer) return;
+  const layer = new ol.layer.VectorImage({
+    source: new ol.source.Vector({ wrapX: false }),
+    style: new ol.style.Style({
+      text: new ol.style.Text({
+        font: "bold 12px sans-serif",
+        fill: new ol.style.Fill({ color: "rgba(255,255,255,0.55)" }),
+        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.7)", width: 3 }),
+        overflow: true
+      })
+    }),
+    zIndex: 40
+  });
+  map.addLayer(layer);
+  window._combinedPlaceLayer = layer;
+  const src = layer.getSource();
+  const places = PLACES[REGION_ID] || [];
+  for (const p of places) {
+    src.addFeature(new ol.Feature({
+      geometry: new ol.geom.Point([p.lon, p.lat]),
+      name: p.name
+    }));
   }
+  const style = layer.getStyle();
+  style.setText(new ol.style.Text({
+    font: "bold 12px sans-serif",
+    fill: new ol.style.Fill({ color: "rgba(255,255,255,0.55)" }),
+    stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.7)", width: 3 }),
+    overflow: true,
+    text: getText(undefined, PLACES[REGION_ID] || [])
+  }));
+  layer.setStyle(style);
+  function getText(resolution, places) {
+    if (!resolution || resolution > 15000) return "";
+    return places.map(p => p.name).join("\n");
+  }
+}
 
-  // Colorbar inside hamburger only
-  await renderFooterColorbarToDiv(document.getElementById("hamburger-cbar"), "chl");
-  updateSliderUI();
-  return true;
+function buildDesktopUvArrowLayer(data, grid) {
+  const uvData = (data.data && !Array.isArray(data.data)) ? data.data : data;
+  const { xAxis, yAxis, nx, ny } = grid;
+  if (!xAxis?.length || !yAxis?.length) return null;
+  const features = [];
+  const step = Math.max(2, Math.floor(Math.min(nx, ny) / 60));
+  for (let row = 0; row < ny; row += step) {
+    for (let col = 0; col < nx; col += step) {
+      const u = uvData.u?.[row]?.[col];
+      const v = uvData.v?.[row]?.[col];
+      if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
+      const spd = Math.sqrt(u * u + v * v);
+      if (spd < 0.01 || spd > 3) continue;
+      const lon = xAxis[col];
+      const lat = yAxis[row];
+      const angle = Math.atan2(v, u) - Math.PI / 2;
+      const arrowLen = Math.min(spd * 10, 22);
+      const color = speedColor(spd, 0, 1.5);
+      const geom = buildArrowGeometry(lon, lat, angle, arrowLen);
+      if (geom) features.push(new ol.Feature({ geometry: geom }));
+    }
+  }
+  if (!features.length) return null;
+  const source = new ol.source.Vector({ features, wrapX: false });
+  const layer = new ol.layer.Vector({
+    source,
+    style: new ol.style.Style({ stroke: new ol.style.Stroke({ color, width: 1.5 }) }),
+    zIndex: 20
+  });
+  return layer;
+}
+
+function buildArrowGeometry(lon, lat, angle, len) {
+  try {
+    const dx = (len / 2) * Math.cos(angle);
+    const dy = (len / 2) * Math.sin(angle);
+    const headLen = Math.max(3, len * 0.35);
+    const headAng = Math.PI / 6;
+    const tx = lon + Math.cos(angle) * len;
+    const ty = lat + Math.sin(angle) * len;
+    const px1 = lon + Math.cos(angle + Math.PI - headAng) * headLen;
+    const py1 = lat + Math.sin(angle + Math.PI - headAng) * headLen;
+    const px2 = lon + Math.cos(angle + Math.PI + headAng) * headLen;
+    const py2 = lat + Math.sin(angle + Math.PI + headAng) * headLen;
+    return new ol.geom.LineString([[lon - dx, lat - dy], [tx, ty], [px1, py1], [tx, ty], [px2, py2], [lon - dx, lat - dy]]);
+  } catch { return null; }
+}
+
+function speedColor(speed, min, max) {
+  const t = Math.min(1, Math.max(0, (speed - min) / (max - min)));
+  const r = Math.round(255 * t);
+  const b = Math.round(255 * (1 - t));
+  return `rgb(${r},50,${b})`;
+}
+
+function buildThermalFrontLineLayer(frontData) {
+  const features = frontData.features || [];
+  if (!features.length) return null;
+  const source = new ol.source.Vector({ wrapX: false });
+  for (const feat of features) {
+    const coords = feat.geometry?.coordinates || [];
+    for (const seg of coords) {
+      if (seg.length >= 2) {
+        source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+      }
+    }
+  }
+  return new ol.layer.Vector({
+    source,
+    style: new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: "#ff4040", width: 1.4 })
+    }),
+    zIndex: 32
+  });
+}
+
+function buildThermalFrontDensityCanvas(frontData, grid) {
+  const features = frontData.features || [];
+  if (!features.length) return null;
+  const { xAxis, yAxis } = grid;
+  const cellDeg = 0.014;
+  const nx = Math.max(2, Math.ceil((BBOX[2] - BBOX[0]) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((BBOX[3] - BBOX[1]) / cellDeg) + 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = nx;
+  canvas.height = ny;
+  const ctx = canvas.getContext("2d");
+  const counts = new Float32Array(nx * ny);
+  const radiusPx = 2;
+  for (const feat of features) {
+    const coords = feat.geometry?.coordinates || [];
+    for (const pt of coords) {
+      if (!pt || pt.length < 2) continue;
+      const [lon, lat] = pt;
+      const cx = Math.round((lon - BBOX[0]) / cellDeg);
+      const cy = Math.round((BBOX[3] - lat) / cellDeg);
+      if (cx < 0 || cx >= nx || cy < 0 || cy >= ny) continue;
+      counts[cy * nx + cx]++;
+    }
+  }
+  const maxC = Math.max(...counts) || 1;
+  for (let row = 0; row < ny; row++) {
+    for (let x = 0; x < nx; x++) {
+      const c = counts[row * nx + x];
+      if (c > 0) {
+        const alpha = Math.min(200, (c / maxC) * 220);
+        ctx.beginPath();
+        ctx.arc(x, row, radiusPx, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+        ctx.fill();
+      }
+    }
+  }
+  return canvas;
 }
 
 async function buildThermalFrontDensityCanvas(frontData, grid) {
@@ -4375,6 +4845,9 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
 
   currentVar = v;
 
+  document.body.classList.toggle("combined-mode", v === "combined");
+  document.body.classList.toggle("thermal-fronts-mode", v === "thermal_fronts");
+
   const frames = framesByVar[currentVar] || [];
   const times = frameTimesByVar[currentVar] || [];
 
@@ -4738,6 +5211,13 @@ function plotConfig() {
 async function showFrame() {
   console.log("[showFrame] currentVar:", currentVar, "IS_TOUCH:", IS_TOUCH, "isDesktopMapMode():", isDesktopMapMode(), "isMobileMapMode():", isMobileMapMode());
   updateReadoutPosition();
+
+  // combined mode uses its own full-renderer
+  if (currentVar === "combined") {
+    const map = await initDesktopMapIfNeeded();
+    if (map) await renderCombinedMode();
+    return;
+  }
 
   // thermal_fronts uses a dedicated canvas renderer — not Plotly, not standard OL raster
   if (currentVar === "thermal_fronts") {
