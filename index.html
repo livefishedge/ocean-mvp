@@ -3486,6 +3486,9 @@ async function renderCombinedMode() {
   });
   window._combinedMap = map;
   console.log("[combined] OL map created, target:", !!map.getTargetElement(), "size:", map.getSize());
+  const cv0 = map.getTargetElement()?.querySelector("canvas");
+  console.log("[combined]   canvas initial:", cv0 ? `${cv0.width}x${cv0.height}` : "NO CANVAS");
+  console.log("[combined]   layers initial:", map.getLayers().getLength());
 
   // Also attach a ResizeObserver on the target div — when DevTools opens the
   // viewport shrinks and the map re-centers, triggering a resize that OL handles.
@@ -3631,6 +3634,14 @@ async function renderCombinedMode() {
 
   window._combinedRenderLocked = false;
   console.log("[combined] renderCombinedMode finished successfully");
+  console.log("[combined] FINAL state — total layers:", map.getLayers().getLength());
+  const allLayers = [];
+  map.getLayers().forEach((l, i) => allLayers.push({i, zIndex: l.getZIndex(), type: l.getClassName()}));
+  console.log("[combined] FINAL layers:", JSON.stringify(allLayers));
+  const vp = map.getTargetElement()?.querySelector(".ol-viewport");
+  const cv = map.getTargetElement()?.querySelector("canvas");
+  console.log("[combined] FINAL viewport:", vp ? `${vp.offsetWidth}x${vp.offsetHeight}` : "NO VIEWPORT");
+  console.log("[combined] FINAL canvas:", cv ? `${cv.width}x${cv.height}` : "NO CANVAS");
   return true;
 }
 
@@ -3761,6 +3772,7 @@ async function ensureCombinedLandLayer(map) {
   const layer = new ol.layer.Image({ source: src, zIndex: 5 });
   map.addLayer(layer);
   window._combinedLandLayer = layer;
+  console.log("[combined] LAND layer added, total layers:", map.getLayers().getLength());
 }
 
 async function ensureCombinedPlaceLayer(map) {
