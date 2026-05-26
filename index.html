@@ -3486,10 +3486,6 @@ async function loadIndex() {
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
 
-    const count = (framesByVar[opt.value] || []).length;
-    opt.disabled = count === 0;
-    opt.textContent = count === 0 ? `${VAR_LABELS[opt.value]} - no data` : VAR_LABELS[opt.value];
-  }
   syncFrontOverlayControls();
 
   return data;
