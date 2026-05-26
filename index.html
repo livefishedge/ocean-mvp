@@ -1305,9 +1305,14 @@ async function renderDesktopFrame(frameMeta) {
 
   // Combined: render all layers simultaneously as a snapshot
   if (currentVar === "combined") {
-    await renderCombinedMode();
-    const staleLoadDiv = document.getElementById("ol-loading");
-    if (staleLoadDiv) staleLoadDiv.remove();
+    try {
+      await renderCombinedMode();
+      const staleLoadDiv = document.getElementById("ol-loading");
+      if (staleLoadDiv) staleLoadDiv.remove();
+    } catch(err) {
+      console.error("[combined] renderCombinedMode ERROR:", err.message, err.stack);
+      alert("Combined view failed to load: " + err.message);
+    }
     return;
   }
 
