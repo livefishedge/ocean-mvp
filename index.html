@@ -3337,27 +3337,6 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
 
   if (frames.length) await showFrame();
   else return;
-  const times = frameTimesByVar[currentVar] || [];
-
-  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : frames.length - 1;
-  else currentFrameIdx = 0;
-
-  // Restore saved geographic viewport after switching
-  if (savedRange) {
-    viewState.xRange = savedRange.x;
-    viewState.yRange = savedRange.y;
-    viewState.hasRange = true;
-  }
-
-  syncRangeInputsToVar();
-  updateSliderUI();
-  syncTimeControls();
-  syncArrowLegend();
-  syncFrontOverlayControls();
-  syncThermalFrontsVisibility();
-
-  if (frames.length) await showFrame();
-  else return;
 }
 
 function stepFrame(delta) {
