@@ -3505,6 +3505,17 @@ async function renderCombinedMode() {
   const cv0 = map.getTargetElement()?.querySelector("canvas");
   console.log("[combined]   canvas initial:", cv0 ? `${cv0.width}x${cv0.height}` : "NO CANVAS");
   console.log("[combined]   layers initial:", map.getLayers().getLength());
+  // Visual heartbeat: turn the OL viewport hot-pink immediately after map creation.
+  // This confirms (1) the map object exists, (2) the viewport div is accessible.
+  // If this flash appears but the final screen is black → layer rendering failed.
+  // If no flash appears at all → map creation itself failed silently.
+  const vpEl = map.getTargetElement()?.querySelector(".ol-viewport");
+  if (vpEl) {
+    vpEl.style.background = "#ff00ff";
+    console.log("[combined] viewport background set to #ff00ff");
+    // Reset to white after 2 seconds if the final render hasn't cleared it
+    setTimeout(() => { vpEl.style.background = ""; console.log("[combined] viewport background reset"); }, 2000);
+  }
 
   // Also attach a ResizeObserver on the target div — when DevTools opens the
   // viewport shrinks and the map re-centers, triggering a resize that OL handles.
