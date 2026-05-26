@@ -3750,20 +3750,6 @@ async function showFrame() {
 /* ========================= EVENTS ========================= */
 
 
-if (chlFrontOverlayInput) {
-  chlFrontOverlayInput.addEventListener("change", () => {
-    showChlFrontOverlay = chlFrontOverlayInput.checked;
-    if (currentVar === "chl") showFrame();
-  });
-}
-
-if (sstFrontOverlayInput) {
-  sstFrontOverlayInput.addEventListener("change", () => {
-    showSstFrontOverlay = sstFrontOverlayInput.checked;
-    if (currentVar === "sst") showFrame();
-  });
-}
-
 if (globalSstFrontOverlayInput) {
   globalSstFrontOverlayInput.addEventListener("change", () => {
     showGlobalSstFrontOverlay = globalSstFrontOverlayInput.checked;
