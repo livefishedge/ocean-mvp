@@ -1531,10 +1531,6 @@ const globalSstFrontOverlayInput = document.getElementById("global-sst-front-ove
 const readoutDiv = document.getElementById("readout");
 const cbarDiv = document.getElementById("cbar");
 
-const rowPlay = document.getElementById("row-play"); /* NEW */
-const rowSlider = document.getElementById("row-slider"); /* NEW */
-const arrowLegendDiv = document.getElementById("arrow-legend"); /* NEW */
-
 function setReadout(txt) { readoutDiv.textContent = txt || ""; }
 
 let _wheelInstalled = false;
@@ -3248,6 +3244,13 @@ function syncArrowLegend() {
   if (!arrowLegendDiv) return;
   const isUv = (currentVar === "uv");
   arrowLegendDiv.style.display = isUv ? "flex" : "none";
+}
+
+function syncTimeControls() {
+  const isBathy = (currentVar === "bathy");
+  const isThermal = (currentVar === "thermal_fronts");
+  const navBar = document.getElementById("nav-bar");
+  if (navBar) navBar.style.display = isBathy || isThermal ? "none" : "flex";
 }
 
 function syncFrontOverlayControls() {
