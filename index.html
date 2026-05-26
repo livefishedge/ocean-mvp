@@ -3652,6 +3652,18 @@ async function renderCombinedMode() {
   const cv = map.getTargetElement()?.querySelector("canvas");
   console.log("[combined] FINAL viewport:", vp ? `${vp.offsetWidth}x${vp.offsetHeight}` : "NO VIEWPORT");
   console.log("[combined] FINAL canvas:", cv ? `${cv.width}x${cv.height}` : "NO CANVAS");
+  // Log all window._combined* layer refs
+  console.log("[combined] window._combinedLandLayer:", !!window._combinedLandLayer);
+  console.log("[combined] window._combinedChlLayer:", !!window._combinedChlLayer);
+  console.log("[combined] window._combinedBathyLayer:", !!window._combinedBathyLayer);
+  console.log("[combined] window._combinedUvLayer:", !!window._combinedUvLayer);
+  console.log("[combined] window._combinedFrontDensityLayer:", !!window._combinedFrontDensityLayer);
+  console.log("[combined] window._combinedFrontLineLayer:", !!window._combinedFrontLineLayer);
+  // Log combined UI elements
+  console.log("[combined] #combined-map:", !!combinedMapDiv, "display:", combinedMapDiv ? getComputedStyle(combinedMapDiv).display : "N/A", "size:", combinedMapDiv ? `${combinedMapDiv.clientWidth}x${combinedMapDiv.clientHeight}` : "N/A");
+  console.log("[combined] #combined-readout:", !!combinedReadout, "display:", combinedReadout ? getComputedStyle(combinedReadout).display : "N/A");
+  console.log("[combined] #combined-controls:", !!combinedControls, "display:", combinedControls ? getComputedStyle(combinedControls).display : "N/A");
+  console.log("[combined] #combined-menu-btn:", !!combinedMenuBtn, "display:", combinedMenuBtn ? getComputedStyle(combinedMenuBtn).display : "N/A");
   return true;
 }
 
