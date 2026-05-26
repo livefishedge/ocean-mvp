@@ -3262,6 +3262,8 @@ function syncFrontOverlayControls() {
   if (globalSstFrontOverlayInput) {
     globalSstFrontOverlayInput.disabled = (framesByVar.thermal_fronts || []).length === 0;
   }
+}
+
 async function addNearestFrontOverlay(fig, baseVar, baseFrameMeta) {
   let frontVar = baseVar === "chl" ? "chl_front" : baseVar === "sst" ? "sst_front" : null;
   if (showGlobalSstFrontOverlay && baseVar !== "sst_front") frontVar = "sst_front";
@@ -3336,44 +3338,6 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
 
   if (frames.length) await showFrame();
   else return;
-}
-  if (showGlobalSstFrontOverlay && baseVar !== "sst_front") frontVar = "sst_front";
-  if (!frontVar) return;
-  if (frontVar === "chl_front" && !showChlFrontOverlay) return;
-  if (frontVar === "sst_front" && !(showSstFrontOverlay || showGlobalSstFrontOverlay)) return;
-
-  const frontFrames = framesByVar[frontVar] || [];
-  if (!frontFrames.length) return;
-  const finiteFrontTimes = (frameTimesByVar[frontVar] || []).filter(Number.isFinite);
-  const curMs = epochMsForFrame(baseVar, baseFrameMeta) ?? finiteFrontTimes.at(-1) ?? null;
-  const frontTimes = frameTimesByVar[frontVar] || [];
-  let bestIdx = 0;
-  let bestDiff = Infinity;
-  for (let i = 0; i < frontFrames.length; i++) {
-    const t = frontTimes[i];
-    if (!Number.isFinite(t)) continue;
-    const d = Math.abs(t - curMs);
-    if (d < bestDiff) {
-      bestDiff = d;
-      bestIdx = i;
-    }
-  }
-
-  try {
-    const frontData = await fetchFrameData(frontVar, frontFrames[bestIdx]);
-    const frontGrid = await loadGridForVar(frontVar, frontData);
-    const frontFig = buildFrontLines(frontGrid, frontData, frontVar);
-    const label = formatRelativeFrontTime((frontTimes[bestIdx] ?? NaN) - curMs);
-    for (const trace of frontFig.data || []) {
-      trace.name = label ? `Thermal front (${label})` : "Thermal front";
-      trace.hovertemplate = label ? `<b>Thermal front</b><br>${label}<extra></extra>` : trace.hovertemplate;
-    }
-    fig.data.push(...frontFig.data);
-
-  } catch (e) {
-    console.error(`${frontVar} overlay failed:`, e);
-  }
-}
   const times = frameTimesByVar[currentVar] || [];
 
   if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : frames.length - 1;
