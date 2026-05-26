@@ -546,20 +546,32 @@
     body.thermal-fronts-mode #hamburger-cbar,
     body.thermal-fronts-mode .hamburger-range-block{ display:none !important; }
     /* Combined mode: hide single-product slider/progress, show sidebar */
+    body.combined-mode #combined-menu-btn{ top:8px; left:8px; right:auto; display:flex !important; }
+    body.combined-mode #combined-menu-btn span{ display:block; width:18px; height:2px; background:var(--fg); border-radius:2px; }
     body.combined-mode #nav-bar{ display:none !important; }
     body.combined-mode #toolbar{ display:none !important; }
     body.combined-mode #hamburger-btn{ display:none !important; }
-    body.combined-mode #combined-menu-btn{ display:flex !important; }
-    body.combined-mode #combined-map{ display:block !important; }
+    body.combined-mode #plot{ display:none !important; }
+    body.combined-mode #mobile-map{ display:none !important; }
+    body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:0; width:100%; height:100%; }
+    body.combined-mode #combined-map .ol-viewport{ background:#f8fbff; }
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
+
+    /* Combined product-switcher inside sidebar */
+    #combined-product-select{
+      width:100%; padding:7px 10px; margin-bottom:4px;
+      background:rgba(12,23,35,0.9); border:1px solid #2a3a50;
+      border-radius:6px; color:var(--fg); font-size:13px; cursor:pointer;
+    }
 
     /* Combined standalone map (no toolbar conflicts) */
     #combined-map{
       display:none;
-      position:fixed;
+      position:absolute;
       top:0; left:0; right:0; bottom:0;
       z-index:0;
+      width:100%; height:100%;
     }
     #combined-map .ol-viewport{ background:#f8fbff; }
     #combined-readout{
@@ -593,7 +605,9 @@
       overflow-y:auto;
       flex-direction:column;
     }
-    body.combined-mode #combined-controls{ display:flex; }
+    body.combined-mode #combined-controls{ transform:translateX(-100%); transition:transform 0.25s ease; }
+    body.combined-mode #combined-controls.open{ transform:translateX(0) !important; }
+    body.combined-mode #combined-overlay{ display:none; }
     .combined-section{ display:flex; flex-direction:column; gap:8px; }
     .combined-section-title{
       font-size:11px;
@@ -686,18 +700,7 @@
       max-width:min(380px, calc(100vw - 24px));
     }
     #hamburger-btn{ z-index:1000; }
-
-
-      /* ====== Hamburger: floating toggle + collapsible panel ====== */
-      #hamburger-btn{
-        position:fixed; top:8px; right:8px; z-index:1000;
-        width:48px; height:48px; border:2px solid rgba(255,255,255,0.72); border-radius:8px;
-        background:rgba(9,74,132,0.96); color:#fff; font-size:26px; font-weight:900; cursor:pointer;
-        box-shadow:0 4px 16px rgba(0,0,0,0.62);
-      }
-      #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
-      #menu-panel #fronts-toggle{ font-size:13px; }
-</style>
+  </style>
 </head>
 <body>
   <div id="login-gate" style="display:none">
@@ -728,6 +731,17 @@
   <div id="combined-readout">Lat: — Lon: —</div>
   <div id="combined-overlay"></div>
   <div id="combined-controls">
+    <div class="combined-section">
+      <div class="combined-section-title">Product</div>
+      <select id="combined-product-select">
+        <option value="combined">Combined</option>
+        <option value="chl">Chlorophyll (CHL)</option>
+        <option value="sst">Sea Surface Temp (SST)</option>
+        <option value="uv">Currents (UV)</option>
+        <option value="bathy">Bathymetry</option>
+        <option value="thermal_fronts">Thermal Fronts</option>
+      </select>
+    </div>
     <div class="combined-section">
       <div class="combined-section-title">Region</div>
       <select id="combined-region-select">
@@ -1581,17 +1595,26 @@ const combinedMenuBtn = document.getElementById("combined-menu-btn");
 const combinedControls = document.getElementById("combined-controls");
 const combinedOverlay = document.getElementById("combined-overlay");
 const combinedRegionSelect = document.getElementById("combined-region-select");
+const combinedProductSelect = document.getElementById("combined-product-select");
+if (combinedProductSelect) {
+  combinedProductSelect.value = currentVar;
+  combinedProductSelect.addEventListener("change", () => {
+    const url = new URL(location.href);
+    url.searchParams.set("var", combinedProductSelect.value);
+    location.href = url.toString();
+  });
+}
 if (combinedMenuBtn) {
   combinedMenuBtn.style.display = "flex";
   combinedMenuBtn.addEventListener("click", () => {
     combinedControls?.classList.toggle("open");
-    combinedOverlay?.classList.toggle("visible");
+    if (combinedOverlay) combinedOverlay.style.display = combinedControls?.classList.contains("open") ? "block" : "none";
   });
 }
 if (combinedOverlay) {
   combinedOverlay.addEventListener("click", () => {
     combinedControls?.classList.remove("open");
-    combinedOverlay?.classList.remove("visible");
+    if (combinedOverlay) combinedOverlay.style.display = "none";
   });
 }
 if (combinedRegionSelect) {
@@ -3443,6 +3466,9 @@ async function renderCombinedMode() {
   // Fit to region bbox
   view.fit(BBOX, { size: map.getSize() });
 
+  // Layer order: land(5) → CHL(10) → bathy contours(15) → UV(20) → place labels(40) → fronts(30/32)
+  // Land at zIndex:5 so CHL(10) sits above it, bathy(15) sits above CHL
+
   // ── Layer: land ───────────────────────────────────────────────────────
   await ensureCombinedLandLayer(map);
   await ensureCombinedPlaceLayer(map);
@@ -3476,6 +3502,8 @@ async function renderCombinedMode() {
     const frame = uvFrames[uvFrames.length - 1];
     const data = await fetchFrameData("uv", frame);
     const grid = await loadGridForVar("uv", data);
+    window._combinedUvGrid = grid;
+    window._combinedUvData = data;
     const arrowLayer = buildDesktopUvArrowLayer(data, grid);
     if (arrowLayer) { map.addLayer(arrowLayer); window._combinedUvLayer = arrowLayer; }
   }
@@ -3507,17 +3535,17 @@ async function renderCombinedMode() {
   map.on("pointermove", (ev) => {
     if (!ev.coordinate) return;
     const [lon, lat] = ev.coordinate;
-    const base = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-    // Sample CHL if available
-    let value = "";
-    if (window._combinedChlLayer && window._combinedFrontGrid) {
+    let extra = "";
+    if (window._combinedFrontData && window._combinedFrontGrid) {
       const g = window._combinedFrontGrid;
-      const col = Math.round((lon - g.xAxis[0]) / (g.xAxis[1] - g.xAxis[0]));
-      const row = Math.round((g.yAxis[0] - lat) / (g.yAxis[0] - g.yAxis[1]));
+      const x0 = g.xAxis[0], x1 = g.xAxis[1] || x0 + 0.01;
+      const y0 = g.yAxis[0], y1 = g.yAxis[1] || y0 + 0.01;
+      const col = Math.max(0, Math.min(g.nx - 1, Math.round((lon - x0) / (x1 - x0))));
+      const row = Math.max(0, Math.min(g.ny - 1, Math.round((y0 - lat) / (y0 - y1))));
       const chl = window._combinedFrontData?.chl?.[row]?.[col];
-      if (chl > 0) value = ` CHL ${chl.toFixed(2)}`;
+      if (chl > 0) extra = ` CHL ${chl.toFixed(2)}`;
     }
-    if (readoutEl) readoutEl.textContent = `Lat: ${lat.toFixed(4)} Lon: ${lon.toFixed(4)}${value}`;
+    if (readoutEl) readoutEl.textContent = `Lat: ${lat.toFixed(4)} Lon: ${lon.toFixed(4)}${extra}`;
   });
   map.on("click", (ev) => {
     if (!ev.coordinate) return;
@@ -3639,7 +3667,7 @@ async function ensureCombinedLandLayer(map) {
   if (!map) return;
   if (window._combinedLandLayer) { map.addLayer(window._combinedLandLayer); return; }
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
-  const landCanvas = makeLandMaskCanvas(bathy);
+  const landCanvas = makeMobileLandCanvas(bathy);
   if (!landCanvas) return;
   const extent = BBOX;
   const src = new ol.source.ImageStatic({
@@ -3670,20 +3698,16 @@ async function ensureCombinedPlaceLayer(map) {
   map.addLayer(layer);
   window._combinedPlaceLayer = layer;
   const src = layer.getSource();
-  const places = PLACES[REGION_ID] || [];
-  for (const p of places) {
-    src.addFeature(new ol.Feature({
-      geometry: new ol.geom.Point([p.lon, p.lat]),
-      name: p.name
-    }));
-  }
+  PLACE_LABELS.filter(placeInRegion).forEach(p => {
+    src.addFeature(new ol.Feature({ geometry: new ol.geom.Point([p.lon, p.lat]), name: p.name }));
+  });
   const style = layer.getStyle();
   style.setText(new ol.style.Text({
     font: "bold 12px sans-serif",
     fill: new ol.style.Fill({ color: "rgba(255,255,255,0.55)" }),
     stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.7)", width: 3 }),
     overflow: true,
-    text: getText(undefined, PLACES[REGION_ID] || [])
+    text: getText(undefined, PLACE_LABELS.filter(placeInRegion))
   }));
   layer.setStyle(style);
   function getText(resolution, places) {
@@ -3709,16 +3733,17 @@ function buildDesktopUvArrowLayer(data, grid) {
       const lat = yAxis[row];
       const angle = Math.atan2(v, u) - Math.PI / 2;
       const arrowLen = Math.min(spd * 10, 22);
-      const color = speedColor(spd, 0, 1.5);
       const geom = buildArrowGeometry(lon, lat, angle, arrowLen);
-      if (geom) features.push(new ol.Feature({ geometry: geom }));
+      if (geom) features.push(new ol.Feature({ geometry: geom, speed: spd }));
     }
   }
   if (!features.length) return null;
   const source = new ol.source.Vector({ features, wrapX: false });
   const layer = new ol.layer.Vector({
     source,
-    style: new ol.style.Style({ stroke: new ol.style.Stroke({ color, width: 1.5 }) }),
+    style: (feature) => new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: speedColor(feature.get("speed"), 0, 1.5), width: 1.5 })
+    }),
     zIndex: 20
   });
   return layer;
@@ -4844,6 +4869,13 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const savedRange = (keepRange && viewState.hasRange) ? { x: viewState.xRange, y: viewState.yRange } : null;
 
   currentVar = v;
+  // Reset combined map state when switching away from combined
+  if (v !== "combined") {
+    if (window._combinedMap) {
+      window._combinedMap.setTarget(null);
+      window._combinedMap = null;
+    }
+  }
 
   document.body.classList.toggle("combined-mode", v === "combined");
   document.body.classList.toggle("thermal-fronts-mode", v === "thermal_fronts");

@@ -1002,7 +1002,7 @@ regionSelect.addEventListener("change", () => {
 hamburgerBtn.addEventListener("click", () => menuPanel.classList.toggle("open"));
 productSelect.addEventListener("change", () => {
   const url = new URL("index.html", location.href);
-  if (productSelect.value === "thermal_fronts") {
+  if (productSelect.value === "combined") {
     url.pathname = url.pathname.replace("thermal-fronts.html", "combined-viewer.html");
   } else {
     url.searchParams.set("var", productSelect.value);
