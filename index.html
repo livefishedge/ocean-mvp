@@ -3521,21 +3521,22 @@ async function renderCombinedMode() {
   if (tfFrames.length) {
     const latestFrame = tfFrames[tfFrames.length - 1];
     const frontData = await fetchFrameData("thermal_fronts", latestFrame);
-    const grid = await loadGridForVar("thermal_fronts", frontData);
+    let grid;
+    try { grid = await loadGridForVar("thermal_fronts", frontData); } catch (_) { grid = null; }
     window._combinedFrontGrid = grid;
     window._combinedFrontData = frontData;
-
-    const frontCanvas = buildThermalFrontDensityCanvas(frontData, grid);
-    if (frontCanvas) {
-      const extent = frameExtentFromGrid(grid);
-      const src = new ol.source.ImageStatic({ url: frontCanvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-      const layer = new ol.layer.Image({ source: src, zIndex: 30, opacity: 0.85 });
-      map.addLayer(layer);
-      window._combinedFrontDensityLayer = layer;
+    if (grid) {
+      const frontCanvas = buildThermalFrontDensityCanvas(frontData, grid);
+      if (frontCanvas instanceof HTMLCanvasElement) {
+        const extent = frameExtentFromGrid(grid);
+        const src = new ol.source.ImageStatic({ url: frontCanvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+        const layer = new ol.layer.Image({ source: src, zIndex: 30, opacity: 0.85 });
+        map.addLayer(layer);
+        window._combinedFrontDensityLayer = layer;
+      }
+      const frontLineLayer = buildThermalFrontLineLayer(frontData);
+      if (frontLineLayer) { map.addLayer(frontLineLayer); window._combinedFrontLineLayer = frontLineLayer; }
     }
-
-    const frontLineLayer = buildThermalFrontLineLayer(frontData);
-    if (frontLineLayer) { map.addLayer(frontLineLayer); window._combinedFrontLineLayer = frontLineLayer; }
   }
 
   // ── Cursor readout ───────────────────────────────────────────────────
