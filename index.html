@@ -3480,10 +3480,14 @@ async function renderCombinedMode() {
   // viewport shrinks and the map re-centers, triggering a resize that OL handles.
   // This catches the same signal programmatically.
   const ro = new ResizeObserver(() => {
-    console.log("[combined] ResizeObserver fired, map size:", map.getSize());
-    if (map.getSize().every(s => s === 0)) {
-      map.updateSize();
-      console.log("[combined] updateSize from RO, new size:", map.getSize());
+    console.log("[combined] ResizeObserver fired");
+    const m = window._combinedMap;
+    if (!m) return;
+    const sz = m.getSize();
+    console.log("[combined] map size:", sz);
+    if (!sz || !Array.isArray(sz) || sz.every(s => s === 0)) {
+      m.updateSize();
+      console.log("[combined] updateSize from RO, new size:", m.getSize());
     }
   });
   ro.observe(combinedMapDiv);
@@ -3493,20 +3497,31 @@ async function renderCombinedMode() {
   // (browser hasn't laid it out yet). DevTools opening causes a reflow that fixes this.
   // Trigger the same remeasure via updateSize() after the first animation frame.
   if (map.getSize().every(s => s === 0)) {
-    console.log("[combined] map size is 0x0 — scheduling updateSize()");
+    console.log("[combined] map size is 0x0 - scheduling updateSize()");
     requestAnimationFrame(() => {
-      if (window._combinedMap) {
-        window._combinedMap.updateSize();
-        console.log("[combined] updateSize ran, new size:", window._combinedMap.getSize());
-        // Now fit once we have real pixels
-        const sz = window._combinedMap.getSize();
-        if (sz[0] > 0 && sz[1] > 0) {
-          const view = window._combinedMap.getView();
-          view.fit(BBOX, { size: sz });
-          console.log("[combined] view.fit retried, zoom:", view.getZoom());
-        }
+      const m = window._combinedMap;
+      if (!m) return;
+      m.updateSize();
+      const sz = m.getSize();
+      console.log("[combined] updateSize ran, new size:", sz);
+      if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
+        const view = m.getView();
+        view.fit(BBOX, { size: sz });
+        console.log("[combined] view.fit retried, zoom:", view.getZoom());
       }
     });
+    setTimeout(() => {
+      const m = window._combinedMap;
+      if (!m) return;
+      m.updateSize();
+      const sz = m.getSize();
+      console.log("[combined] updateSize from timer, size:", sz);
+      if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
+        const view = m.getView();
+        view.fit(BBOX, { size: sz });
+        console.log("[combined] view.fit from timer, zoom:", view.getZoom());
+      }
+    }, 500);
   } else {
     view.fit(BBOX, { size: map.getSize() });
   }
