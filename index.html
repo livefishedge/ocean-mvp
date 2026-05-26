@@ -1564,9 +1564,16 @@ if (hamburgerRegionSelect) {
 if (hamburgerProductSelect) {
   hamburgerProductSelect.value = currentVar;
   hamburgerProductSelect.addEventListener("change", () => {
-    setPlaying(false);
-    setCurrentVar(hamburgerProductSelect.value, true);
-    hamburgerPanel?.classList.remove("open");
+    if (hamburgerProductSelect.value === "combined") {
+      document.body.classList.add("combined-mode");
+      hamburgerPanel?.classList.remove("open");
+      setPlaying(false);
+      setCurrentVar("combined");
+    } else {
+      setPlaying(false);
+      setCurrentVar(hamburgerProductSelect.value, true);
+      hamburgerPanel?.classList.remove("open");
+    }
   });
 }
 
@@ -5500,6 +5507,8 @@ async function loadCaptainBriefing() {
     syncControlsHeight();
     if (framesByVar[currentVar]?.length) await showFrame();
     else { }
+    // Apply combined-mode body class at startup if already on combined
+    if (currentVar === "combined") document.body.classList.add("combined-mode");
   } catch (e) {
     console.error("Init failed:", e);
   }
