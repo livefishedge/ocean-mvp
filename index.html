@@ -878,7 +878,9 @@ const VAR_LABELS = {
 const VAR_TO_GRID = {
   chl: "viirs_chl_750_grid.json",
   sst: "goes_sst_1000_grid.json",
-  uv:  "uv_12500_grid.json"
+  uv:  "uv_12500_grid.json",
+  thermal_fronts: null,   // thermal_fronts frames have no grid file — inferred from frame metadata
+  combined: null
 };
 
 let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
@@ -5083,7 +5085,7 @@ function inferGridFromFrame(v, dataObj) {
 }
 
 async function loadGridForVar(v, dataObj = null) {
-  if ((v === "chl_front" || v === "sst_front") && dataObj && dataObj.bbox?.length >= 4) {
+  if ((v === "chl_front" || v === "sst_front" || v === "thermal_fronts") && dataObj && dataObj.bbox?.length >= 4) {
     const [lonMin, latMin, lonMax, latMax] = dataObj.bbox.map(Number);
     return { xAxis: [lonMin, lonMax], yAxis: [latMin, latMax], nx: dataObj.nx || 2, ny: dataObj.ny || 2 };
   }
