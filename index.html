@@ -3537,11 +3537,10 @@ async function renderCombinedMode() {
 
   // ── Layer: land ───────────────────────────────────────────────────────
   console.log("[combined] before ensureCombinedLandLayer");
-  await console.log("[combined] after ensureCombinedLandLayer");
-      ensureCombinedLandLayer(map);
+  await ensureCombinedLandLayer(map);
   console.log("[combined] after ensureCombinedLandLayer");
-  await console.log("[combined] after ensureCombinedPlaceLayer");
-      ensureCombinedPlaceLayer(map);
+  await ensureCombinedPlaceLayer(map);
+  console.log("[combined] after ensureCombinedPlaceLayer");
 
   // ── Layer: CHL raster ────────────────────────────────────────────────
   const chlFrames = framesByVar.chl || [];
