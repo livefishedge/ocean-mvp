@@ -3450,6 +3450,7 @@ function fitMobileMapWidth(map, extent) {
 /* ====================== COMBINED MODE RENDERER ====================== */
 /* ====================== COMBINED MODE RENDERER ====================== */
 async function renderCombinedMode() {
+  console.log("[combined] renderCombinedMode called, currentVar:", currentVar, "REGION_ID:", REGION_ID);
   document.body.classList.add("combined-mode");
 
   // ── Build a standalone OL map in #combined-map ─────────────────────────
@@ -3464,6 +3465,7 @@ async function renderCombinedMode() {
   }
 
   const view = new ol.View({ projection: "EPSG:4326", extent: BBOX });
+  console.log("[combined] creating OL map, combinedMapDiv:", combinedMapDiv, "size:", combinedMapDiv?.clientWidth, combinedMapDiv?.clientHeight);
   const map = new ol.Map({
     target: combinedMapDiv,
     view,
@@ -3472,16 +3474,22 @@ async function renderCombinedMode() {
     controls: ol.control.defaults.defaults({ zoom: true, attribution: false })
   });
   window._combinedMap = map;
+  console.log("[combined] OL map created, target:", !!map.getTargetElement(), "size:", map.getSize());
 
   // Fit to region bbox
   view.fit(BBOX, { size: map.getSize() });
+  console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
   // Layer order: land(5) → CHL(10) → bathy contours(15) → UV(20) → place labels(40) → fronts(30/32)
   // Land at zIndex:5 so CHL(10) sits above it, bathy(15) sits above CHL
 
   // ── Layer: land ───────────────────────────────────────────────────────
-  await ensureCombinedLandLayer(map);
-  await ensureCombinedPlaceLayer(map);
+  console.log("[combined] before ensureCombinedLandLayer");
+  await console.log("[combined] after ensureCombinedLandLayer");
+      ensureCombinedLandLayer(map);
+  console.log("[combined] after ensureCombinedLandLayer");
+  await console.log("[combined] after ensureCombinedPlaceLayer");
+      ensureCombinedPlaceLayer(map);
 
   // ── Layer: CHL raster ────────────────────────────────────────────────
   const chlFrames = framesByVar.chl || [];
@@ -3678,9 +3686,11 @@ async function ensureCombinedLandLayer(map) {
   if (!map) return;
   if (window._combinedLandLayer) { map.addLayer(window._combinedLandLayer); return; }
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
+  console.log("[combined] bathy loaded, xAxis:", bathy?.xAxis?.slice(0,2), "yAxis:", bathy?.yAxis?.slice(0,2));
   const landCanvas = makeMobileLandCanvas(bathy);
   if (!landCanvas) return;
   const extent = frameExtentFromGrid({ xAxis: bathy.xAxis, yAxis: bathy.yAxis });
+  console.log("[combined] land extent:", extent);
   const src = new ol.source.ImageStatic({
     url: landCanvas.toDataURL("image/png"),
     imageExtent: extent,
