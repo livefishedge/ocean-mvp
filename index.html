@@ -1729,7 +1729,7 @@ if (thermalHoursSelect) {
     if (window._combinedFrontDensityLayer) { m?.removeLayer(window._combinedFrontDensityLayer); window._combinedFrontDensityLayer = null; }
     if (!m) return;
     const composite = buildThermalHoursComposite(m, hours);
-    if (composite.lineLayer) { m.addLayer(composite.lineLayer); window._combinedFrontLineLayer = composite.lineLayer; }
+    if (composite.pointLayer) { m.addLayer(composite.pointLayer); window._combinedFrontLineLayer = composite.pointLayer; }
     if (composite.densityLayer) { m.addLayer(composite.densityLayer); window._combinedFrontDensityLayer = composite.densityLayer; }
     if (thermalScanTimeDiv) thermalScanTimeDiv.textContent = composite.scanTime || "";
   });
@@ -4020,22 +4020,6 @@ function buildCombinedThermalFrontLineLayer(items) {
    Combined-mode helpers: build ThermalHours composite layers
    ============================================================ */
 
-function spectralRgb(t) {
-  const hue = 270 - t * 270;
-  const s = 0.85, l = 0.50;
-  const h = ((hue % 360) + 360) % 360;
-  const c2 = (1 - Math.abs(2 * l - 1)) * s;
-  const x2 = c2 * (1 - Math.abs((h / 60) % 2 - 1));
-  const m = l - c2 / 2;
-  let r, g, b;
-  if (h < 60) { r = c2; g = x2; b = 0; }
-  else if (h < 120) { r = x2; g = c2; b = 0; }
-  else if (h < 180) { r = 0; g = c2; b = x2; }
-  else if (h < 240) { r = 0; g = x2; b = c2; }
-  else if (h < 300) { r = x2; g = 0; b = c2; }
-  else { r = c2; g = 0; b = x2; }
-  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
-}
 
 function buildThermalHoursComposite(map, hours) {
   const now = Date.now();
@@ -4052,34 +4036,35 @@ function buildThermalHoursComposite(map, hours) {
       })
     : "";
 
-  // Build line features with spectral color (same approach as thermal-fronts.html)
-  const spectralSource = new ol.source.Vector({ wrapX: false });
+  // Build point features — individual symbols, fixed pixel radius, solid red
+  const pointFeatures = [];
   for (const item of frontItems) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
-      if (sf.geometry?.type === "LineString" && coords.length >= 2) {
-        const segments = thermalSegmentedLineStrings(coords);
-        const ageNorm = tSorted.length > 1 ? (item.t - tSorted[0]) / (tSorted[tSorted.length - 1] - tSorted[0]) : 0;
-        const [r, g, b] = spectralRgb(ageNorm);
-        for (const seg of segments) {
-          if (seg.length < 2) continue;
-          spectralSource.addFeature(new ol.Feature({
-            geometry: new ol.geom.LineString(seg),
-            style: new ol.style.Style({
-              stroke: new ol.style.Stroke({ color: `rgba(${r},${g},${b},0.85)`, width: 1.5, lineCap: "round", lineJoin: "round" })
-            })
-          }));
-        }
+      // Extract every valid coordinate point (from LineString or MultiPoint)
+      for (const pt of coords) {
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const lon = Number(pt[0]);
+        const lat = Number(pt[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        pointFeatures.push(new ol.Feature({
+          geometry: new ol.geom.Circle([lon, lat], 0.003, "XY"),
+          style: new ol.style.Style({
+            image: new ol.style.Circle({ radius: 3, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 0.85)" }) })
+          })
+        }));
       }
     }
   }
-  const lineLayer = new ol.layer.Vector({
-    source: spectralSource, zIndex: 32,
+
+  const pointSource = new ol.source.Vector({ features: pointFeatures, wrapX: false });
+  const pointLayer = new ol.layer.Vector({
+    source: pointSource, zIndex: 32,
     updateWhileAnimating: true, updateWhileInteracting: true
   });
 
-  // Build density canvas — same 0.005° cell as thermal-fronts.html
+  // Build density canvas — 0.005° cell, red dots showing where fronts cluster
   const cellDeg = 0.005;
   const [west, south, east, north] = BBOX.map(Number);
   const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
@@ -4090,15 +4075,14 @@ function buildThermalHoursComposite(map, hours) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
-      if (sf.geometry?.type === "MultiPoint") {
-        for (const pt of coords) {
-          if (!pt || pt.length < 2) continue;
-          const lon = pt[0], lat = pt[1];
-          if (!isFinite(lon) || !isFinite(lat)) continue;
-          const cx = Math.round((lon - west) / cellDeg);
-          const cy = Math.round((lat - south) / cellDeg);
-          if (cx >= 0 && cx < nx && cy >= 0 && cy < ny) counts[cy * nx + cx]++;
-        }
+      for (const pt of coords) {
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const lon = Number(pt[0]);
+        const lat = Number(pt[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        const cx = Math.round((lon - west) / cellDeg);
+        const cy = Math.round((lat - south) / cellDeg);
+        if (cx >= 0 && cx < nx && cy >= 0 && cy < ny) counts[cy * nx + cx]++;
       }
     }
   }
@@ -4124,8 +4108,9 @@ function buildThermalHoursComposite(map, hours) {
   const densitySrc = new ol.source.ImageStatic({ url: canvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
   const densityLayer = new ol.layer.Image({ source: densitySrc, zIndex: 30, opacity: 0.85 });
 
-  return { lineLayer, densityLayer, scanTime };
+  return { pointLayer, densityLayer, scanTime };
 }
+
 
 
 /* ============================================================
