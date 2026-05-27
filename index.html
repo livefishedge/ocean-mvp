@@ -4103,7 +4103,7 @@ function buildThermalHoursComposite(map, hours) {
   // coordinates into a coarse 0.014 degree canvas and draw one transparent red
   // ImageStatic overlay. This avoids thousands of separate vector symbols and
   // preserves the original visual density/opacity behavior.
-  const cellDeg = 0.014;
+  const cellDeg = 0.005;
   const [west, south, east, north] = BBOX.map(Number);
   const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
   const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
