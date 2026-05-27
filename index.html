@@ -1920,11 +1920,9 @@ if (combinedThermalDaySelect) {
     combinedRebuildFrontLayers();
   });
 }
-// Wire all-day toggle
+// Wire all-day toggle — keep its own state, no need to sync from thermalAllDayCb
 if (combinedThermalAllDayCb) {
-  combinedThermalAllDayCb.checked = thermalAllDayCb?.checked || false;
   combinedThermalAllDayCb.addEventListener("change", () => {
-    if (thermalAllDayCb) thermalAllDayCb.checked = combinedThermalAllDayCb.checked;
     combinedRebuildFrontLayers();
   });
 }
