@@ -62,12 +62,6 @@
       <label>Chlorophyll (CHL)</label>
     </label>
     <label class="toggle">
-      <input type="checkbox" id="chk-bathymetry" checked>
-      <span class="box"></span>
-      <span class="dot dot-bathy"></span>
-      <label>Bathymetry</label>
-    </label>
-    <label class="toggle">
       <input type="checkbox" id="chk-fronts" checked>
       <span class="box"></span>
       <span class="dot dot-front"></span>
@@ -78,6 +72,12 @@
       <span class="box"></span>
       <span class="dot dot-uv"></span>
       <label>Currents (UV)</label>
+    </label>
+    <label class="toggle">
+      <input type="checkbox" id="chk-bathymetry" checked>
+      <span class="box"></span>
+      <span class="dot dot-bathy"></span>
+      <label>Bathymetry</label>
     </label>
   </div>
   <div class="sidebar-section" id="sidebar-currents-legend" style="display:none">
@@ -537,7 +537,7 @@ function updateBathyLegend(levels){
   const el=document.getElementById("bathy-legend-labels");
   if(!el) return;
   el.textContent=levels.length
-    ?"Levels: "+levels.map(l=>l+"m").join(", ")
+    ?`Levels (m): ${levels.join(", ")}`
     :"";
 }
 
