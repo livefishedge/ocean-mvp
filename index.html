@@ -4680,22 +4680,22 @@ function thermalClosestFrameIndex(items, targetMs) {
 }
 
 function thermalSegmentedLineStrings(coords, maxJumpDeg = 0.08) {
+  // Always break on NaN/Infinity — do not connect across missing data.
+  // Also break when two valid points are too far apart (> maxJumpDeg).
   const segments = [];
-  let segment = [];
+  let seg = null;
   let prev = null;
   for (const pt of coords || []) {
-    if (!Array.isArray(pt) || pt.length < 2) continue;
+    if (!Array.isArray(pt) || pt.length < 2) { if (seg && seg.length >= 2) segments.push(seg); seg = null; continue; }
     const lon = Number(pt[0]);
     const lat = Number(pt[1]);
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-    if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) {
-      if (segment.length >= 2) segments.push(segment);
-      segment = [];
-    }
-    segment.push([lon, lat]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) { if (seg && seg.length >= 2) segments.push(seg); seg = null; prev = null; continue; }
+    if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) { if (seg && seg.length >= 2) segments.push(seg); seg = null; }
+    if (!seg) seg = [];
+    seg.push([lon, lat]);
     prev = [lon, lat];
   }
-  if (segment.length >= 2) segments.push(segment);
+  if (seg && seg.length >= 2) segments.push(seg);
   return segments;
 }
 
