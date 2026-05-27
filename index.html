@@ -1098,17 +1098,23 @@ function syncProductSelectors() {
 function applyViewStateToOlMap(map, fallbackExtent) {
   if (!map) return;
   const size = map.getSize();
-  // If fallbackExtent is null, preserve the current viewport — don't fit to BBOX or anything
+  if (!size || size[0] <= 0 || size[1] <= 0) return;
+  const view = map.getView();
+  // null = "preserve whatever view state is already set" — but only if the view has a center
   if (fallbackExtent === null) {
-    if (!size || size[0] <= 0 || size[1] <= 0) return;
-    // Just ensure the map has real dimensions; do NOT call fit() to avoid resetting zoom/center
+    // If view has no center yet (first render), fall back to BBOX
+    const center = view.getCenter();
+    if (!center) {
+      view.fit(BBOX, { size, nearest: true });
+    }
+    // Otherwise do nothing — keep the current zoom/center
     return;
   }
   const extent = viewState.hasRange && viewState.xRange && viewState.yRange
     ? [viewState.xRange[0], viewState.yRange[0], viewState.xRange[1], viewState.yRange[1]]
     : fallbackExtent;
-  if (!extent || !size || size[0] <= 0 || size[1] <= 0) return;
-  map.getView().fit(extent, { size, nearest: true });
+  if (!extent) return;
+  view.fit(extent, { size, nearest: true });
 }
 applyInitialViewportParams();
 let landTrace = null;
