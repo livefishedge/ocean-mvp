@@ -3709,7 +3709,7 @@ async function renderCombinedMode() {
     if (uvScanTimeDiv) uvScanTimeDiv.textContent = "";
   }
 
-  // ── Layer: Thermal fronts — native line geometry
+  // ── Layer: Thermal fronts — fixed-pixel point symbols
   await thermalLoadData();
   const thermalItems = thermalFrontState.frameData.length
     ? [thermalFrontState.frameData[thermalFrontState.frameData.length - 1]]
@@ -4099,40 +4099,58 @@ function buildThermalHoursComposite(map, hours) {
       })
     : "";
 
-  // Use the same LineString geometry contract as thermal-fronts.html. Point symbols
-  // collapse into shrinking speckles at map scale and do not preserve front shape.
-  const lineFeatures = [];
+  // Combined mode mirrors original combined-viewer.html: explode front
+  // coordinates into fixed screen-pixel red point glyphs.
+  const pointFeatures = [];
   const oldest = tSorted[0] ?? latest;
+  const span = Math.max(1, latest - oldest);
+  const squareStyleCache = new Map();
+  function squareStyle(alphaBucket) {
+    if (!squareStyleCache.has(alphaBucket)) {
+      const alpha = (alphaBucket / 100).toFixed(2);
+      squareStyleCache.set(alphaBucket, new ol.style.Style({
+        renderer: (pixelCoordinates, state) => {
+          const ctx = state.context;
+          const x = Math.round(pixelCoordinates[0]);
+          const y = Math.round(pixelCoordinates[1]);
+          const size = 6;
+          const half = size / 2;
+          ctx.fillStyle = `rgba(255, 30, 30, ${alpha})`;
+          ctx.fillRect(x - half, y - half, size, size);
+        }
+      }));
+    }
+    return squareStyleCache.get(alphaBucket);
+  }
   for (const item of frontItems) {
-    const color = thermalColorForAge(item.t, latest, oldest);
+    const ageNorm = Math.max(0, Math.min(1, (item.t - oldest) / span));
+    const alphaBucket = Math.round((20 + 48 * ageNorm) / 4) * 4;
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
-      const props = sf?.properties || {};
-      for (const segment of thermalSegmentedLineStrings(coords)) {
-        const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
-        feature.setProperties({
-          sourceProps: props,
-          sourceCoords: coords,
-          frameTime: item.t,
-          color,
-          lineWidth: frontItems.length === 1 ? 3.0 : 1.9
-        });
-        lineFeatures.push(feature);
+      for (const pt of coords) {
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const lon = Number(pt[0]);
+        const lat = Number(pt[1]);
+        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        pointFeatures.push(new ol.Feature({
+          geometry: new ol.geom.Point([lon, lat]),
+          alphaBucket
+        }));
       }
     }
   }
 
-  const lineSource = new ol.source.Vector({ features: lineFeatures, wrapX: false });
-  const lineLayer = new ol.layer.Vector({
-    source: lineSource,
+  const pointSource = new ol.source.Vector({ features: pointFeatures, wrapX: false });
+  const pointLayer = new ol.layer.Vector({
+    source: pointSource,
     zIndex: 32,
-    style: thermalFeatureStyle,
+    style: feature => squareStyle(feature.get("alphaBucket") || 60),
     updateWhileAnimating: true, updateWhileInteracting: true
   });
 
-  console.log("[thermal] lineFeatures=" + lineFeatures.length + " hours=" + hours + " frames=" + frontItems.length);
-  return { pointLayer: lineLayer, densityLayer: null, scanTime };
+  console.log("[thermal] squareFeatures=" + pointFeatures.length + " hours=" + hours + " frames=" + frontItems.length);
+  return { pointLayer, densityLayer: null, scanTime };
 }
 
 async function buildUvCompositeLayer(map, count) {
