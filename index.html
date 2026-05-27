@@ -654,7 +654,7 @@ body.combined-mode #combined-menu-btn{
       gap:6px;
       align-items:center;
     }
-    body.combined-mode #combined-region-bar{ display:flex; align-items:center; gap:6px; }
+    body.combined-mode #combined-region-bar{ display:flex; align-items:center; gap:6px; width:100%; box-sizing:border-box; }
     #combined-region-bar #combined-region-select{
       width:auto;
       min-width:190px;
@@ -799,14 +799,13 @@ body.combined-mode #combined-menu-btn{
   <div id="combined-readout">—, —</div>
   <div id="combined-hover-tip"></div>
   <div id="combined-overlay"></div>
-  <div id="combined-region-bar">
-    <button id="temp-unit-toggle" aria-label="Toggle temperature unit">°C</button>
-    <select id="combined-region-select" aria-label="Region">
-      <option value="usec_south">US East Coast - South-Atlantic</option>
-      <option value="usec_md">US East Coast - Mid-Atlantic</option>
-    </select>
-  </div>
   <div id="combined-controls">
+    <div id="combined-region-bar">
+      <select id="combined-region-select" aria-label="Region">
+        <option value="usec_south">US East Coast - South-Atlantic</option>
+        <option value="usec_md">US East Coast - Mid-Atlantic</option>
+      </select>
+    </div>
     <div class="combined-section">
       <div class="combined-section-title">Product</div>
       <select id="combined-product-select">
@@ -908,9 +907,9 @@ body.combined-mode #combined-menu-btn{
           <option value="combined">Captain's Dashboard</option>
           <option value="chl">Chlorophyll</option>
           <option value="sst">Temperature</option>
+          <option value="thermal_fronts">Thermal Fronts</option>
           <option value="uv">Currents</option>
           <option value="bathy">Bathymetry</option>
-          <option value="thermal_fronts">Thermal Fronts</option>
         </select>
       </label>
       <div id="thermal-front-controls">
@@ -5194,7 +5193,10 @@ function thermalRenderReadout(coord, pixel) {
   if (thermalFrontState.cursorFeature) thermalFrontState.cursorFeature.getGeometry().setCoordinates(cursorCoord);
   const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
   if (Number.isFinite(gradient)) {
-    const parts = [`${gradient.toFixed(3)} °C/km`];
+    const gradDisplay = thermalDistUnit === "nm"
+      ? `${(gradient * kmPerNm).toFixed(3)} °C/nm`
+      : `${gradient.toFixed(3)} °C/km`;
+    const parts = [gradDisplay];
     if (deltaSst && Number.isFinite(deltaSst.value)) {
       const displayVal = tempUnit === "F" ? cToF(deltaSst.value) : deltaSst.value;
       parts.push(`${deltaSst.label} ${displayVal.toFixed(2)} ${tempUnitLabel()}`);
