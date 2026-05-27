@@ -4099,11 +4099,9 @@ function buildThermalHoursComposite(map, hours) {
       })
     : "";
 
-  // Match the original combined-viewer.html front rendering path: aggregate front
-  // coordinates into a coarse 0.014 degree canvas and draw one transparent red
   // ImageStatic overlay. This avoids thousands of separate vector symbols and
   // preserves the original visual density/opacity behavior.
-  const cellDeg = 0.005;
+  const cellDeg = 0.01;
   const [west, south, east, north] = BBOX.map(Number);
   const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
   const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
@@ -4112,7 +4110,7 @@ function buildThermalHoursComposite(map, hours) {
   canvas.height = ny;
   const ctx = canvas.getContext("2d");
   const counts = new Uint8Array(nx * ny);
-  const radiusPx = 2;
+  const cellHalf = cellDeg / 2;
 
   for (const item of frontItems) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
@@ -4139,9 +4137,9 @@ function buildThermalHoursComposite(map, hours) {
       if (!c) continue;
       nonzero++;
       const alpha = Math.min(200, c * 25);
-      ctx.beginPath();
-      ctx.arc(x, row, radiusPx, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+      ctx.beginPath();
+      ctx.arc(x + 0.5, row + 0.5, 0.5, 0, Math.PI * 2);
       ctx.fill();
     }
   }
