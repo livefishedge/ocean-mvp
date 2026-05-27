@@ -4050,7 +4050,7 @@ function buildThermalHoursComposite(map, hours) {
         pointFeatures.push(new ol.Feature({
           geometry: new ol.geom.Point([lon, lat]),
           style: new ol.style.Style({
-            image: new ol.style.RegularShape({ points: 4, angle: Math.PI / 4, radius: 6, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 0.85)" }) })
+            image: new ol.style.RegularShape({ points: 4, angle: Math.PI / 4, radius: 6, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 1)" }) })
           })
         }));
       }
@@ -4107,6 +4107,7 @@ function buildThermalHoursComposite(map, hours) {
   const densitySrc = new ol.source.ImageStatic({ url: canvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
   const densityLayer = new ol.layer.Image({ source: densitySrc, zIndex: 30, opacity: 0.85 });
 
+  console.log("[thermal] pointFeatures=" + pointFeatures.length + " densityCells=" + nonzero.length);
   return { pointLayer, densityLayer, scanTime };
 }
 
