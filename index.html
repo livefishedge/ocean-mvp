@@ -3338,7 +3338,7 @@ function updateBathyContours(map) {
   const extent = map.getView().calculateExtent(map.getSize());
   const [vx0, vy0, vx1, vy1] = extent;
 
-  const maxW = 400, maxH = 600;
+  const maxW = 800, maxH = 1200;
   const sx = Math.max(1, Math.floor(bd.nx / maxW));
   const sy = Math.max(1, Math.floor(bd.ny / maxH));
 
@@ -3681,7 +3681,7 @@ async function renderCombinedMode() {
   // NOTE: do NOT unlock _combinedRenderLocked here — it must stay set while the
   // function is building the new map. Unlock only after the new map is complete.
 
-  const view = new ol.View({ projection: "EPSG:4326", extent: BBOX });
+  const view = new ol.View({ projection: "EPSG:4326" });
   console.log("[combined] creating OL map, combinedMapDiv:", combinedMapDiv, "size:", combinedMapDiv?.clientWidth, combinedMapDiv?.clientHeight);
   // Force layout so combinedMapDiv has real pixel dimensions before new ol.Map
   // (position:absolute divs report 0x0 until the browser computes layout)
