@@ -650,14 +650,45 @@ body.combined-mode #combined-menu-btn{
     .combined-dot{ width:10px; height:10px; border-radius:50%; flex-shrink:0; }
     .dot-chl{ background:#1d8aff; }
     .dot-uv{ background:#00c8ff; }
-    .dot-bathy{ background:#8bb8d4; }
+    .dot-bathy{ background:#b25cff; }
     .dot-front{ background:#ff4040; }
-    #combined-currents-legend{ display:none; }
+    .combined-inline-legend{
+      margin:4px 0 8px 28px;
+      color:#9fb0c3;
+      font-size:12px;
+    }
+    .combined-legend-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin:4px 0;
+    }
+    .combined-bathy-swatch{
+      width:34px;
+      height:0;
+      border-top:2px solid #b25cff;
+      flex-shrink:0;
+    }
     #combined-overlay{
       position:fixed; inset:0; z-index:1105;
       background:rgba(0,0,0,0.4); display:none;
     }
     #combined-overlay.visible{ display:block; }
+    #combined-hover-tip{
+      display:none;
+      position:fixed;
+      z-index:1120;
+      pointer-events:none;
+      padding:4px 7px;
+      border-radius:4px;
+      background:rgba(8,12,20,0.86);
+      border:1px solid rgba(178,92,255,0.75);
+      color:#f2e8ff;
+      font-size:12px;
+      font-weight:800;
+      box-shadow:0 4px 14px rgba(0,0,0,0.25);
+      transform:translate(12px, -50%);
+    }
     #thermal-front-controls{
       display:none;
       flex-direction:column;
@@ -736,20 +767,10 @@ body.combined-mode #combined-menu-btn{
   <div id="readout">Lat/Lon: -- | Value: --</div>
   <button id="hamburger-btn" aria-label="Open product menu">☰</button>
   <div id="combined-map"></div>
-  <div id="combined-readout">Lat: — Lon: —</div>
+  <div id="combined-readout">—, —</div>
+  <div id="combined-hover-tip"></div>
   <div id="combined-overlay"></div>
   <div id="combined-controls">
-    <div class="combined-section">
-      <div class="combined-section-title">Product</div>
-      <select id="combined-product-select">
-        <option value="combined">Combined</option>
-        <option value="chl">Chlorophyll (CHL)</option>
-        <option value="sst">Sea Surface Temp (SST)</option>
-        <option value="uv">Currents (UV)</option>
-        <option value="bathy">Bathymetry</option>
-        <option value="thermal_fronts">Thermal Fronts</option>
-      </select>
-    </div>
     <div class="combined-section">
       <div class="combined-section-title">Region</div>
       <select id="combined-region-select">
@@ -758,12 +779,23 @@ body.combined-mode #combined-menu-btn{
       </select>
     </div>
     <div class="combined-section">
+      <div class="combined-section-title">Product</div>
+      <select id="combined-product-select">
+        <option value="combined">Ocean Conditions</option>
+        <option value="chl">Chlorophyll</option>
+        <option value="sst">Sea Surface Temp (SST)</option>
+        <option value="uv">Currents</option>
+        <option value="bathy">Bathymetry</option>
+        <option value="thermal_fronts">Thermal Fronts</option>
+      </select>
+    </div>
+    <div class="combined-section">
       <div class="combined-section-title">Layers</div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-chl" checked>
         <span class="box"></span>
         <span class="combined-dot dot-chl"></span>
-        <span>Chlorophyll (CHL)</span>
+        <span>Chlorophyll</span>
       </label>
       <select id="combined-chl-composite" style="margin:6px 0 4px 28px;font-size:13px;">
         <option value="1">Latest CHL</option>
@@ -782,15 +814,25 @@ body.combined-mode #combined-menu-btn{
         <input type="checkbox" id="chk-combined-uv" checked>
         <span class="box"></span>
         <span class="combined-dot dot-uv"></span>
-        <span>Currents (UV)</span>
+        <span>Currents</span>
       </label>
       <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
+      <div id="combined-current-scale" class="combined-inline-legend">
+        <div class="combined-legend-row">
+          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;">
+            <line x1="2" y1="10" x2="58" y2="10" stroke="rgba(255,255,255,0.78)" stroke-width="2.5" stroke-linecap="round"/>
+            <polygon points="58,10 48,6 48,14" fill="rgba(255,255,255,0.78)"/>
+          </svg>
+          <span style="font-weight:800;color:rgba(255,255,255,0.9);">0.5 m/s</span>
+        </div>
+      </div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-bathy" checked>
         <span class="box"></span>
         <span class="combined-dot dot-bathy"></span>
         <span>Bathymetry</span>
       </label>
+      <div id="combined-bathy-legend" class="combined-inline-legend"></div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-front" checked>
         <span class="box"></span>
@@ -807,16 +849,6 @@ body.combined-mode #combined-menu-btn{
         <option value="72">Last 72 hours</option>
       </select>
       <div id="combined-thermal-scan-time" style="font-size:11px;color:#ff6666;margin-left:28px;margin-bottom:8px;"></div>
-    </div>
-    <div class="combined-section" id="combined-currents-legend">
-      <div class="combined-section-title">Currents</div>
-      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#9fb0c3;">
-        <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;">
-          <line x1="2" y1="10" x2="58" y2="10" stroke="rgba(255,255,255,0.7)" stroke-width="2.5" stroke-linecap="round"/>
-          <polygon points="58,10 48,6 48,14" fill="rgba(255,255,255,0.7)"/>
-        </svg>
-        <span style="font-weight:700;color:rgba(255,255,255,0.85);">0.5 m/s</span>
-      </div>
     </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:0;left:0;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-right:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
@@ -848,7 +880,7 @@ body.combined-mode #combined-menu-btn{
           <option value="uv">Currents/SSH</option>
           <option value="bathy">Bathymetry</option>
           <option value="thermal_fronts">Thermal Fronts</option>
-          <option value="combined">Combined</option>
+          <option value="combined">Ocean Conditions</option>
         </select>
       </label>
       <div id="thermal-front-controls">
@@ -904,7 +936,7 @@ const VAR_LABELS = {
   uv:"Currents/SSH",
   bathy:"Bathymetry",
   thermal_fronts:"Thermal Fronts",
-  combined:"Combined"
+  combined:"Ocean Conditions"
 };
 
 const VAR_TO_GRID = {
@@ -1709,10 +1741,14 @@ if (chkChl) chkChl.addEventListener("change", e => {
 });
 if (chkUv) chkUv.addEventListener("change", e => {
   if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
+  const scale = document.getElementById("combined-current-scale");
+  if (scale) scale.style.display = e.target.checked ? "" : "none";
 });
 
 if (chkBathy) chkBathy.addEventListener("change", e => {
   if (window._combinedBathyLayer) window._combinedBathyLayer.setVisible(e.target.checked);
+  const legend = document.getElementById("combined-bathy-legend");
+  if (legend) legend.style.display = e.target.checked ? "" : "none";
 });
 if (chkFront) chkFront.addEventListener("change", e => {
   if (window._combinedFrontDensityLayer) window._combinedFrontDensityLayer.setVisible(e.target.checked);
@@ -1748,6 +1784,7 @@ if (chlCompositeSelect) {
     if (!window._combinedMap) return;
     const result = await buildChlCompositeLayer(window._combinedMap, count);
     if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
+    if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
   });
 }
@@ -3666,6 +3703,8 @@ async function renderCombinedMode() {
     const frame = chlFrames[chlFrames.length - 1];
     const data = await fetchFrameData("chl", frame);
     const grid = await loadGridForVar("chl", data);
+    window._combinedChlData = data;
+    window._combinedChlGrid = grid;
     const canvas = makeMobileRasterCanvas("chl", grid, data);
     const url = canvas.toDataURL("image/png");
     if (url && url.startsWith("data:image/png")) {
@@ -3727,25 +3766,36 @@ async function renderCombinedMode() {
 
   // ── Cursor readout ───────────────────────────────────────────────────
   const readoutEl = document.getElementById("combined-readout");
+  const hoverTip = document.getElementById("combined-hover-tip");
   map.on("pointermove", (ev) => {
     if (!ev.coordinate) return;
     const [lon, lat] = ev.coordinate;
-    let extra = "";
-    if (window._combinedFrontData && window._combinedFrontGrid) {
-      const g = window._combinedFrontGrid;
-      const x0 = g.xAxis[0], x1 = g.xAxis[1] || x0 + 0.01;
-      const y0 = g.yAxis[0], y1 = g.yAxis[1] || y0 + 0.01;
-      const col = Math.max(0, Math.min(g.nx - 1, Math.round((lon - x0) / (x1 - x0))));
-      const row = Math.max(0, Math.min(g.ny - 1, Math.round((y0 - lat) / (y0 - y1))));
-      const chl = window._combinedFrontData?.chl?.[row]?.[col];
-      if (chl > 0) extra = ` CHL ${chl.toFixed(2)}`;
+    const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
+    const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
+    if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
+    const bathyFeature = map.forEachFeatureAtPixel(ev.pixel, feature => (
+      Number.isFinite(feature.get("depth")) ? feature : null
+    ), { hitTolerance: 6 });
+    if (bathyFeature && hoverTip) {
+      hoverTip.textContent = `${bathyFeature.get("depth")}m`;
+      hoverTip.style.left = `${ev.originalEvent.clientX}px`;
+      hoverTip.style.top = `${ev.originalEvent.clientY}px`;
+      hoverTip.style.display = "block";
+    } else if (hoverTip) {
+      hoverTip.style.display = "none";
     }
-    if (readoutEl) readoutEl.textContent = `Lat: ${lat.toFixed(4)} Lon: ${lon.toFixed(4)}${extra}`;
+    if (readoutEl) readoutEl.textContent = parts.join("  ");
   });
   map.on("click", (ev) => {
     if (!ev.coordinate) return;
     const [lon, lat] = ev.coordinate;
-    if (readoutEl) readoutEl.textContent = `Lat: ${lat.toFixed(4)} Lon: ${lon.toFixed(4)}`;
+    const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
+    const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
+    if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
+    if (readoutEl) readoutEl.textContent = parts.join("  ");
+  });
+  map.getTargetElement()?.addEventListener("pointerleave", () => {
+    if (hoverTip) hoverTip.style.display = "none";
   });
 
   window._combinedRenderLocked = false;
@@ -3779,8 +3829,8 @@ function buildBathyContourLayer(bathyData, gridInfo) {
   const source = new ol.source.Vector({ wrapX: false });
   const layer = new ol.layer.Vector({
     source,
-    style: new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: "#8bb8d4", width: 0.8 })
+    style: feature => new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: "#b25cff", width: feature.get("depth") >= 1000 ? 1.1 : 0.9 })
     }),
     zIndex: 15
   });
@@ -3807,12 +3857,29 @@ function updateBathyContoursForMap(map) {
   const sy = Math.max(1, Math.floor(bd.ny / maxH));
   const maxDepth = depthMaxInExtent(bd, extent, sx, sy);
   const levels = generateContourLevels(maxDepth);
+  window._combinedBathyLevels = levels;
+  updateCombinedBathyLegend(levels);
   for (const level of levels) {
     const segs = extractContourSegments(bd, level, sx, sy, extent);
     for (const seg of segs) {
-      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg), depth: level }));
     }
   }
+}
+
+function updateCombinedBathyLegend(levels) {
+  const el = document.getElementById("combined-bathy-legend");
+  if (!el) return;
+  if (!levels?.length) {
+    el.textContent = "";
+    return;
+  }
+  el.innerHTML = `
+    <div class="combined-legend-row">
+      <span class="combined-bathy-swatch"></span>
+      <span>${levels.map(v => `${v}m`).join(", ")}</span>
+    </div>
+  `;
 }
 
 function depthMaxInExtent(bd, extent, sx, sy) {
@@ -3945,7 +4012,7 @@ function buildDesktopUvArrowLayer(data, grid) {
   const { xAxis, yAxis, nx, ny } = grid;
   if (!xAxis?.length || !yAxis?.length) return null;
   const features = [];
-  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 18));
+  const step = Math.max(2, Math.floor(Math.sqrt(nx * ny) / 36));
   const dxg = Math.abs((xAxis[1] ?? xAxis[0]) - xAxis[0]) || 0.01;
   const dyg = Math.abs((yAxis[1] ?? yAxis[0]) - yAxis[0]) || 0.01;
   const cell = Math.min(dxg, dyg);
@@ -4071,7 +4138,7 @@ async function buildChlCompositeLayer(map, count) {
         year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
       })
     : "";
-  return { layer, scanTime };
+  return { layer, scanTime, data: renderData, grid: base.grid };
 }
 
 
