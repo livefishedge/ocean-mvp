@@ -5560,6 +5560,7 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   }
 
   syncRangeInputsToVar();
+  console.log("[setCurrentVar] AFTER syncRangeInputsToVar currentVar:", currentVar);
   updateSliderUI();
   syncTimeControls();
   syncArrowLegend();
