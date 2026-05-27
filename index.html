@@ -4139,7 +4139,7 @@ function buildThermalHoursComposite(map, hours) {
       const alpha = Math.min(200, c * 25);
       ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
       ctx.beginPath();
-      ctx.arc(x + 0.5, row + 0.5, 0.5, 0, Math.PI * 2);
+      ctx.arc(x, row, 2, 0, Math.PI * 2);
       ctx.fill();
     }
   }
