@@ -573,11 +573,6 @@ body.combined-mode #combined-menu-btn{
       transition:background 0.15s;
     }
     body.combined-mode .combined-mode-row button.active{ background:#1d4f91; border-color:#4d7dff; }
-    body.combined-mode #combined-thermal-day-row,
-    body.combined-mode #combined-thermal-all-day-toggle{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color:#9fb0c3; }
-    body.combined-mode #combined-thermal-day-row select,
-    body.combined-mode #combined-thermal-all-day-cb{ width:100%; padding:5px 8px; background:rgba(12,23,35,0.9); border:1px solid #2a3a50; border-radius:6px; color:var(--fg); font-size:13px; cursor:pointer; box-sizing:border-box; }
-    body.combined-mode #combined-thermal-day-row select{ width:100%; }
     body.combined-mode .hamburger-range-block{ display:none !important; }
     body.combined-mode #hamburger-cbar{ display:none !important; }
 
@@ -618,17 +613,17 @@ body.combined-mode #combined-menu-btn{
     #combined-controls{
       display:none;
       position:fixed;
-      top:44px; left:0; bottom:0;
+      top:44px; right:0; bottom:0;
       width:220px;
       z-index:1110;
       background:var(--panel);
-      border-right:1px solid var(--border);
+      border-left:1px solid var(--border);
       padding:16px 14px;
       gap:12px;
       overflow-y:auto;
       flex-direction:column;
     }
-    body.combined-mode #combined-controls{ display:flex; transform:translateX(-100%); transition:transform 0.25s ease; }
+    body.combined-mode #combined-controls{ display:flex; transform:translateX(100%); transition:transform 0.25s ease; }
     body.combined-mode #combined-controls.open{ transform:translateX(0) !important; }
     body.combined-mode #combined-overlay{ display:none; }
     .combined-section{ display:flex; flex-direction:column; gap:8px; }
@@ -885,28 +880,6 @@ body.combined-mode #combined-menu-btn{
       </label>
       <div id="combined-bathy-legend" class="combined-inline-legend"></div>
     </div>
-    <div class="combined-section">
-      <div class="combined-section-title">Fronts</div>
-      <label id="combined-thermal-day-row">Day
-        <select id="combined-thermal-day-select"></select>
-      </label>
-      <label id="combined-thermal-all-day-toggle">
-        <input id="combined-thermal-all-day-cb" type="checkbox" />
-        <span id="combined-thermal-all-day-label">All fronts this day</span>
-      </label>
-      <div class="combined-mode-row" style="margin-top:4px;">
-        <button id="combined-thermal-mode-hourly" class="active" type="button">Hourly</button>
-        <button id="combined-thermal-mode-daily" type="button">Daily</button>
-      </div>
-      <div class="combined-mode-row" style="margin-top:4px;">
-        <button id="combined-thermal-mode-c" class="active" type="button">°C</button>
-        <button id="combined-thermal-mode-f" type="button">°F</button>
-      </div>
-      <div class="combined-mode-row" style="margin-top:4px;">
-        <button id="combined-thermal-mode-km" class="active" type="button">km</button>
-        <button id="combined-thermal-mode-nm" type="button">nm</button>
-      </div>
-    </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:8px;right:8px;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-left:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
     <span style="display:block;width:18px;height:2px;background:var(--fg);border-radius:2px;"></span>
@@ -932,12 +905,12 @@ body.combined-mode #combined-menu-btn{
       </label>
       <label>Product
         <select id="hamburger-product-select">
+          <option value="combined">Captain's Dashboard</option>
           <option value="chl">Chlorophyll</option>
           <option value="sst">Temperature</option>
           <option value="uv">Currents</option>
           <option value="bathy">Bathymetry</option>
           <option value="thermal_fronts">Thermal Fronts</option>
-          <option value="combined">Captain's Dashboard</option>
         </select>
       </label>
       <div id="thermal-front-controls">
@@ -1876,113 +1849,7 @@ if (chlCompositeSelect) {
   });
 }
 
-/* Combined thermal front controls — day / all-day / °C/°F / km/nm */
-const combinedThermalDaySelect = document.getElementById("combined-thermal-day-select");
-const combinedThermalDayRow = document.getElementById("combined-thermal-day-row");
-const combinedThermalAllDayToggle = document.getElementById("combined-thermal-all-day-toggle");
-const combinedThermalAllDayCb = document.getElementById("combined-thermal-all-day-cb");
-const combinedThermalAllDayLabel = document.getElementById("combined-thermal-all-day-label");
-const combinedThermalModeHourlyBtn = document.getElementById("combined-thermal-mode-hourly");
-const combinedThermalModeDailyBtn = document.getElementById("combined-thermal-mode-daily");
-const combinedThermalModeCBtn = document.getElementById("combined-thermal-mode-c");
-const combinedThermalModeFBtn = document.getElementById("combined-thermal-mode-f");
-const combinedThermalModeKmBtn = document.getElementById("combined-thermal-mode-km");
-const combinedThermalModeNmBtn = document.getElementById("combined-thermal-mode-nm");
-
-function combinedRebuildFrontLayers() {
-  const m = window._combinedMap;
-  if (!m) return;
-  // Remove existing front layers
-  if (window._combinedFrontLineLayer) { m.removeLayer(window._combinedFrontLineLayer); window._combinedFrontLineLayer = null; }
-  if (window._combinedFrontDensityLayer) { m.removeLayer(window._combinedFrontDensityLayer); window._combinedFrontDensityLayer = null; }
-  const hours = parseInt(document.getElementById("combined-thermal-hours")?.value || "24", 10);
-  const composite = buildThermalHoursComposite(m, hours);
-  if (composite.pointLayer) { m.addLayer(composite.pointLayer); window._combinedFrontLineLayer = composite.pointLayer; }
-  if (composite.densityLayer) { m.addLayer(composite.densityLayer); window._combinedFrontDensityLayer = composite.densityLayer; }
-  const thermalScanTimeDiv = document.getElementById("combined-thermal-scan-time");
-  if (thermalScanTimeDiv) thermalScanTimeDiv.textContent = composite.scanTime || "";
-}
-
-// Wire day select — re-syncs from thermal state then rebuilds
-if (combinedThermalDaySelect) {
-  // Populate day select using thermal's daily frame list
-  const dailyFrames = thermalFrontState.dailyFrames || [];
-  combinedThermalDaySelect.innerHTML = "";
-  dailyFrames.forEach(item => {
-    const opt = document.createElement("option");
-    opt.value = item.date;
-    opt.textContent = item.date;
-    combinedThermalDaySelect.appendChild(opt);
-  });
-  combinedThermalDaySelect.value = thermalFrontState.selectedDate || "";
-  combinedThermalDaySelect.addEventListener("change", () => {
-    thermalFrontState.selectedDate = combinedThermalDaySelect.value;
-    combinedRebuildFrontLayers();
-  });
-}
-// Wire all-day toggle — keep its own state, no need to sync from thermalAllDayCb
-if (combinedThermalAllDayCb) {
-  combinedThermalAllDayCb.addEventListener("change", () => {
-    combinedRebuildFrontLayers();
-  });
-}
-// Wire mode buttons
-if (combinedThermalModeHourlyBtn) {
-  combinedThermalModeHourlyBtn.addEventListener("click", () => {
-    thermalFrontState.mode = "hourly";
-    if (thermalModeHourlyBtn) thermalModeHourlyBtn.classList.add("active");
-    if (thermalModeDailyBtn) thermalModeDailyBtn.classList.remove("active");
-    combinedThermalModeHourlyBtn.classList.add("active");
-    combinedThermalModeDailyBtn.classList.remove("active");
-    combinedRebuildFrontLayers();
-  });
-}
-if (combinedThermalModeDailyBtn) {
-  combinedThermalModeDailyBtn.addEventListener("click", () => {
-    thermalFrontState.mode = "daily";
-    if (thermalModeDailyBtn) thermalModeDailyBtn.classList.add("active");
-    if (thermalModeHourlyBtn) thermalModeHourlyBtn.classList.remove("active");
-    combinedThermalModeDailyBtn.classList.add("active");
-    combinedThermalModeHourlyBtn.classList.remove("active");
-    combinedRebuildFrontLayers();
-  });
-}
-// Wire unit buttons — reuse thermal's existing toggle functions
-if (combinedThermalModeCBtn) {
-  combinedThermalModeCBtn.addEventListener("click", () => thermalSetTempUnit("C"));
-}
-if (combinedThermalModeFBtn) {
-  combinedThermalModeFBtn.addEventListener("click", () => thermalSetTempUnit("F"));
-}
-if (combinedThermalModeKmBtn) {
-  combinedThermalModeKmBtn.addEventListener("click", () => thermalSetDistUnit("km"));
-}
-if (combinedThermalModeNmBtn) {
-  combinedThermalModeNmBtn.addEventListener("click", () => thermalSetDistUnit("nm"));
-}
-// Sync combined button states from thermal state / localStorage on load
-if (thermalFrontState.mode === "daily" && combinedThermalModeDailyBtn) {
-  combinedThermalModeDailyBtn.classList.add("active");
-  combinedThermalModeHourlyBtn?.classList.remove("active");
-} else if (combinedThermalModeHourlyBtn) {
-  combinedThermalModeHourlyBtn.classList.add("active");
-  combinedThermalModeDailyBtn?.classList.remove("active");
-}
-if (tempUnit === "F" && combinedThermalModeFBtn) {
-  combinedThermalModeFBtn.classList.add("active");
-  combinedThermalModeCBtn?.classList.remove("active");
-} else if (combinedThermalModeCBtn) {
-  combinedThermalModeCBtn.classList.add("active");
-  combinedThermalModeFBtn?.classList.remove("active");
-}
-if (thermalDistUnit === "nm" && combinedThermalModeNmBtn) {
-  combinedThermalModeNmBtn.classList.add("active");
-  combinedThermalModeKmBtn?.classList.remove("active");
-} else if (combinedThermalModeKmBtn) {
-  combinedThermalModeKmBtn.classList.add("active");
-  combinedThermalModeNmBtn?.classList.remove("active");
-}
-
+/* Thermal unit & dist settings — silently shared, no UI in combined sidebar */
 /* Marker state */
 let markers = [];
 let markerMode = "off"; // "off" | "add" | "remove"
