@@ -23,6 +23,8 @@
     #load-status{font-size:12px;font-weight:700;color:#9fb0c3;}
     #region-select{padding:5px 10px;background:rgba(12,23,35,0.9);border:1px solid #2a3a50;border-radius:6px;color:var(--fg);font-size:13px;cursor:pointer;min-width:140px;}
     #region-select option{background:#050b10;}
+    #product-select{padding:5px 10px;background:rgba(12,23,35,0.9);border:1px solid #2a3a50;border-radius:6px;color:var(--fg);font-size:13px;cursor:pointer;min-width:150px;}
+    #product-select option{background:#050b10;}
 
     /* ── Hamburger ── */
     #menu-toggle{position:fixed;top:0;left:0;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-right:1px solid var(--border);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;}
@@ -51,6 +53,22 @@
 <body>
 
 <button id="menu-toggle" aria-label="Menu"><span></span><span></span><span></span></button>
+<div id="controls">
+  <span id="load-status"></span>
+  <select id="product-select">
+    <option value="chl">Chlorophyll</option>
+    <option value="sst">Temperature</option>
+    <option value="thermal_fronts">Thermal Fronts</option>
+    <option value="combined">Captain's Dashboard</option>
+    <option value="uv">Currents</option>
+    <option value="bathy">Bathymetry</option>
+  </select>
+  <select id="region-select">
+    <option value="usec_south">USEC South</option>
+    <option value="usec_md">Mid-Atlantic</option>
+    <option value="usec_north">USEC North</option>
+  </select>
+</div>
 <div id="sidebar-overlay"></div>
 <div id="sidebar">
   <div class="sidebar-section">
@@ -746,9 +764,18 @@ map.on("pointermove",(evt)=>{
   }
   cursorReadout.textContent=`Lat: ${lat.toFixed(3)}° Lon: ${lon.toFixed(3)}°${frontInfo}`;
 });
-const regionSelect=document.getElementById("region-select");
-regionSelect.value=REGION_ID;
-regionSelect.addEventListener("change",()=>{window.location.href=`${window.location.pathname}?region=${regionSelect.value}&t=${Date.now()}`;});
+const regionSelect = document.getElementById("region-select");
+regionSelect.value = REGION_ID;
+regionSelect.addEventListener("change", () => {
+  window.location.href = `${window.location.pathname}?region=${regionSelect.value}&t=${Date.now()}`;
+});
+
+const productSelect = document.getElementById("product-select");
+if (productSelect) {
+  productSelect.addEventListener("change", () => {
+    window.location.href = `index.html?var=${productSelect.value}&region=${REGION_ID}`;
+  });
+}
 (async()=>{const status=document.getElementById("status");status.textContent="Loading layers…";try{const[ch,uv,bath,fr,land,places]=await Promise.all([loadChlLayer(),loadUvLayer(),loadBathymetryLayer(),loadFrontsLayer(),loadLandLayer(),loadPlaceLayer()]);chlLayer=ch;uvLayer=uv;bathyLayer=bath;frontsLayer=fr;landLayer=land;placeLayer=places;status.textContent="Ready";setTimeout(()=>{status.textContent="";},3000);}catch(e){console.error(e);status.textContent="Error loading layers";}})();
 </script>
 </body>
