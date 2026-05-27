@@ -1029,6 +1029,10 @@ function mapViewportRanges(map) {
   return { xRange: [extent[0], extent[2]], yRange: [extent[1], extent[3]] };
 }
 function currentViewportRanges() {
+  if (currentVar === "combined" && window._combinedMap) {
+    const combinedVp = mapViewportRanges(window._combinedMap);
+    if (combinedVp) return combinedVp;
+  }
   if (currentVar === "thermal_fronts" && thermalFrontState.map) {
     const thermalVp = mapViewportRanges(thermalFrontState.map);
     if (thermalVp) return thermalVp;
@@ -1058,6 +1062,10 @@ function syncViewStateFromOlMap(map) {
   viewState.hasRange = true;
   viewState.xRange = vp.xRange;
   viewState.yRange = vp.yRange;
+}
+function syncProductSelectors() {
+  if (hamburgerProductSelect) hamburgerProductSelect.value = currentVar;
+  if (combinedProductSelect) combinedProductSelect.value = currentVar;
 }
 function applyViewStateToOlMap(map, fallbackExtent) {
   if (!map) return;
@@ -1622,10 +1630,15 @@ const combinedRegionSelect = document.getElementById("combined-region-select");
 const combinedProductSelect = document.getElementById("combined-product-select");
 if (combinedProductSelect) {
   combinedProductSelect.value = currentVar;
-  combinedProductSelect.addEventListener("change", () => {
-    const url = new URL(location.href);
-    url.searchParams.set("var", combinedProductSelect.value);
-    location.href = url.toString();
+  combinedProductSelect.addEventListener("change", async () => {
+    const nextVar = combinedProductSelect.value;
+    setPlaying(false);
+    combinedControls?.classList.remove("open");
+    if (combinedOverlay) combinedOverlay.style.display = "none";
+    await setCurrentVar(nextVar, true, true);
+    const url = appendViewportParams(new URL(location.href));
+    url.searchParams.set("var", nextVar);
+    history.replaceState(null, "", url.toString());
   });
 }
 if (combinedMenuBtn) {
@@ -1663,7 +1676,6 @@ if (chkUv) chkUv.addEventListener("change", e => {
 });
 if (chkBathy) chkBathy.addEventListener("change", e => {
   if (window._combinedBathyLayer) window._combinedBathyLayer.setVisible(e.target.checked);
-  if (window._combinedLandLayer) window._combinedLandLayer.setVisible(e.target.checked);
 });
 if (chkFront) chkFront.addEventListener("change", e => {
   if (window._combinedFrontDensityLayer) window._combinedFrontDensityLayer.setVisible(e.target.checked);
@@ -2268,6 +2280,7 @@ function closestDaytimeIndex(varKey, times, frames, targetMs) {
   return best >= 0 ? best : 0;
 }
 function requestedTimeFromParams(params = QUERY_PARAMS) {
+  if (!params.has("t")) return null;
   const t = Number(params.get("t"));
   return Number.isFinite(t) ? t : null;
 }
@@ -3476,7 +3489,10 @@ async function renderCombinedMode() {
 
   // ── Build a standalone OL map in #combined-map ─────────────────────────
   const combinedMapDiv = document.getElementById("combined-map");
-  if (!combinedMapDiv) return;
+  if (!combinedMapDiv) {
+    window._combinedRenderLocked = false;
+    return;
+  }
 
   // Destroy previous instance if any
   if (window._combinedMap) {
@@ -3509,6 +3525,7 @@ async function renderCombinedMode() {
     controls: ol.control.defaults.defaults({ zoom: true, attribution: false })
   });
   window._combinedMap = map;
+  map.on("moveend", () => syncViewStateFromOlMap(map));
   console.log("[combined] OL map created, target:", !!map.getTargetElement(), "size:", map.getSize());
   const cv0 = map.getTargetElement()?.querySelector("canvas");
   console.log("[combined]   canvas initial:", cv0 ? `${cv0.width}x${cv0.height}` : "NO CANVAS");
@@ -3542,9 +3559,8 @@ async function renderCombinedMode() {
       const sz = m.getSize();
       console.log("[combined] updateSize ran, new size:", sz);
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        const view = m.getView();
-        view.fit(BBOX, { size: sz });
-        console.log("[combined] view.fit retried, zoom:", view.getZoom());
+        applyViewStateToOlMap(m, BBOX);
+        console.log("[combined] view fit retried, zoom:", m.getView().getZoom());
       }
     });
     setTimeout(() => {
@@ -3554,18 +3570,16 @@ async function renderCombinedMode() {
       const sz = m.getSize();
       console.log("[combined] updateSize from timer, size:", sz);
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        const view = m.getView();
-        view.fit(BBOX, { size: sz });
-        console.log("[combined] view.fit from timer, zoom:", view.getZoom());
+        applyViewStateToOlMap(m, BBOX);
+        console.log("[combined] view fit from timer, zoom:", m.getView().getZoom());
       }
     }, 500);
   } else {
-    view.fit(BBOX, { size: map.getSize() });
+    applyViewStateToOlMap(map, BBOX);
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
-  // Layer order: land(5) → CHL(10) → bathy contours(15) → UV(20) → place labels(40) → fronts(30/32)
-  // Land at zIndex:5 so CHL(10) sits above it, bathy(15) sits above CHL
+  // Layer order: CHL(10) -> bathy contours(15) -> UV(20) -> land(24) -> fronts(30/32) -> labels(40)
 
   // ── Layer: land ───────────────────────────────────────────────────────
   console.log("[combined] before ensureCombinedLandLayer");
@@ -3609,27 +3623,19 @@ async function renderCombinedMode() {
     if (arrowLayer) { map.addLayer(arrowLayer); window._combinedUvLayer = arrowLayer; }
   }
 
-  // ── Layer: Thermal front density + line features ──────────────────────
-  const tfFrames = framesByVar.thermal_fronts || [];
-  if (tfFrames.length) {
-    const latestFrame = tfFrames[tfFrames.length - 1];
-    const frontData = await fetchFrameData("thermal_fronts", latestFrame);
-    let grid;
-    try { grid = await loadGridForVar("thermal_fronts", frontData); } catch (_) { grid = null; }
-    window._combinedFrontGrid = grid;
-    window._combinedFrontData = frontData;
-    if (grid) {
-      const frontCanvas = buildThermalFrontDensityCanvas(frontData, grid);
-      if (frontCanvas instanceof HTMLCanvasElement) {
-        const extent = frameExtentFromGrid(grid);
-        const src = new ol.source.ImageStatic({ url: frontCanvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-        const layer = new ol.layer.Image({ source: src, zIndex: 30, opacity: 0.85 });
-        map.addLayer(layer);
-        window._combinedFrontDensityLayer = layer;
-      }
-      const frontLineLayer = buildThermalFrontLineLayer(frontData);
-      if (frontLineLayer) { map.addLayer(frontLineLayer); window._combinedFrontLineLayer = frontLineLayer; }
-    }
+  // ── Layer: Thermal fronts. Reuse the standalone thermal-front product contract.
+  await thermalLoadData();
+  const thermalItems = thermalFrontState.frameData.length
+    ? [thermalFrontState.frameData[thermalFrontState.frameData.length - 1]]
+    : [];
+  window._combinedFrontData = thermalItems[0]?.data || null;
+  window._combinedFrontGrid = window._combinedFrontData
+    ? await loadGridForVar("thermal_fronts", window._combinedFrontData).catch(() => null)
+    : null;
+  const frontLineLayer = buildCombinedThermalFrontLineLayer(thermalItems);
+  if (frontLineLayer) {
+    map.addLayer(frontLineLayer);
+    window._combinedFrontLineLayer = frontLineLayer;
   }
 
   // ── Cursor readout ───────────────────────────────────────────────────
@@ -3806,7 +3812,7 @@ async function ensureCombinedLandLayer(map) {
     projection: "EPSG:4326",
     interpolate: false
   });
-  const layer = new ol.layer.Image({ source: src, zIndex: 5 });
+  const layer = new ol.layer.Image({ source: src, zIndex: 24 });
   map.addLayer(layer);
   window._combinedLandLayer = layer;
   console.log("[combined] LAND layer added, total layers:", map.getLayers().getLength());
@@ -3907,6 +3913,38 @@ function speedColor(speed, min, max) {
   const r = Math.round(255 * t);
   const b = Math.round(255 * (1 - t));
   return `rgb(${r},50,${b})`;
+}
+
+function buildCombinedThermalFrontLineLayer(items) {
+  const latestMs = items.at(-1)?.t ?? Date.now();
+  const oldestMs = items[0]?.t ?? latestMs;
+  const features = [];
+  for (const item of items) {
+    const color = thermalColorForAge(item.t, latestMs, oldestMs);
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sourceFeature of sourceFeatures) {
+      const coords = sourceFeature?.geometry?.coordinates || [];
+      const props = sourceFeature?.properties || {};
+      for (const segment of thermalSegmentedLineStrings(coords)) {
+        const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
+        feature.setProperties({
+          sourceProps: props,
+          frameTime: item.t,
+          color,
+          lineWidth: items.length === 1 ? 2.8 : 1.7
+        });
+        features.push(feature);
+      }
+    }
+  }
+  if (!features.length) return null;
+  return new ol.layer.Vector({
+    source: new ol.source.Vector({ features, wrapX: false }),
+    style: thermalFeatureStyle,
+    zIndex: 32,
+    updateWhileAnimating: true,
+    updateWhileInteracting: true
+  });
 }
 
 function buildThermalFrontLineLayer(frontData) {
@@ -4281,7 +4319,7 @@ function syncRangeInputsToVar() {
   if (hVmin) hVmin.value = userRanges[currentVar].vmin;
   if (hVmax) hVmax.value = userRanges[currentVar].vmax;
   if (hTitle) hTitle.textContent = VAR_LABELS[currentVar];
-  if (hamburgerProductSelect) hamburgerProductSelect.value = currentVar;
+  syncProductSelectors();
   if (hamburgerRegionSelect) hamburgerRegionSelect.value = REGION_ID;
   updateTempUnitUI();
 }
@@ -4916,7 +4954,7 @@ async function thermalLoadData() {
     thermalFrontState.frameData = thermalFrontState.frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
     thermalFrontState.densityCache = new Map();
     thermalBuildDailyFrames();
-    const requestedMs = Number(QUERY_PARAMS.get("t"));
+    const requestedMs = requestedTimeFromParams();
     const requestedIdx = thermalClosestFrameIndex(thermalFrontState.frameData, requestedMs);
     thermalFrontState.selectedDate = Number.isFinite(requestedMs)
       ? thermalDateKey(thermalFrontState.frameData[requestedIdx]?.t || requestedMs)
@@ -5006,8 +5044,11 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const prevFrame = prevFrames[currentFrameIdx] || null;
   const prevT = (keepTime && prevFrame) ? epochMsForFrame(prevVar, prevFrame) : null;
 
-  // Save current viewport before switching products
-  const savedRange = (keepRange && viewState.hasRange) ? { x: viewState.xRange, y: viewState.yRange } : null;
+  // Save the live OL/Plotly viewport before switching products.
+  const liveRange = keepRange ? currentViewportRanges() : null;
+  const savedRange = liveRange
+    ? { x: liveRange.xRange, y: liveRange.yRange }
+    : ((keepRange && viewState.hasRange) ? { x: viewState.xRange, y: viewState.yRange } : null);
 
   currentVar = v;
   // Reset combined map state when switching away from combined
