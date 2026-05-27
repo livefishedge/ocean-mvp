@@ -4049,9 +4049,9 @@ function buildThermalHoursComposite(map, hours) {
         const lat = Number(pt[1]);
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
         pointFeatures.push(new ol.Feature({
-          geometry: new ol.geom.Circle([lon, lat], 0.003, "XY"),
+          geometry: new ol.geom.Point([lon, lat]),
           style: new ol.style.Style({
-            image: new ol.style.Circle({ radius: 3, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 0.85)" }) })
+            image: new ol.style.RegularShape({ points: 4, angle: Math.PI / 4, radius: 6, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 0.85)" }) })
           })
         }));
       }
