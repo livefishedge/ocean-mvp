@@ -800,11 +800,13 @@ body.combined-mode #combined-menu-btn{
   <div id="combined-hover-tip"></div>
   <div id="combined-overlay"></div>
   <div id="combined-controls">
-    <div id="combined-region-bar">
-      <select id="combined-region-select" aria-label="Region">
-        <option value="usec_south">US East Coast - South-Atlantic</option>
-        <option value="usec_md">US East Coast - Mid-Atlantic</option>
-      </select>
+    <div class="combined-section">
+      <label>Region
+        <select id="combined-region-select">
+          <option value="usec_south">US East Coast - South-Atlantic</option>
+          <option value="usec_md">US East Coast - Mid-Atlantic</option>
+        </select>
+      </label>
     </div>
     <div class="combined-section">
       <div class="combined-section-title">Product</div>
@@ -3724,9 +3726,8 @@ async function renderCombinedMode() {
       if (!m) return;
       m.updateSize();
       const sz = m.getSize();
-      console.log("[combined] updateSize ran, new size:", sz);
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        applyViewStateToOlMap(m, null); // null = preserve current viewport
+        applyViewStateToOlMap(m, viewState); // restore saved viewport
         console.log("[combined] view fit retried, zoom:", m.getView().getZoom());
       }
     });
@@ -3735,15 +3736,13 @@ async function renderCombinedMode() {
       if (!m) return;
       m.updateSize();
       const sz = m.getSize();
-      console.log("[combined] updateSize from timer, size:", sz);
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        applyViewStateToOlMap(m, null); // preserve current viewport
+        applyViewStateToOlMap(m, viewState); // restore saved viewport
         console.log("[combined] view fit from timer, zoom:", m.getView().getZoom());
       }
     }, 500);
   } else {
-    // null fallback = preserve whatever view state is already set (from prior var or default BBOX)
-    applyViewStateToOlMap(map, null);
+    applyViewStateToOlMap(map, viewState); // restore saved viewport from previous product page
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
@@ -5175,6 +5174,10 @@ function thermalNearestGradient(coord) {
 }
 
 function thermalRenderReadout(coord, pixel) {
+  if (coord && Number.isFinite(coord[0]) && Number.isFinite(coord[1])) {
+    lastThermalCoord = coord;
+    lastThermalPixel = pixel;
+  }
   if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) return;
   let cursorCoord = coord;
   let readoutCoord = coord;
@@ -5356,6 +5359,7 @@ function updateThermalFrontsNav() {
 }
 
 function thermalUpdateLegendAndStatus() {
+  if (currentVar !== "thermal_fronts") return;
   const legendEl = document.getElementById("legend");
   const list = thermalActiveFrameList();
   if (thermalFrontState.mode === "daily") {
@@ -5994,6 +5998,7 @@ thermalModeHourlyBtn?.addEventListener("click", () => thermalSetMode("animation"
 thermalModeDailyBtn?.addEventListener("click", () => thermalSetMode("daily"));
 
 /* Thermal fronts C/F and km/nm unit toggles */
+let lastThermalCoord = null, lastThermalPixel = null;
 const thermalModeCBtn = document.getElementById("thermal-mode-c");
 const thermalModeFBtn = document.getElementById("thermal-mode-f");
 const thermalModeKmBtn = document.getElementById("thermal-mode-km");
@@ -6004,14 +6009,22 @@ function thermalSetTempUnit(u) {
   thermalModeCBtn?.classList.toggle("active", u === "C");
   thermalModeFBtn?.classList.toggle("active", u === "F");
   updateTempUnitToggleLabel();
-  if (currentVar === "thermal_fronts") showFrame();
+  if (currentVar === "thermal_fronts") {
+    showFrame().then(() => {
+      if (lastThermalCoord) thermalRenderReadout(lastThermalCoord, lastThermalPixel);
+    });
+  }
 }
 function thermalSetDistUnit(u) {
   thermalDistUnit = u;
   localStorage.setItem("thermal_dist_unit", thermalDistUnit);
   thermalModeKmBtn?.classList.toggle("active", u === "km");
   thermalModeNmBtn?.classList.toggle("active", u === "nm");
-  if (currentVar === "thermal_fronts") showFrame();
+  if (currentVar === "thermal_fronts") {
+    showFrame().then(() => {
+      if (lastThermalCoord) thermalRenderReadout(lastThermalCoord, lastThermalPixel);
+    });
+  }
 }
 thermalModeCBtn?.addEventListener("click", () => thermalSetTempUnit("C"));
 thermalModeFBtn?.addEventListener("click", () => thermalSetTempUnit("F"));
