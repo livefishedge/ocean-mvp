@@ -784,14 +784,6 @@ body.combined-mode #combined-menu-btn{
         <span class="combined-dot dot-uv"></span>
         <span>Currents (UV)</span>
       </label>
-      <select id="combined-uv-composite" style="margin:6px 0 4px 28px;font-size:13px;">
-        <option value="1">Latest</option>
-        <option value="2">Last 2 scans</option>
-        <option value="3">Last 3 scans</option>
-        <option value="4">Last 4 scans</option>
-        <option value="6">Last 6 scans</option>
-        <option value="12">Last 12 scans</option>
-      </select>
       <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-bathy" checked>
@@ -808,7 +800,7 @@ body.combined-mode #combined-menu-btn{
       <select id="combined-thermal-hours" style="margin:6px 0 4px 28px;font-size:13px;">
         <option value="1">Latest hourly</option>
         <option value="3">Last 3 hours</option>
-        <option value="6">Last 6 hours</option>
+        <option value="6" selected>Last 6 hours</option>
         <option value="12">Last 12 hours</option>
         <option value="24">Last 24 hours</option>
         <option value="48">Last 48 hours</option>
@@ -1719,19 +1711,6 @@ if (chkUv) chkUv.addEventListener("change", e => {
   if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
 });
 
-const uvCompositeSelect = document.getElementById("combined-uv-composite");
-const uvScanTimeDiv = document.getElementById("combined-uv-scan-time");
-if (uvCompositeSelect) {
-  uvCompositeSelect.addEventListener("change", async () => {
-    const count = parseInt(uvCompositeSelect.value, 10);
-    const m = window._combinedMap;
-    if (window._combinedUvLayer) { m?.removeLayer(window._combinedUvLayer); window._combinedUvLayer = null; }
-    if (!m) return;
-    const result = await buildUvCompositeLayer(m, count);
-    if (result?.layer) { m.addLayer(result.layer); window._combinedUvLayer = result.layer; }
-    if (uvScanTimeDiv) uvScanTimeDiv.textContent = result?.scanTime || "";
-  });
-}
 if (chkBathy) chkBathy.addEventListener("change", e => {
   if (window._combinedBathyLayer) window._combinedBathyLayer.setVisible(e.target.checked);
 });
@@ -3682,6 +3661,7 @@ async function renderCombinedMode() {
 
   // ── Layer: CHL raster ────────────────────────────────────────────────
   const chlFrames = framesByVar.chl || [];
+  const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
   if (chlFrames.length) {
     const frame = chlFrames[chlFrames.length - 1];
     const data = await fetchFrameData("chl", frame);
@@ -3695,6 +3675,12 @@ async function renderCombinedMode() {
       map.addLayer(layer);
       window._combinedChlLayer = layer;
     }
+    const chlT = epochMsForFrame("chl", frame);
+    if (chlScanTimeDiv) chlScanTimeDiv.textContent = chlT
+      ? new Date(chlT).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "";
+  } else {
+    if (chlScanTimeDiv) chlScanTimeDiv.textContent = "";
   }
 
   // ── Layer: Bathymetry contours ───────────────────────────────────────
@@ -3733,7 +3719,8 @@ async function renderCombinedMode() {
     ? await loadGridForVar("thermal_fronts", window._combinedFrontData).catch(() => null)
     : null;
   const thermalScanTimeDiv = document.getElementById("combined-thermal-scan-time");
-  const initialThermal = buildThermalHoursComposite(map, 1);
+  const initialThermalHours = parseInt(document.getElementById("combined-thermal-hours")?.value || "6", 10);
+  const initialThermal = buildThermalHoursComposite(map, initialThermalHours);
   if (initialThermal.pointLayer) { map.addLayer(initialThermal.pointLayer); window._combinedFrontLineLayer = initialThermal.pointLayer; }
   if (initialThermal.densityLayer) { map.addLayer(initialThermal.densityLayer); window._combinedFrontDensityLayer = initialThermal.densityLayer; }
   if (thermalScanTimeDiv) thermalScanTimeDiv.textContent = initialThermal.scanTime || "";
@@ -4015,6 +4002,78 @@ function speedColor(speed, min, max) {
   return `rgb(${r},50,${b})`;
 }
 
+async function buildChlCompositeLayer(map, count) {
+  const chlFrames = framesByVar.chl || [];
+  if (!chlFrames.length) return {};
+  const sorted = [...chlFrames].sort((a, b) => {
+    const ta = epochMsForFrame("chl", a) || 0;
+    const tb = epochMsForFrame("chl", b) || 0;
+    return tb - ta;
+  });
+  const selected = sorted.slice(0, Math.max(1, Math.min(count || 1, sorted.length)));
+  const loaded = (await Promise.all(selected.map(async frame => {
+    try {
+      const data = await fetchFrameData("chl", frame);
+      const grid = await loadGridForVar("chl", data);
+      const z = mobileZForVar("chl", data);
+      return is2D(z) ? { frame, data, grid, z } : null;
+    } catch (err) {
+      console.warn("CHL composite frame failed", frame?.id || frame?.json_path, err);
+      return null;
+    }
+  }))).filter(Boolean);
+  if (!loaded.length) return {};
+
+  const base = loaded[0];
+  const ny = base.z.length;
+  const nx = base.z[0]?.length || 0;
+  if (!ny || !nx) return {};
+  const compatible = loaded.filter(item =>
+    item.z.length === ny &&
+    item.z[0]?.length === nx &&
+    JSON.stringify(item.data?.bbox || []) === JSON.stringify(base.data?.bbox || [])
+  );
+
+  let renderData = base.data;
+  if (compatible.length > 1) {
+    const composite = Array.from({ length: ny }, () => Array(nx).fill(null));
+    for (let row = 0; row < ny; row++) {
+      for (let col = 0; col < nx; col++) {
+        const vals = [];
+        for (const item of compatible) {
+          const value = Number(item.z[row]?.[col]);
+          if (Number.isFinite(value) && value > 0 && Math.abs(value) < 1e20) vals.push(value);
+        }
+        if (vals.length) {
+          vals.sort((a, b) => a - b);
+          composite[row][col] = vals[Math.floor(vals.length / 2)];
+        }
+      }
+    }
+    renderData = { ...base.data, z: composite, chl: composite, data: composite, nx, ny, bbox: base.data?.bbox };
+  }
+
+  const canvas = makeMobileRasterCanvas("chl", base.grid, renderData);
+  const url = canvas.toDataURL("image/png");
+  if (!url || !url.startsWith("data:image/png")) return {};
+  const layer = new ol.layer.Image({
+    source: new ol.source.ImageStatic({
+      url,
+      imageExtent: frameExtentFromGrid(base.grid),
+      projection: "EPSG:4326",
+      interpolate: false
+    }),
+    zIndex: 10
+  });
+  const times = compatible.map(item => epochMsForFrame("chl", item.frame)).filter(Boolean).sort((a, b) => a - b);
+  const scanTime = times.length
+    ? new Date(times[Math.floor(times.length / 2)]).toLocaleString(undefined, {
+        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      })
+    : "";
+  return { layer, scanTime };
+}
+
 
 /* ============================================================
    Combined-mode helpers: build ThermalHours composite layers
@@ -4022,12 +4081,17 @@ function speedColor(speed, min, max) {
 
 
 function buildThermalHoursComposite(map, hours) {
-  const now = Date.now();
-  const cutoff = now - hours * 3600000;
+  const allItems = (thermalFrontState.frameData || [])
+    .filter(item => Number.isFinite(item?.t))
+    .sort((a, b) => a.t - b.t);
+  const latest = allItems.at(-1)?.t ?? Date.now();
+  const cutoff = latest - hours * 3600000;
 
-  // Collect all thermal front items within the hours window
-  const frontItems = (thermalFrontState.frameData || []).filter(item => item.t >= cutoff);
-    // Scan time: mid-point timestamp in local format
+  // Collect thermal front items relative to the latest available scan, not wall-clock
+  // time, so stale-but-current published data still renders a multi-hour overlay.
+  let frontItems = allItems.filter(item => item.t >= cutoff && item.t <= latest);
+  if (!frontItems.length && allItems.length) frontItems = [allItems.at(-1)];
+  // Scan time: mid-point timestamp in local format
   const tSorted = frontItems.map(i => i.t).filter(Boolean).sort((a, b) => a - b);
   const scanTime = tSorted.length > 0
     ? new Date(tSorted[Math.floor(tSorted.length / 2)]).toLocaleString(undefined, {
@@ -4035,9 +4099,32 @@ function buildThermalHoursComposite(map, hours) {
       })
     : "";
 
-  // Build point features — individual symbols, fixed pixel radius, solid red
+  // Build fixed-pixel red square symbols. Do not use circles or canvas arcs here:
+  // the combined thermal layer is meant to read like the original fronts overlay.
   const pointFeatures = [];
+  const oldest = tSorted[0] ?? latest;
+  const span = Math.max(1, latest - oldest);
+  const squareStyleCache = new Map();
+  function squareStyle(alphaBucket) {
+    if (!squareStyleCache.has(alphaBucket)) {
+      const alpha = (alphaBucket / 100).toFixed(2);
+      squareStyleCache.set(alphaBucket, new ol.style.Style({
+        renderer: (pixelCoordinates, state) => {
+          const ctx = state.context;
+          const x = Math.round(pixelCoordinates[0]);
+          const y = Math.round(pixelCoordinates[1]);
+          const size = 6;
+          const half = size / 2;
+          ctx.fillStyle = `rgba(255, 30, 30, ${alpha})`;
+          ctx.fillRect(x - half, y - half, size, size);
+        }
+      }));
+    }
+    return squareStyleCache.get(alphaBucket);
+  }
   for (const item of frontItems) {
+    const ageNorm = Math.max(0, Math.min(1, (item.t - oldest) / span));
+    const alphaBucket = Math.round((18 + 44 * ageNorm) / 4) * 4;
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
@@ -4049,9 +4136,7 @@ function buildThermalHoursComposite(map, hours) {
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
         pointFeatures.push(new ol.Feature({
           geometry: new ol.geom.Point([lon, lat]),
-          style: new ol.style.Style({
-            image: new ol.style.RegularShape({ points: 4, angle: Math.PI / 4, radius: 6, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 1)" }) })
-          })
+          alphaBucket
         }));
       }
     }
@@ -4060,55 +4145,12 @@ function buildThermalHoursComposite(map, hours) {
   const pointSource = new ol.source.Vector({ features: pointFeatures, wrapX: false });
   const pointLayer = new ol.layer.Vector({
     source: pointSource, zIndex: 32,
+    style: feature => squareStyle(feature.get("alphaBucket") || 60),
     updateWhileAnimating: true, updateWhileInteracting: true
   });
 
-  // Build density canvas — 0.005° cell, red dots showing where fronts cluster
-  const cellDeg = 0.005;
-  const [west, south, east, north] = BBOX.map(Number);
-  const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
-  const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
-  const counts = new Int32Array(nx * ny);
-
-  for (const item of frontItems) {
-    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
-    for (const sf of sourceFeatures) {
-      const coords = sf?.geometry?.coordinates || [];
-      for (const pt of coords) {
-        if (!Array.isArray(pt) || pt.length < 2) continue;
-        const lon = Number(pt[0]);
-        const lat = Number(pt[1]);
-        if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-        const cx = Math.round((lon - west) / cellDeg);
-        const cy = Math.round((lat - south) / cellDeg);
-        if (cx >= 0 && cx < nx && cy >= 0 && cy < ny) counts[cy * nx + cx]++;
-      }
-    }
-  }
-
-  const nonzero = Array.from(counts).filter(v => v > 0);
-  const max = Math.max(1, ...nonzero);
-  const cutoffVal = Math.max(2, Math.round(max * 0.15));
-  const canvas = document.createElement("canvas");
-  canvas.width = nx; canvas.height = ny;
-  const ctx = canvas.getContext("2d");
-  for (let i = 0; i < nx * ny; i++) {
-    const c = counts[i];
-    if (c < cutoffVal) continue;
-    const cx = i % nx;
-    const cy = Math.floor(i / nx);
-    const alpha = 40 + Math.round(180 * c / max);
-    ctx.beginPath();
-    ctx.arc(cx, ny - 1 - cy, 2, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
-    ctx.fill();
-  }
-  const extent = [west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg];
-  const densitySrc = new ol.source.ImageStatic({ url: canvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-  const densityLayer = new ol.layer.Image({ source: densitySrc, zIndex: 30, opacity: 0.85 });
-
-  console.log("[thermal] pointFeatures=" + pointFeatures.length + " densityCells=" + nonzero.length);
-  return { pointLayer, densityLayer, scanTime };
+  console.log("[thermal] squareFeatures=" + pointFeatures.length + " hours=" + hours + " frames=" + frontItems.length);
+  return { pointLayer, densityLayer: null, scanTime };
 }
 
 async function buildUvCompositeLayer(map, count) {
