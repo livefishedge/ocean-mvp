@@ -800,9 +800,9 @@ body.combined-mode #combined-menu-btn{
       <select id="combined-thermal-hours" style="margin:6px 0 4px 28px;font-size:13px;">
         <option value="1">Latest hourly</option>
         <option value="3">Last 3 hours</option>
-        <option value="6" selected>Last 6 hours</option>
+        <option value="6">Last 6 hours</option>
         <option value="12">Last 12 hours</option>
-        <option value="24">Last 24 hours</option>
+        <option value="24" selected>Last 24 hours</option>
         <option value="48">Last 48 hours</option>
         <option value="72">Last 72 hours</option>
       </select>
@@ -3719,7 +3719,7 @@ async function renderCombinedMode() {
     ? await loadGridForVar("thermal_fronts", window._combinedFrontData).catch(() => null)
     : null;
   const thermalScanTimeDiv = document.getElementById("combined-thermal-scan-time");
-  const initialThermalHours = parseInt(document.getElementById("combined-thermal-hours")?.value || "6", 10);
+  const initialThermalHours = parseInt(document.getElementById("combined-thermal-hours")?.value || "24", 10);
   const initialThermal = buildThermalHoursComposite(map, initialThermalHours);
   if (initialThermal.pointLayer) { map.addLayer(initialThermal.pointLayer); window._combinedFrontLineLayer = initialThermal.pointLayer; }
   if (initialThermal.densityLayer) { map.addLayer(initialThermal.densityLayer); window._combinedFrontDensityLayer = initialThermal.densityLayer; }
@@ -4099,32 +4099,22 @@ function buildThermalHoursComposite(map, hours) {
       })
     : "";
 
-  // Combined mode mirrors original combined-viewer.html: explode front
-  // coordinates into fixed screen-pixel red point glyphs.
-  const pointFeatures = [];
-  const oldest = tSorted[0] ?? latest;
-  const span = Math.max(1, latest - oldest);
-  const squareStyleCache = new Map();
-  function squareStyle(alphaBucket) {
-    if (!squareStyleCache.has(alphaBucket)) {
-      const alpha = (alphaBucket / 100).toFixed(2);
-      squareStyleCache.set(alphaBucket, new ol.style.Style({
-        renderer: (pixelCoordinates, state) => {
-          const ctx = state.context;
-          const x = Math.round(pixelCoordinates[0]);
-          const y = Math.round(pixelCoordinates[1]);
-          const size = 6;
-          const half = size / 2;
-          ctx.fillStyle = `rgba(255, 30, 30, ${alpha})`;
-          ctx.fillRect(x - half, y - half, size, size);
-        }
-      }));
-    }
-    return squareStyleCache.get(alphaBucket);
-  }
+  // Match the original combined-viewer.html front rendering path: aggregate front
+  // coordinates into a coarse 0.014 degree canvas and draw one transparent red
+  // ImageStatic overlay. This avoids thousands of separate vector symbols and
+  // preserves the original visual density/opacity behavior.
+  const cellDeg = 0.014;
+  const [west, south, east, north] = BBOX.map(Number);
+  const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = nx;
+  canvas.height = ny;
+  const ctx = canvas.getContext("2d");
+  const counts = new Uint8Array(nx * ny);
+  const radiusPx = 2;
+
   for (const item of frontItems) {
-    const ageNorm = Math.max(0, Math.min(1, (item.t - oldest) / span));
-    const alphaBucket = Math.round((20 + 48 * ageNorm) / 4) * 4;
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
@@ -4133,24 +4123,40 @@ function buildThermalHoursComposite(map, hours) {
         const lon = Number(pt[0]);
         const lat = Number(pt[1]);
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-        pointFeatures.push(new ol.Feature({
-          geometry: new ol.geom.Point([lon, lat]),
-          alphaBucket
-        }));
+        const cx = Math.round((lon - west) / cellDeg);
+        const cy = Math.round((north - lat) / cellDeg);
+        if (cx < 0 || cx >= nx || cy < 0 || cy >= ny) continue;
+        const idx = cy * nx + cx;
+        if (counts[idx] < 255) counts[idx]++;
       }
     }
   }
 
-  const pointSource = new ol.source.Vector({ features: pointFeatures, wrapX: false });
-  const pointLayer = new ol.layer.Vector({
-    source: pointSource,
-    zIndex: 32,
-    style: feature => squareStyle(feature.get("alphaBucket") || 60),
-    updateWhileAnimating: true, updateWhileInteracting: true
-  });
+  let nonzero = 0;
+  for (let row = 0; row < ny; row++) {
+    for (let x = 0; x < nx; x++) {
+      const c = counts[row * nx + x];
+      if (!c) continue;
+      nonzero++;
+      const alpha = Math.min(200, c * 25);
+      ctx.beginPath();
+      ctx.arc(x, row, radiusPx, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+      ctx.fill();
+    }
+  }
 
-  console.log("[thermal] squareFeatures=" + pointFeatures.length + " hours=" + hours + " frames=" + frontItems.length);
-  return { pointLayer, densityLayer: null, scanTime };
+  const extent = [west, north - ny * cellDeg, west + nx * cellDeg, north];
+  const source = new ol.source.ImageStatic({
+    url: canvas.toDataURL("image/png"),
+    imageExtent: extent,
+    projection: "EPSG:4326",
+    interpolate: false
+  });
+  const densityLayer = new ol.layer.Image({ source, zIndex: 30, opacity: 0.90 });
+
+  console.log("[thermal] frontDensityCells=" + nonzero + " hours=" + hours + " frames=" + frontItems.length);
+  return { pointLayer: null, densityLayer, scanTime };
 }
 
 async function buildUvCompositeLayer(map, count) {
