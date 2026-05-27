@@ -683,10 +683,7 @@ body.combined-mode #combined-menu-btn{
       margin:4px 0;
     }
     .combined-bathy-swatch{
-      width:34px;
-      height:0;
-      border-top:2px solid #b25cff;
-      flex-shrink:0;
+      display:none;
     }
     #combined-overlay{
       position:fixed; inset:0; z-index:1105;
@@ -799,12 +796,12 @@ body.combined-mode #combined-menu-btn{
     <div class="combined-section">
       <div class="combined-section-title">Product</div>
       <select id="combined-product-select">
-        <option value="combined">Captain's Dashboard</option>
         <option value="chl">Chlorophyll</option>
         <option value="sst">Sea Surface Temp (SST)</option>
+        <option value="thermal_fronts">Thermal Fronts</option>
+        <option value="combined">Captain's Dashboard</option>
         <option value="uv">Currents</option>
         <option value="bathy">Bathymetry</option>
-        <option value="thermal_fronts">Thermal Fronts</option>
       </select>
     </div>
     <div class="combined-section">
@@ -828,13 +825,6 @@ body.combined-mode #combined-menu-btn{
         <option value="24">Last 24 scans</option>
       </select>
       <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
-      <label class="combined-toggle">
-        <input type="checkbox" id="chk-combined-bathy" checked>
-        <span class="box"></span>
-        <span class="combined-dot dot-bathy"></span>
-        <span>Bathymetry</span>
-      </label>
-      <div id="combined-bathy-legend" class="combined-inline-legend"></div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-front" checked>
         <span class="box"></span>
@@ -860,7 +850,7 @@ body.combined-mode #combined-menu-btn{
       <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
       <div id="combined-current-scale" class="combined-inline-legend">
         <div class="combined-legend-row">
-          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;">
+          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;background:#fff;boarder-radius:4px;">
             <line x1="2" y1="10" x2="54" y2="10" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round"/>
             <polyline points="54,10 46,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
             <polyline points="54,10 46,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
@@ -868,6 +858,13 @@ body.combined-mode #combined-menu-btn{
           <span style="font-weight:800;color:rgba(255,255,255,0.9);">0.5 m/s</span>
         </div>
       </div>
+      <label class="combined-toggle">
+        <input type="checkbox" id="chk-combined-bathy" checked>
+        <span class="box"></span>
+        <span class="combined-dot dot-bathy"></span>
+        <span>Bathymetry</span>
+      </label>
+      <div id="combined-bathy-legend" class="combined-inline-legend"></div>
     </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:0;left:0;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-right:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
@@ -3857,7 +3854,7 @@ function buildBathyContourLayer(bathyData, gridInfo) {
   const layer = new ol.layer.Vector({
     source,
     style: feature => new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: "#b25cff", width: feature.get("depth") >= 1000 ? 1.1 : 0.9 })
+      stroke: new ol.style.Stroke({ color: "#b25cff", width: feature.get("depth") >= 1000 ? 2.2 : 1.8 })
     }),
     zIndex: 15
   });
@@ -3904,7 +3901,7 @@ function updateCombinedBathyLegend(levels) {
   el.innerHTML = `
     <div class="combined-legend-row">
       <span class="combined-bathy-swatch"></span>
-      <span>Levels: ${levels.map(v => `${v}m`).join(", ")}</span>
+      <span>Levels (m): ${levels.map(v => `${v}`).join(", ")}</span>
     </div>
   `;
 }
@@ -4260,22 +4257,29 @@ function buildThermalHoursComposite(map, hours) {
 function combinedNearestFrontHover(map, coord, pixel) {
   const points = window._combinedFrontHoverPoints || [];
   if (!map || !coord || !pixel || !points.length) return null;
-  let best = null;
-  let bestPx = Infinity;
+  // Collect all front points within 14px radius
+  const nearby = [];
   for (const point of points) {
     const pointPixel = map.getPixelFromCoordinate([point.lon, point.lat]);
     if (!pointPixel) continue;
     const d = Math.hypot(pointPixel[0] - pixel[0], pointPixel[1] - pixel[1]);
-    if (d < bestPx) {
-      bestPx = d;
-      best = point;
-    }
+    if (d <= 14) nearby.push(point);
   }
-  if (!best || bestPx > 14) return null;
+  if (!nearby.length) return null;
+  // Average valid gradient and SST values across nearby points
+  const gradVals = [], sstVals = [];
+  for (const pt of nearby) {
+    if (pt.grad !== null && pt.grad !== undefined && Number.isFinite(pt.grad)) gradVals.push(pt.grad);
+    if (pt.deltaSst && Number.isFinite(pt.deltaSst.value)) sstVals.push(pt.deltaSst.value);
+  }
   const parts = [];
-  if (Number.isFinite(best.grad)) parts.push(`${best.grad.toFixed(3)} °C/km`);
-  if (best.deltaSst && Number.isFinite(best.deltaSst.value)) {
-    parts.push(`${best.deltaSst.label} ${best.deltaSst.value.toFixed(2)}°C`);
+  if (gradVals.length) {
+    const avg = gradVals.reduce((a, b) => a + b, 0) / gradVals.length;
+    parts.push(`${avg.toFixed(3)} °C/km`);
+  }
+  if (sstVals.length) {
+    const avg = sstVals.reduce((a, b) => a + b, 0) / sstVals.length;
+    parts.push(`ΔSST ${avg.toFixed(2)} °C`);
   }
   return parts.length ? parts.join("  ") : null;
 }
