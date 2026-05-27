@@ -647,11 +647,9 @@ async function loadFrontsLayer(){
       for(let x=0;x<nx;x++){
         const c=counts[row*nx+x];
         if(c>0){
-          const alpha=Math.min(200,c*25);
-          ctx.beginPath();
-          ctx.arc(x,row,radiusPx,0,Math.PI*2);
+          const alpha=Math.min(180,c*25);
           ctx.fillStyle=`rgba(255,30,30,${(alpha/255).toFixed(3)})`;
-          ctx.fill();
+          ctx.fillRect(x-2,row-2,5,5);
         }
       }
     }
