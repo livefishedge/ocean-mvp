@@ -566,6 +566,21 @@ body.combined-mode #combined-menu-btn{
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
 
+    body.combined-mode .combined-mode-row button{
+      flex:1; padding:5px 4px; border-radius:6px;
+      border:1px solid #2a3a50; background:#0c1723; color:var(--fg);
+      font-size:12px; font-weight:700; cursor:pointer;
+      transition:background 0.15s;
+    }
+    body.combined-mode .combined-mode-row button.active{ background:#1d4f91; border-color:#4d7dff; }
+    body.combined-mode #combined-thermal-day-row,
+    body.combined-mode #combined-thermal-all-day-toggle{ display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color:#9fb0c3; }
+    body.combined-mode #combined-thermal-day-row select,
+    body.combined-mode #combined-thermal-all-day-cb{ width:100%; padding:5px 8px; background:rgba(12,23,35,0.9); border:1px solid #2a3a50; border-radius:6px; color:var(--fg); font-size:13px; cursor:pointer; box-sizing:border-box; }
+    body.combined-mode #combined-thermal-day-row select{ width:100%; }
+    body.combined-mode .hamburger-range-block{ display:none !important; }
+    body.combined-mode #hamburger-cbar{ display:none !important; }
+
     /* Combined product-switcher inside sidebar */
     #combined-product-select{
       width:100%; padding:7px 10px; margin-bottom:4px;
@@ -636,13 +651,15 @@ body.combined-mode #combined-menu-btn{
       top:8px;
       right:58px;
       z-index:1115;
-      padding:5px 8px;
+      padding:5px 8px 5px 5px;
       background:rgba(5,11,16,0.88);
       border:1px solid rgba(255,255,255,0.16);
       border-radius:7px;
       backdrop-filter:blur(6px);
+      gap:6px;
+      align-items:center;
     }
-    body.combined-mode #combined-region-bar{ display:block; }
+    body.combined-mode #combined-region-bar{ display:flex; align-items:center; gap:6px; }
     #combined-region-bar #combined-region-select{
       width:auto;
       min-width:190px;
@@ -788,6 +805,7 @@ body.combined-mode #combined-menu-btn{
   <div id="combined-hover-tip"></div>
   <div id="combined-overlay"></div>
   <div id="combined-region-bar">
+    <button id="temp-unit-toggle" aria-label="Toggle temperature unit">°C</button>
     <select id="combined-region-select" aria-label="Region">
       <option value="usec_south">US East Coast - South-Atlantic</option>
       <option value="usec_md">US East Coast - Mid-Atlantic</option>
@@ -866,6 +884,28 @@ body.combined-mode #combined-menu-btn{
         <span>Bathymetry</span>
       </label>
       <div id="combined-bathy-legend" class="combined-inline-legend"></div>
+    </div>
+    <div class="combined-section">
+      <div class="combined-section-title">Fronts</div>
+      <label id="combined-thermal-day-row">Day
+        <select id="combined-thermal-day-select"></select>
+      </label>
+      <label id="combined-thermal-all-day-toggle">
+        <input id="combined-thermal-all-day-cb" type="checkbox" />
+        <span id="combined-thermal-all-day-label">All fronts this day</span>
+      </label>
+      <div class="combined-mode-row" style="margin-top:4px;">
+        <button id="combined-thermal-mode-hourly" class="active" type="button">Hourly</button>
+        <button id="combined-thermal-mode-daily" type="button">Daily</button>
+      </div>
+      <div class="combined-mode-row" style="margin-top:4px;">
+        <button id="combined-thermal-mode-c" class="active" type="button">°C</button>
+        <button id="combined-thermal-mode-f" type="button">°F</button>
+      </div>
+      <div class="combined-mode-row" style="margin-top:4px;">
+        <button id="combined-thermal-mode-km" class="active" type="button">km</button>
+        <button id="combined-thermal-mode-nm" type="button">nm</button>
+      </div>
     </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:0;left:0;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-right:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
@@ -1834,6 +1874,115 @@ if (chlCompositeSelect) {
     if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
   });
+}
+
+/* Combined thermal front controls — day / all-day / °C/°F / km/nm */
+const combinedThermalDaySelect = document.getElementById("combined-thermal-day-select");
+const combinedThermalDayRow = document.getElementById("combined-thermal-day-row");
+const combinedThermalAllDayToggle = document.getElementById("combined-thermal-all-day-toggle");
+const combinedThermalAllDayCb = document.getElementById("combined-thermal-all-day-cb");
+const combinedThermalAllDayLabel = document.getElementById("combined-thermal-all-day-label");
+const combinedThermalModeHourlyBtn = document.getElementById("combined-thermal-mode-hourly");
+const combinedThermalModeDailyBtn = document.getElementById("combined-thermal-mode-daily");
+const combinedThermalModeCBtn = document.getElementById("combined-thermal-mode-c");
+const combinedThermalModeFBtn = document.getElementById("combined-thermal-mode-f");
+const combinedThermalModeKmBtn = document.getElementById("combined-thermal-mode-km");
+const combinedThermalModeNmBtn = document.getElementById("combined-thermal-mode-nm");
+
+function combinedRebuildFrontLayers() {
+  const m = window._combinedMap;
+  if (!m) return;
+  // Remove existing front layers
+  if (window._combinedFrontLineLayer) { m.removeLayer(window._combinedFrontLineLayer); window._combinedFrontLineLayer = null; }
+  if (window._combinedFrontDensityLayer) { m.removeLayer(window._combinedFrontDensityLayer); window._combinedFrontDensityLayer = null; }
+  const hours = parseInt(document.getElementById("combined-thermal-hours")?.value || "24", 10);
+  const composite = buildThermalHoursComposite(m, hours);
+  if (composite.pointLayer) { m.addLayer(composite.pointLayer); window._combinedFrontLineLayer = composite.pointLayer; }
+  if (composite.densityLayer) { m.addLayer(composite.densityLayer); window._combinedFrontDensityLayer = composite.densityLayer; }
+  const thermalScanTimeDiv = document.getElementById("combined-thermal-scan-time");
+  if (thermalScanTimeDiv) thermalScanTimeDiv.textContent = composite.scanTime || "";
+}
+
+// Wire day select — re-syncs from thermal state then rebuilds
+if (combinedThermalDaySelect) {
+  // Populate day select using thermal's daily frame list
+  const dailyFrames = thermalFrontState.dailyFrames || [];
+  combinedThermalDaySelect.innerHTML = "";
+  dailyFrames.forEach(item => {
+    const opt = document.createElement("option");
+    opt.value = item.date;
+    opt.textContent = item.date;
+    combinedThermalDaySelect.appendChild(opt);
+  });
+  combinedThermalDaySelect.value = thermalFrontState.selectedDate || "";
+  combinedThermalDaySelect.addEventListener("change", () => {
+    thermalFrontState.selectedDate = combinedThermalDaySelect.value;
+    combinedRebuildFrontLayers();
+  });
+}
+// Wire all-day toggle
+if (combinedThermalAllDayCb) {
+  combinedThermalAllDayCb.checked = thermalAllDayCb?.checked || false;
+  combinedThermalAllDayCb.addEventListener("change", () => {
+    if (thermalAllDayCb) thermalAllDayCb.checked = combinedThermalAllDayCb.checked;
+    combinedRebuildFrontLayers();
+  });
+}
+// Wire mode buttons
+if (combinedThermalModeHourlyBtn) {
+  combinedThermalModeHourlyBtn.addEventListener("click", () => {
+    thermalFrontState.mode = "hourly";
+    if (thermalModeHourlyBtn) thermalModeHourlyBtn.classList.add("active");
+    if (thermalModeDailyBtn) thermalModeDailyBtn.classList.remove("active");
+    combinedThermalModeHourlyBtn.classList.add("active");
+    combinedThermalModeDailyBtn.classList.remove("active");
+    combinedRebuildFrontLayers();
+  });
+}
+if (combinedThermalModeDailyBtn) {
+  combinedThermalModeDailyBtn.addEventListener("click", () => {
+    thermalFrontState.mode = "daily";
+    if (thermalModeDailyBtn) thermalModeDailyBtn.classList.add("active");
+    if (thermalModeHourlyBtn) thermalModeHourlyBtn.classList.remove("active");
+    combinedThermalModeDailyBtn.classList.add("active");
+    combinedThermalModeHourlyBtn.classList.remove("active");
+    combinedRebuildFrontLayers();
+  });
+}
+// Wire unit buttons — reuse thermal's existing toggle functions
+if (combinedThermalModeCBtn) {
+  combinedThermalModeCBtn.addEventListener("click", () => thermalSetTempUnit("C"));
+}
+if (combinedThermalModeFBtn) {
+  combinedThermalModeFBtn.addEventListener("click", () => thermalSetTempUnit("F"));
+}
+if (combinedThermalModeKmBtn) {
+  combinedThermalModeKmBtn.addEventListener("click", () => thermalSetDistUnit("km"));
+}
+if (combinedThermalModeNmBtn) {
+  combinedThermalModeNmBtn.addEventListener("click", () => thermalSetDistUnit("nm"));
+}
+// Sync combined button states from thermal state / localStorage on load
+if (thermalFrontState.mode === "daily" && combinedThermalModeDailyBtn) {
+  combinedThermalModeDailyBtn.classList.add("active");
+  combinedThermalModeHourlyBtn?.classList.remove("active");
+} else if (combinedThermalModeHourlyBtn) {
+  combinedThermalModeHourlyBtn.classList.add("active");
+  combinedThermalModeDailyBtn?.classList.remove("active");
+}
+if (tempUnit === "F" && combinedThermalModeFBtn) {
+  combinedThermalModeFBtn.classList.add("active");
+  combinedThermalModeCBtn?.classList.remove("active");
+} else if (combinedThermalModeCBtn) {
+  combinedThermalModeCBtn.classList.add("active");
+  combinedThermalModeFBtn?.classList.remove("active");
+}
+if (thermalDistUnit === "nm" && combinedThermalModeNmBtn) {
+  combinedThermalModeNmBtn.classList.add("active");
+  combinedThermalModeKmBtn?.classList.remove("active");
+} else if (combinedThermalModeKmBtn) {
+  combinedThermalModeKmBtn.classList.add("active");
+  combinedThermalModeNmBtn?.classList.remove("active");
 }
 
 /* Marker state */
