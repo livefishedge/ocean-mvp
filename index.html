@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-  <title>LiveMaps</title>
+  <title>Captain's Dashboard</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.4.0/ol.css">
 
@@ -630,6 +630,25 @@ body.combined-mode #combined-menu-btn{
       background:rgba(12,23,35,0.9); border:1px solid #2a3a50;
       border-radius:6px; color:var(--fg); font-size:13px; cursor:pointer;
     }
+    #combined-region-bar{
+      display:none;
+      position:fixed;
+      top:8px;
+      right:58px;
+      z-index:1115;
+      padding:5px 8px;
+      background:rgba(5,11,16,0.88);
+      border:1px solid rgba(255,255,255,0.16);
+      border-radius:7px;
+      backdrop-filter:blur(6px);
+    }
+    body.combined-mode #combined-region-bar{ display:block; }
+    #combined-region-bar #combined-region-select{
+      width:auto;
+      min-width:190px;
+      padding:5px 9px;
+      font-size:13px;
+    }
     .combined-toggle{
       display:flex; align-items:center; gap:7px; cursor:pointer;
       user-select:none; padding:5px 10px;
@@ -770,18 +789,17 @@ body.combined-mode #combined-menu-btn{
   <div id="combined-readout">—, —</div>
   <div id="combined-hover-tip"></div>
   <div id="combined-overlay"></div>
+  <div id="combined-region-bar">
+    <select id="combined-region-select" aria-label="Region">
+      <option value="usec_south">US East Coast - South-Atlantic</option>
+      <option value="usec_md">US East Coast - Mid-Atlantic</option>
+    </select>
+  </div>
   <div id="combined-controls">
-    <div class="combined-section">
-      <div class="combined-section-title">Region</div>
-      <select id="combined-region-select">
-        <option value="usec_south">US East Coast - South-Atlantic</option>
-        <option value="usec_md">US East Coast - Mid-Atlantic</option>
-      </select>
-    </div>
     <div class="combined-section">
       <div class="combined-section-title">Product</div>
       <select id="combined-product-select">
-        <option value="combined">Ocean Conditions</option>
+        <option value="combined">Captain's Dashboard</option>
         <option value="chl">Chlorophyll</option>
         <option value="sst">Sea Surface Temp (SST)</option>
         <option value="uv">Currents</option>
@@ -811,22 +829,6 @@ body.combined-mode #combined-menu-btn{
       </select>
       <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
       <label class="combined-toggle">
-        <input type="checkbox" id="chk-combined-uv" checked>
-        <span class="box"></span>
-        <span class="combined-dot dot-uv"></span>
-        <span>Currents</span>
-      </label>
-      <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
-      <div id="combined-current-scale" class="combined-inline-legend">
-        <div class="combined-legend-row">
-          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;">
-            <line x1="2" y1="10" x2="58" y2="10" stroke="rgba(255,255,255,0.78)" stroke-width="2.5" stroke-linecap="round"/>
-            <polygon points="58,10 48,6 48,14" fill="rgba(255,255,255,0.78)"/>
-          </svg>
-          <span style="font-weight:800;color:rgba(255,255,255,0.9);">0.5 m/s</span>
-        </div>
-      </div>
-      <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-bathy" checked>
         <span class="box"></span>
         <span class="combined-dot dot-bathy"></span>
@@ -849,6 +851,23 @@ body.combined-mode #combined-menu-btn{
         <option value="72">Last 72 hours</option>
       </select>
       <div id="combined-thermal-scan-time" style="font-size:11px;color:#ff6666;margin-left:28px;margin-bottom:8px;"></div>
+      <label class="combined-toggle">
+        <input type="checkbox" id="chk-combined-uv" checked>
+        <span class="box"></span>
+        <span class="combined-dot dot-uv"></span>
+        <span>Currents</span>
+      </label>
+      <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
+      <div id="combined-current-scale" class="combined-inline-legend">
+        <div class="combined-legend-row">
+          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;">
+            <line x1="2" y1="10" x2="54" y2="10" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round"/>
+            <polyline points="54,10 46,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+            <polyline points="54,10 46,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          </svg>
+          <span style="font-weight:800;color:rgba(255,255,255,0.9);">0.5 m/s</span>
+        </div>
+      </div>
     </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:0;left:0;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-right:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
@@ -877,10 +896,10 @@ body.combined-mode #combined-menu-btn{
         <select id="hamburger-product-select">
           <option value="chl">Chlorophyll</option>
           <option value="sst">Temperature</option>
-          <option value="uv">Currents/SSH</option>
+          <option value="uv">Currents</option>
           <option value="bathy">Bathymetry</option>
           <option value="thermal_fronts">Thermal Fronts</option>
-          <option value="combined">Ocean Conditions</option>
+          <option value="combined">Captain's Dashboard</option>
         </select>
       </label>
       <div id="thermal-front-controls">
@@ -933,10 +952,10 @@ if (!REGIONS[REGION_ID]) REGION_ID = "usec_south";
 const VAR_LABELS = {
   chl:"Chlorophyll", sst:"Temperature",
   chl_front:"CHL Fronts", sst_front:"SST Fronts",
-  uv:"Currents/SSH",
+  uv:"Currents",
   bathy:"Bathymetry",
   thermal_fronts:"Thermal Fronts",
-  combined:"Ocean Conditions"
+  combined:"Captain's Dashboard"
 };
 
 const VAR_TO_GRID = {
@@ -3782,7 +3801,15 @@ async function renderCombinedMode() {
       hoverTip.style.top = `${ev.originalEvent.clientY}px`;
       hoverTip.style.display = "block";
     } else if (hoverTip) {
-      hoverTip.style.display = "none";
+      const frontHover = combinedNearestFrontHover(map, ev.coordinate, ev.pixel);
+      if (frontHover) {
+        hoverTip.textContent = frontHover;
+        hoverTip.style.left = `${ev.originalEvent.clientX}px`;
+        hoverTip.style.top = `${ev.originalEvent.clientY}px`;
+        hoverTip.style.display = "block";
+      } else {
+        hoverTip.style.display = "none";
+      }
     }
     if (readoutEl) readoutEl.textContent = parts.join("  ");
   });
@@ -3877,7 +3904,7 @@ function updateCombinedBathyLegend(levels) {
   el.innerHTML = `
     <div class="combined-legend-row">
       <span class="combined-bathy-swatch"></span>
-      <span>${levels.map(v => `${v}m`).join(", ")}</span>
+      <span>Levels: ${levels.map(v => `${v}m`).join(", ")}</span>
     </div>
   `;
 }
@@ -4040,7 +4067,7 @@ function buildDesktopUvArrowLayer(data, grid) {
   const layer = new ol.layer.Vector({
     source,
     style: (feature) => new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.84)", width: 1.35, lineCap: "round", lineJoin: "round" })
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.85)", width: 1.45, lineCap: "round", lineJoin: "round" })
     }),
     zIndex: 20
   });
@@ -4178,16 +4205,21 @@ function buildThermalHoursComposite(map, hours) {
   const ctx = canvas.getContext("2d");
   const counts = new Uint8Array(nx * ny);
   const cellHalf = cellDeg / 2;
+  const hoverPoints = [];
 
   for (const item of frontItems) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
-      for (const pt of coords) {
+      const props = sf?.properties || {};
+      const deltaSst = thermalDeltaSstForFeature(props);
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
         if (!Array.isArray(pt) || pt.length < 2) continue;
         const lon = Number(pt[0]);
         const lat = Number(pt[1]);
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        hoverPoints.push({ lon, lat, grad: thermalGradientForFeaturePoint(props, i), deltaSst });
         const cx = Math.round((lon - west) / cellDeg);
         const cy = Math.round((north - lat) / cellDeg);
         if (cx < 0 || cx >= nx || cy < 0 || cy >= ny) continue;
@@ -4221,7 +4253,31 @@ function buildThermalHoursComposite(map, hours) {
   const densityLayer = new ol.layer.Image({ source, zIndex: 30, opacity: 0.90 });
 
   console.log("[thermal] frontDensityCells=" + nonzero + " hours=" + hours + " frames=" + frontItems.length);
+  window._combinedFrontHoverPoints = hoverPoints;
   return { pointLayer: null, densityLayer, scanTime };
+}
+
+function combinedNearestFrontHover(map, coord, pixel) {
+  const points = window._combinedFrontHoverPoints || [];
+  if (!map || !coord || !pixel || !points.length) return null;
+  let best = null;
+  let bestPx = Infinity;
+  for (const point of points) {
+    const pointPixel = map.getPixelFromCoordinate([point.lon, point.lat]);
+    if (!pointPixel) continue;
+    const d = Math.hypot(pointPixel[0] - pixel[0], pointPixel[1] - pixel[1]);
+    if (d < bestPx) {
+      bestPx = d;
+      best = point;
+    }
+  }
+  if (!best || bestPx > 14) return null;
+  const parts = [];
+  if (Number.isFinite(best.grad)) parts.push(`${best.grad.toFixed(3)} °C/km`);
+  if (best.deltaSst && Number.isFinite(best.deltaSst.value)) {
+    parts.push(`${best.deltaSst.label} ${best.deltaSst.value.toFixed(2)}°C`);
+  }
+  return parts.length ? parts.join("  ") : null;
 }
 
 async function buildUvCompositeLayer(map, count) {
@@ -4307,7 +4363,7 @@ async function buildUvCompositeLayer(map, count) {
   const layer = new ol.layer.Vector({
     source,
     style: (feature) => new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.84)", width: 1.35, lineCap: "round", lineJoin: "round" })
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.85)", width: 1.45, lineCap: "round", lineJoin: "round" })
     }),
     zIndex: 20
   });
