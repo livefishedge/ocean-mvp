@@ -4027,8 +4027,7 @@ function buildThermalHoursComposite(map, hours) {
 
   // Collect all thermal front items within the hours window
   const frontItems = (thermalFrontState.frameData || []).filter(item => item.t >= cutoff);
-
-  // Scan time: mid-point timestamp in local format
+    // Scan time: mid-point timestamp in local format
   const tSorted = frontItems.map(i => i.t).filter(Boolean).sort((a, b) => a - b);
   const scanTime = tSorted.length > 0
     ? new Date(tSorted[Math.floor(tSorted.length / 2)]).toLocaleString(undefined, {
@@ -4051,7 +4050,7 @@ function buildThermalHoursComposite(map, hours) {
         pointFeatures.push(new ol.Feature({
           geometry: new ol.geom.Point([lon, lat]),
           style: new ol.style.Style({
-            image: new ol.style.RegularShape({ points: 4, angle: Math.PI / 4, radius: 6, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 0.40)" }) })
+            image: new ol.style.RegularShape({ points: 4, angle: Math.PI / 4, radius: 6, fill: new ol.style.Fill({ color: "rgba(255, 40, 40, 0.85)" }) })
           })
         }));
       }
