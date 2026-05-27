@@ -1718,6 +1718,20 @@ if (chkChl) chkChl.addEventListener("change", e => {
 if (chkUv) chkUv.addEventListener("change", e => {
   if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
 });
+
+const uvCompositeSelect = document.getElementById("combined-uv-composite");
+const uvScanTimeDiv = document.getElementById("combined-uv-scan-time");
+if (uvCompositeSelect) {
+  uvCompositeSelect.addEventListener("change", async () => {
+    const count = parseInt(uvCompositeSelect.value, 10);
+    const m = window._combinedMap;
+    if (window._combinedUvLayer) { m?.removeLayer(window._combinedUvLayer); window._combinedUvLayer = null; }
+    if (!m) return;
+    const result = await buildUvCompositeLayer(m, count);
+    if (result?.layer) { m.addLayer(result.layer); window._combinedUvLayer = result.layer; }
+    if (uvScanTimeDiv) uvScanTimeDiv.textContent = result?.scanTime || "";
+  });
+}
 if (chkBathy) chkBathy.addEventListener("change", e => {
   if (window._combinedBathyLayer) window._combinedBathyLayer.setVisible(e.target.checked);
 });
@@ -3691,6 +3705,7 @@ async function renderCombinedMode() {
 
   // ── Layer: UV arrows ─────────────────────────────────────────────────
   const uvFrames = framesByVar.uv || [];
+  const uvScanTimeDiv = document.getElementById("combined-uv-scan-time");
   if (uvFrames.length) {
     const frame = uvFrames[uvFrames.length - 1];
     const data = await fetchFrameData("uv", frame);
@@ -3699,6 +3714,13 @@ async function renderCombinedMode() {
     window._combinedUvData = data;
     const arrowLayer = buildDesktopUvArrowLayer(data, grid);
     if (arrowLayer) { map.addLayer(arrowLayer); window._combinedUvLayer = arrowLayer; }
+    // Show scan time of latest UV frame
+    const uvT = epochMsForFrame("uv", frame);
+    if (uvScanTimeDiv) uvScanTimeDiv.textContent = uvT
+      ? new Date(uvT).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "";
+  } else {
+    if (uvScanTimeDiv) uvScanTimeDiv.textContent = "";
   }
 
   // ── Layer: Thermal fronts — red squares, individual points
@@ -4089,81 +4111,95 @@ function buildThermalHoursComposite(map, hours) {
   return { pointLayer, densityLayer, scanTime };
 }
 
-
-
-/* ============================================================
-   Combined-mode helpers: build CHL nanmedian composite layer
-   ============================================================ */
-async function buildChlCompositeLayer(map, count) {
-  const chlFrames = framesByVar.chl || [];
-  if (!chlFrames.length) return {};
-  const now = Date.now();
-  // Sort by time, take last N frames (most recent)
-  const sorted = [...chlFrames].sort((a, b) => {
-    const ta = epochMsForFrame("chl", a) || 0;
-    const tb = epochMsForFrame("chl", b) || 0;
-    return tb - ta; // newest first
+async function buildUvCompositeLayer(map, count) {
+  const uvFrames = framesByVar.uv || [];
+  if (!uvFrames.length) return {};
+  const sorted = [...uvFrames].sort((a, b) => {
+    const ta = epochMsForFrame("uv", a) || 0;
+    const tb = epochMsForFrame("uv", b) || 0;
+    return tb - ta;
   });
   const selected = sorted.slice(0, Math.min(count, sorted.length));
   if (!selected.length) return {};
 
   // Load all selected frames
-  const loaded = await Promise.all(selected.map(f => fetchFrameData("chl", f).catch(() => null)));
-  const valid = loaded.filter(d => d && Array.isArray(d.z));
-  if (!valid.length) return {};
+  const loaded = await Promise.all(selected.map(f => fetchFrameData("uv", f).catch(() => null)));
+  const valid = loaded.filter(d => d && d.u && d.v);
 
-  // Calculate average scan time
-  const scanTimes = selected.map((f, i) => {
-    const d = valid[i];
-    if (!d) return null;
-    // Use scan_id from frame or bbox/ny/nx as proxy
-    return d.scan_id || d.frame_id || null;
-  }).filter(Boolean);
-  // Show the MID-point timestamp of selected frames in local format
+  // Scan time: mid-point of selected frames
   const frameTimes = selected.map((f, i) => {
     const d = valid[i];
     if (!d) return null;
-    const t = epochMsForFrame("chl", f);
-    return t || null;
+    return epochMsForFrame("uv", f) || null;
   }).filter(Boolean).sort((a, b) => a - b);
-  const midTime = frameTimes.length > 0
-    ? (frameTimes[Math.floor(frameTimes.length / 2)])
-    : null;
+  const midTime = frameTimes.length > 0 ? frameTimes[Math.floor(frameTimes.length / 2)] : null;
   const scanTime = midTime
     ? new Date(midTime).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
     : "";
 
-  // Build nanmedian composite
-  const ny = valid[0].z.length;
-  const nx = valid[0].z[0]?.length || 0;
-  if (!ny || !nx) return {};
+  if (!valid.length) return { scanTime };
 
-  const composite = [];
+  // Build nanmedian composite for u and v
+  const ny = valid[0].u.length;
+  const nx = valid[0].u[0]?.length || 0;
+  if (!ny || !nx) return { scanTime };
+
+  const uMedian = [], vMedian = [];
   for (let row = 0; row < ny; row++) {
-    composite[row] = [];
+    uMedian[row] = []; vMedian[row] = [];
     for (let col = 0; col < nx; col++) {
-      const vals = [];
+      const uVals = [], vVals = [];
       for (const frame of valid) {
-        const v = frame.z[row]?.[col];
-        if (v !== null && isFinite(v) && v > 0) vals.push(v);
+        const u = frame.u?.[row]?.[col];
+        const v = frame.v?.[row]?.[col];
+        if (u !== null && isFinite(u)) uVals.push(u);
+        if (v !== null && isFinite(v)) vVals.push(v);
       }
-      composite[row][col] = vals.length > 0
-        ? (vals.length === 1 ? vals[0] : vals.sort()[Math.floor(vals.length / 2)])
-        : null;
+      uMedian[row][col] = uVals.length > 0
+        ? (uVals.length === 1 ? uVals[0] : uVals.sort()[Math.floor(uVals.length / 2)])
+        : NaN;
+      vMedian[row][col] = vVals.length > 0
+        ? (vVals.length === 1 ? vVals[0] : vVals.sort()[Math.floor(vVals.length / 2)])
+        : NaN;
     }
   }
 
-  const grid = { xAxis: valid[0].bbox ? [valid[0].bbox[0], valid[0].bbox[2]] : [-81, -73], yAxis: valid[0].bbox ? [valid[0].bbox[1], valid[0].bbox[3]] : [31, 36], nx, ny };
-  const canvas = makeMobileRasterCanvas("chl", grid, { z: composite });
-  const url = canvas.toDataURL("image/png");
-  if (!url || !url.startsWith("data:image/png")) return { scanTime };
-  const extent = frameExtentFromGrid(grid);
-  const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-  const layer = new ol.layer.Image({ source: src, zIndex: 10 });
+  // Load grid from first valid frame
+  const grid = await loadGridForVar("uv", valid[0]).catch(() => null);
+  if (!grid) return { scanTime };
+  const { xAxis, yAxis } = grid;
+  const dxg = Math.abs((xAxis[1] ?? xAxis[0]) - xAxis[0]) || 0.01;
+  const dyg = Math.abs((yAxis[1] ?? yAxis[0]) - yAxis[0]) || 0.01;
+  const cell = Math.min(dxg, dyg);
+  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 18));
+  const minSpeed = 0.035, maxSpeed = 1.2;
+  const minLen = 0.95 * cell, maxLen = 2.8 * cell;
+  const features = [];
+  for (let row = 0; row < ny; row += step) {
+    for (let col = 0; col < nx; col += step) {
+      const u = uMedian[row]?.[col];
+      const v = vMedian[row]?.[col];
+      if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
+      const spd = Math.sqrt(u * u + v * v);
+      if (spd < minSpeed || spd > 3) continue;
+      const lon = xAxis[col], lat = yAxis[row];
+      const scaled = Math.min(spd, maxSpeed) / maxSpeed;
+      const arrowLen = minLen + (maxLen - minLen) * scaled;
+      const geom = buildArrowGeometry(lon, lat, u, v, arrowLen, cell);
+      if (geom) features.push(new ol.Feature({ geometry: geom, speed: spd }));
+    }
+  }
+  if (!features.length) return { scanTime };
+  const source = new ol.source.Vector({ features, wrapX: false });
+  const layer = new ol.layer.Vector({
+    source,
+    style: (feature) => new ol.style.Style({
+      stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.84)", width: 1.35, lineCap: "round", lineJoin: "round" })
+    }),
+    zIndex: 20
+  });
   return { layer, scanTime };
 }
-
-
 
 function buildThermalFrontLineLayer(frontData) {
   const features = frontData.features || [];
