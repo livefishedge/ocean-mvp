@@ -794,6 +794,34 @@ body.combined-mode #combined-menu-btn{
         <span style="font-weight:700;color:rgba(255,255,255,0.85);">0.5 m/s</span>
       </div>
     </div>
+    <div class="combined-section" id="combined-thermal-section">
+      <div class="combined-section-title">Thermal Fronts</div>
+      <select id="combined-thermal-hours">
+        <option value="1">Latest hourly</option>
+        <option value="3">Last 3 hours</option>
+        <option value="6">Last 6 hours</option>
+        <option value="12">Last 12 hours</option>
+        <option value="24">Last 24 hours</option>
+        <option value="48">Last 48 hours</option>
+        <option value="72">Last 72 hours</option>
+      </select>
+    </div>
+    <div class="combined-section" id="combined-chl-section">
+      <div class="combined-section-title">Chlorophyll</div>
+      <select id="combined-chl-composite">
+        <option value="1">Latest CHL</option>
+        <option value="2">2-image nanmedian</option>
+        <option value="3">3-image nanmedian</option>
+        <option value="4">4-image nanmedian</option>
+        <option value="5">5-image nanmedian</option>
+        <option value="6">6-image nanmedian</option>
+        <option value="7">7-image nanmedian</option>
+        <option value="8">8-image nanmedian</option>
+        <option value="12">12-image nanmedian</option>
+        <option value="24">24-image nanmedian</option>
+      </select>
+      <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-top:4px;"></div>
+    </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:0;left:0;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-right:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
     <span style="display:block;width:18px;height:2px;background:var(--fg);border-radius:2px;"></span>
@@ -1069,10 +1097,16 @@ function syncProductSelectors() {
 }
 function applyViewStateToOlMap(map, fallbackExtent) {
   if (!map) return;
+  const size = map.getSize();
+  // If fallbackExtent is null, preserve the current viewport — don't fit to BBOX or anything
+  if (fallbackExtent === null) {
+    if (!size || size[0] <= 0 || size[1] <= 0) return;
+    // Just ensure the map has real dimensions; do NOT call fit() to avoid resetting zoom/center
+    return;
+  }
   const extent = viewState.hasRange && viewState.xRange && viewState.yRange
     ? [viewState.xRange[0], viewState.yRange[0], viewState.xRange[1], viewState.yRange[1]]
     : fallbackExtent;
-  const size = map.getSize();
   if (!extent || !size || size[0] <= 0 || size[1] <= 0) return;
   map.getView().fit(extent, { size, nearest: true });
 }
@@ -1681,6 +1715,37 @@ if (chkFront) chkFront.addEventListener("change", e => {
   if (window._combinedFrontDensityLayer) window._combinedFrontDensityLayer.setVisible(e.target.checked);
   if (window._combinedFrontLineLayer) window._combinedFrontLineLayer.setVisible(e.target.checked);
 });
+
+/* Combined dropdown: thermal hours */
+const thermalHoursSelect = document.getElementById("combined-thermal-hours");
+if (thermalHoursSelect) {
+  thermalHoursSelect.addEventListener("change", async () => {
+    const hours = parseInt(thermalHoursSelect.value, 10);
+    // Remove existing front layers
+    if (window._combinedFrontLineLayer) { map.removeLayer(window._combinedFrontLineLayer); window._combinedFrontLineLayer = null; }
+    if (window._combinedFrontDensityLayer) { map.removeLayer(window._combinedFrontDensityLayer); window._combinedFrontDensityLayer = null; }
+    // Build composite thermal fronts for selected hours
+    if (!window._combinedMap) return;
+    const composite = buildThermalHoursComposite(window._combinedMap, hours);
+    if (composite.lineLayer) { window._combinedMap.addLayer(composite.lineLayer); window._combinedFrontLineLayer = composite.lineLayer; }
+    if (composite.densityLayer) { window._combinedMap.addLayer(composite.densityLayer); window._combinedFrontDensityLayer = composite.densityLayer; }
+  });
+}
+
+/* Combined dropdown: CHL composite count */
+const chlCompositeSelect = document.getElementById("combined-chl-composite");
+const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
+if (chlCompositeSelect) {
+  chlCompositeSelect.addEventListener("change", async () => {
+    const count = parseInt(chlCompositeSelect.value, 10);
+    // Remove existing CHL layer
+    if (window._combinedChlLayer) { window._combinedMap?.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
+    if (!window._combinedMap) return;
+    const result = await buildChlCompositeLayer(window._combinedMap, count);
+    if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
+    if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
+  });
+}
 
 /* Marker state */
 let markers = [];
@@ -3559,7 +3624,7 @@ async function renderCombinedMode() {
       const sz = m.getSize();
       console.log("[combined] updateSize ran, new size:", sz);
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        applyViewStateToOlMap(m, BBOX);
+        applyViewStateToOlMap(m, null); // null = preserve current viewport
         console.log("[combined] view fit retried, zoom:", m.getView().getZoom());
       }
     });
@@ -3570,12 +3635,13 @@ async function renderCombinedMode() {
       const sz = m.getSize();
       console.log("[combined] updateSize from timer, size:", sz);
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        applyViewStateToOlMap(m, BBOX);
+        applyViewStateToOlMap(m, null); // preserve current viewport
         console.log("[combined] view fit from timer, zoom:", m.getView().getZoom());
       }
     }, 500);
   } else {
-    applyViewStateToOlMap(map, BBOX);
+    // null fallback = preserve whatever view state is already set (from prior var or default BBOX)
+    applyViewStateToOlMap(map, null);
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
@@ -3946,6 +4012,143 @@ function buildCombinedThermalFrontLineLayer(items) {
     updateWhileInteracting: true
   });
 }
+
+/* ============================================================
+   Combined-mode helpers: build ThermalHours composite layers
+   ============================================================ */
+function buildThermalHoursComposite(map, hours) {
+  const now = Date.now();
+  const cutoff = now - hours * 3600000;
+  const lineFeatures = [];
+  const densityGrid = {};
+
+  // Collect all thermal front features within the hours window
+  for (const item of thermalFrontState.frameData) {
+    if (item.t < cutoff) continue;
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sf of sourceFeatures) {
+      const coords = sf?.geometry?.coordinates || [];
+      if (sf.geometry?.type === "LineString" && coords.length >= 2) {
+        const ageNorm = (item.t - cutoff) / (now - cutoff); // 0=oldest, 1=latest
+        const style = new ol.style.Style({
+          stroke: new ol.style.Stroke({
+            color: `rgba(255, ${Math.round(40 + 100 * (1 - ageNorm))}, ${Math.round(30 + 50 * (1 - ageNorm))}, 0.85)`,
+            width: 1.5,
+            lineCap: "round",
+            lineJoin: "round"
+          })
+        });
+        lineFeatures.push(new ol.Feature({ geometry: new ol.geom.LineString(coords), style }));
+      }
+      // Density: accumulate into grid cells
+      if (sf.geometry?.type === "MultiPoint" || (sf.geometry?.type === "Point")) {
+        const pts = sf.geometry?.type === "MultiPoint" ? (sf.geometry?.coordinates || []) : [sf.geometry?.coordinates || []];
+        for (const pt of pts) {
+          if (!pt || pt.length < 2) continue;
+          const cellX = Math.floor(pt[0] / 0.014);
+          const cellY = Math.floor(pt[1] / 0.014);
+          const key = cellX + "," + cellY;
+          densityGrid[key] = (densityGrid[key] || 0) + 1;
+        }
+      }
+    }
+  }
+
+  const lineSource = new ol.source.Vector({ features: lineFeatures, wrapX: false });
+  const lineLayer = new ol.layer.Vector({
+    source: lineSource,
+    zIndex: 32,
+    updateWhileAnimating: true,
+    updateWhileInteracting: true
+  });
+
+  // Build density canvas
+  const cellDeg = 0.014;
+  const nx = Math.max(2, Math.ceil((BBOX[2] - BBOX[0]) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((BBOX[3] - BBOX[1]) / cellDeg) + 1);
+  const canvas = document.createElement("canvas");
+  canvas.width = nx; canvas.height = ny;
+  const ctx = canvas.getContext("2d");
+  const maxCount = Math.max(1, ...Object.values(densityGrid));
+  const radiusPx = hours <= 6 ? 2 : (hours <= 24 ? 3 : 4);
+  for (const [key, count] of Object.entries(densityGrid)) {
+    const [cx, cy] = key.split(",").map(Number);
+    const alpha = 40 + Math.round(180 * count / maxCount);
+    ctx.beginPath();
+    ctx.arc(cx, ny - 1 - cy, radiusPx, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+    ctx.fill();
+  }
+  const extent = [BBOX[0], BBOX[1], BBOX[0] + nx * cellDeg, BBOX[1] + ny * cellDeg];
+  const densitySrc = new ol.source.ImageStatic({ url: canvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+  const densityLayer = new ol.layer.Image({ source: densitySrc, zIndex: 30, opacity: 0.85 });
+
+  return { lineLayer, densityLayer };
+}
+
+/* ============================================================
+   Combined-mode helpers: build CHL nanmedian composite layer
+   ============================================================ */
+async function buildChlCompositeLayer(map, count) {
+  const chlFrames = framesByVar.chl || [];
+  if (!chlFrames.length) return {};
+  const now = Date.now();
+  // Sort by time, take last N frames (most recent)
+  const sorted = [...chlFrames].sort((a, b) => {
+    const ta = epochMsForFrame("chl", a) || 0;
+    const tb = epochMsForFrame("chl", b) || 0;
+    return tb - ta; // newest first
+  });
+  const selected = sorted.slice(0, Math.min(count, sorted.length));
+  if (!selected.length) return {};
+
+  // Load all selected frames
+  const loaded = await Promise.all(selected.map(f => fetchFrameData("chl", f).catch(() => null)));
+  const valid = loaded.filter(d => d && Array.isArray(d.z));
+  if (!valid.length) return {};
+
+  // Calculate average scan time
+  const scanTimes = selected.map((f, i) => {
+    const d = valid[i];
+    if (!d) return null;
+    // Use scan_id from frame or bbox/ny/nx as proxy
+    return d.scan_id || d.frame_id || null;
+  }).filter(Boolean);
+  const scanTime = scanTimes.length > 1
+    ? `Avg: ${scanTimes[0]} – ${scanTimes[scanTimes.length - 1]}`
+    : (scanTimes[0] || "");
+
+  // Build nanmedian composite
+  const ny = valid[0].z.length;
+  const nx = valid[0].z[0]?.length || 0;
+  if (!ny || !nx) return {};
+
+  const composite = [];
+  for (let row = 0; row < ny; row++) {
+    composite[row] = [];
+    for (let col = 0; col < nx; col++) {
+      const vals = [];
+      for (const frame of valid) {
+        const v = frame.z[row]?.[col];
+        if (v !== null && isFinite(v) && v > 0) vals.push(v);
+      }
+      composite[row][col] = vals.length > 0
+        ? (vals.length === 1 ? vals[0] : vals.sort()[Math.floor(vals.length / 2)])
+        : null;
+    }
+  }
+
+  const grid = { xAxis: valid[0].bbox ? [valid[0].bbox[0], valid[0].bbox[2]] : [-81, -73], yAxis: valid[0].bbox ? [valid[0].bbox[1], valid[0].bbox[3]] : [31, 36], nx, ny };
+  const canvas = makeMobileRasterCanvas("chl", grid, { z: composite });
+  const url = canvas.toDataURL("image/png");
+  if (!url || !url.startsWith("data:image/png")) return { scanTime };
+  const extent = frameExtentFromGrid(grid);
+  const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+  const layer = new ol.layer.Image({ source: src, zIndex: 10 });
+  return { layer, scanTime };
+}
+
+
 
 function buildThermalFrontLineLayer(frontData) {
   const features = frontData.features || [];
