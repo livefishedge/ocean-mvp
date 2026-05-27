@@ -5359,7 +5359,8 @@ function updateThermalFrontsNav() {
 }
 
 function thermalUpdateLegendAndStatus() {
-  if (currentVar !== "thermal_fronts") return;
+  console.log("[thermalUpdateLegendAndStatus] CALLED currentVar:", currentVar);
+  if (currentVar !== "thermal_fronts") { console.log("[thermalUpdateLegendAndStatus] early return"); return; }
   const legendEl = document.getElementById("legend");
   const list = thermalActiveFrameList();
   if (thermalFrontState.mode === "daily") {
@@ -6010,7 +6011,9 @@ function thermalSetTempUnit(u) {
   thermalModeFBtn?.classList.toggle("active", u === "F");
   updateTempUnitToggleLabel();
   if (currentVar === "thermal_fronts") {
+    console.log("[thermalSetTempUnit] calling showFrame()...");
     showFrame().then(() => {
+      console.log("[thermalSetTempUnit] showFrame() done, refreshing readout at", lastThermalCoord);
       if (lastThermalCoord) thermalRenderReadout(lastThermalCoord, lastThermalPixel);
     });
   }
@@ -6021,7 +6024,9 @@ function thermalSetDistUnit(u) {
   thermalModeKmBtn?.classList.toggle("active", u === "km");
   thermalModeNmBtn?.classList.toggle("active", u === "nm");
   if (currentVar === "thermal_fronts") {
+    console.log("[thermalSetDistUnit] calling showFrame()...");
     showFrame().then(() => {
+      console.log("[thermalSetDistUnit] showFrame() done, refreshing readout at", lastThermalCoord);
       if (lastThermalCoord) thermalRenderReadout(lastThermalCoord, lastThermalPixel);
     });
   }
