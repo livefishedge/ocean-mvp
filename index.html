@@ -775,6 +775,7 @@ body.combined-mode #combined-menu-btn{
       <span id="frame-label"></span>
     </span>
     <span id="toolbar-status"></span>
+    <button id="temp-unit-toggle" aria-label="Toggle temperature unit">°C</button>
   </div>
 
   <div id="mobile-map"></div>
@@ -911,6 +912,14 @@ body.combined-mode #combined-menu-btn{
           <button id="thermal-mode-hourly" class="active" type="button">Hourly</button>
           <button id="thermal-mode-daily" type="button">Daily</button>
         </div>
+        <div class="mode-row" style="margin-top:4px;">
+          <button id="thermal-mode-c" class="active" type="button">°C</button>
+          <button id="thermal-mode-f" type="button">°F</button>
+        </div>
+        <div class="mode-row" style="margin-top:4px;">
+          <button id="thermal-mode-km" class="active" type="button">km</button>
+          <button id="thermal-mode-nm" type="button">nm</button>
+        </div>
       </div>
       <div class="hamburger-range-block">
         <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
@@ -988,6 +997,14 @@ let userRanges = {
 };
 
 let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
+let thermalDistUnit = localStorage.getItem("thermal_dist_unit") === "nm" ? "nm" : "km";
+function cToF(c) { return c * 9 / 5 + 32; }
+function kmToNm(km) { return km * 0.539957; }
+function formatDist(km) {
+  if (km === null || km === undefined) return "";
+  if (thermalDistUnit === "nm") return `${kmToNm(km).toFixed(1)} nm`;
+  return `${km.toFixed(1)} km`;
+}
 function cToF(c) { return c * 9 / 5 + 32; }
 function tempUnitLabel() { return tempUnit === "F" ? "°F" : "°C"; }
 function formatSigValue(value, digits) {
@@ -1738,6 +1755,20 @@ if (combinedOverlay) {
     if (combinedOverlay) combinedOverlay.style.display = "none";
   });
 }
+/* C/F temperature unit toggle (SST + thermal fronts) */
+const tempUnitToggle = document.getElementById("temp-unit-toggle");
+if (tempUnitToggle) {
+  tempUnitToggle.addEventListener("click", () => {
+    tempUnit = tempUnit === "F" ? "C" : "F";
+    localStorage.setItem("sst_temp_unit", tempUnit);
+    if (currentVar === "sst") showFrame();
+    updateTempUnitToggleLabel();
+  });
+}
+function updateTempUnitToggleLabel() {
+  if (tempUnitToggle) tempUnitToggle.textContent = tempUnitLabel();
+}
+
 if (combinedRegionSelect) {
   combinedRegionSelect.value = REGION_ID;
   combinedRegionSelect.addEventListener("change", () => {
@@ -4277,7 +4308,8 @@ function combinedNearestFrontHover(map, coord, pixel) {
   }
   if (sstVals.length) {
     const avg = sstVals.reduce((a, b) => a + b, 0) / sstVals.length;
-    parts.push(`ΔSST ${avg.toFixed(2)} °C`);
+    const displayVal = tempUnit === "F" ? cToF(avg) : avg;
+    parts.push(`ΔSST ${displayVal.toFixed(2)} ${tempUnitLabel()}`);
   }
   return parts.length ? parts.join("  ") : null;
 }
@@ -4691,7 +4723,7 @@ function renderReadoutFromPoint(p) {
       parts.push(`${Number(cd.strength).toFixed(2)} ${cd.strength_unit || ""}`);
     }
     if (cd.length_km !== null && cd.length_km !== undefined) {
-      parts.push(`${Number(cd.length_km).toFixed(1)} km`);
+      parts.push(formatDist(cd.length_km));
     }
     setReadout(parts.length ? `${base} ${parts.join(" / ")}` : base);
     return;
@@ -4727,7 +4759,7 @@ function updateReadoutPosition() {
 
 /* ========================= UI ========================= */
 function updateTempUnitUI() {
-  document.body.classList.toggle("show-temp-unit", currentVar === "sst");
+  document.body.classList.toggle("show-temp-unit", currentVar === "sst" || currentVar === "thermal_fronts");
 }
 
 function syncThermalFrontsVisibility() {
@@ -5149,7 +5181,10 @@ function thermalRenderReadout(coord, pixel) {
   const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
   if (Number.isFinite(gradient)) {
     const parts = [`${gradient.toFixed(3)} °C/km`];
-    if (deltaSst && Number.isFinite(deltaSst.value)) parts.push(`${deltaSst.label} ${deltaSst.value.toFixed(2)}°C`);
+    if (deltaSst && Number.isFinite(deltaSst.value)) {
+      const displayVal = tempUnit === "F" ? cToF(deltaSst.value) : deltaSst.value;
+      parts.push(`${deltaSst.label} ${displayVal.toFixed(2)} ${tempUnitLabel()}`);
+    }
     setReadout(`${base}, ${parts.join(", ")}`);
   } else {
     setReadout(base);
@@ -5941,6 +5976,35 @@ if (globalSstFrontOverlayInput) {
 
 thermalModeHourlyBtn?.addEventListener("click", () => thermalSetMode("animation"));
 thermalModeDailyBtn?.addEventListener("click", () => thermalSetMode("daily"));
+
+/* Thermal fronts C/F and km/nm unit toggles */
+const thermalModeCBtn = document.getElementById("thermal-mode-c");
+const thermalModeFBtn = document.getElementById("thermal-mode-f");
+const thermalModeKmBtn = document.getElementById("thermal-mode-km");
+const thermalModeNmBtn = document.getElementById("thermal-mode-nm");
+function thermalSetTempUnit(u) {
+  tempUnit = u;
+  localStorage.setItem("sst_temp_unit", tempUnit);
+  thermalModeCBtn?.classList.toggle("active", u === "C");
+  thermalModeFBtn?.classList.toggle("active", u === "F");
+  updateTempUnitToggleLabel();
+  if (currentVar === "thermal_fronts") showFrame();
+}
+function thermalSetDistUnit(u) {
+  thermalDistUnit = u;
+  localStorage.setItem("thermal_dist_unit", thermalDistUnit);
+  thermalModeKmBtn?.classList.toggle("active", u === "km");
+  thermalModeNmBtn?.classList.toggle("active", u === "nm");
+  if (currentVar === "thermal_fronts") showFrame();
+}
+thermalModeCBtn?.addEventListener("click", () => thermalSetTempUnit("C"));
+thermalModeFBtn?.addEventListener("click", () => thermalSetTempUnit("F"));
+thermalModeKmBtn?.addEventListener("click", () => thermalSetDistUnit("km"));
+thermalModeNmBtn?.addEventListener("click", () => thermalSetDistUnit("nm"));
+// Restore active state from localStorage on load
+thermalSetTempUnit(tempUnit);
+thermalSetDistUnit(thermalDistUnit);
+
 thermalAllDayCb?.addEventListener("change", () => renderThermalFrontsNative());
 thermalDaySelect?.addEventListener("change", () => {
   thermalFrontState.selectedDate = thermalDaySelect.value;
