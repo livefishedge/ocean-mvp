@@ -805,6 +805,7 @@ body.combined-mode #combined-menu-btn{
         <option value="48">Last 48 hours</option>
         <option value="72">Last 72 hours</option>
       </select>
+      <div id="combined-thermal-scan-time" style="font-size:11px;color:#ff6666;margin-left:28px;margin-bottom:8px;"></div>
     </div>
     <div class="combined-section" id="combined-currents-legend">
       <div class="combined-section-title">Currents</div>
@@ -1718,17 +1719,19 @@ if (chkFront) chkFront.addEventListener("change", e => {
 
 /* Combined dropdown: thermal hours */
 const thermalHoursSelect = document.getElementById("combined-thermal-hours");
+const thermalScanTimeDiv = document.getElementById("combined-thermal-scan-time");
 if (thermalHoursSelect) {
   thermalHoursSelect.addEventListener("change", async () => {
     const hours = parseInt(thermalHoursSelect.value, 10);
+    const m = window._combinedMap;
     // Remove existing front layers
-    if (window._combinedFrontLineLayer) { map.removeLayer(window._combinedFrontLineLayer); window._combinedFrontLineLayer = null; }
-    if (window._combinedFrontDensityLayer) { map.removeLayer(window._combinedFrontDensityLayer); window._combinedFrontDensityLayer = null; }
-    // Build composite thermal fronts for selected hours
-    if (!window._combinedMap) return;
-    const composite = buildThermalHoursComposite(window._combinedMap, hours);
-    if (composite.lineLayer) { window._combinedMap.addLayer(composite.lineLayer); window._combinedFrontLineLayer = composite.lineLayer; }
-    if (composite.densityLayer) { window._combinedMap.addLayer(composite.densityLayer); window._combinedFrontDensityLayer = composite.densityLayer; }
+    if (window._combinedFrontLineLayer) { m?.removeLayer(window._combinedFrontLineLayer); window._combinedFrontLineLayer = null; }
+    if (window._combinedFrontDensityLayer) { m?.removeLayer(window._combinedFrontDensityLayer); window._combinedFrontDensityLayer = null; }
+    if (!m) return;
+    const composite = buildThermalHoursComposite(m, hours);
+    if (composite.lineLayer) { m.addLayer(composite.lineLayer); window._combinedFrontLineLayer = composite.lineLayer; }
+    if (composite.densityLayer) { m.addLayer(composite.densityLayer); window._combinedFrontDensityLayer = composite.densityLayer; }
+    if (thermalScanTimeDiv) thermalScanTimeDiv.textContent = composite.scanTime || "";
   });
 }
 
@@ -4016,98 +4019,114 @@ function buildCombinedThermalFrontLineLayer(items) {
 /* ============================================================
    Combined-mode helpers: build ThermalHours composite layers
    ============================================================ */
+
+function spectralRgb(t) {
+  const hue = 270 - t * 270;
+  const s = 0.85, l = 0.50;
+  const h = ((hue % 360) + 360) % 360;
+  const c2 = (1 - Math.abs(2 * l - 1)) * s;
+  const x2 = c2 * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c2 / 2;
+  let r, g, b;
+  if (h < 60) { r = c2; g = x2; b = 0; }
+  else if (h < 120) { r = x2; g = c2; b = 0; }
+  else if (h < 180) { r = 0; g = c2; b = x2; }
+  else if (h < 240) { r = 0; g = x2; b = c2; }
+  else if (h < 300) { r = x2; g = 0; b = c2; }
+  else { r = c2; g = 0; b = x2; }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
 function buildThermalHoursComposite(map, hours) {
   const now = Date.now();
   const cutoff = now - hours * 3600000;
-  const lineFeatures = [];
-  const densityGrid = {};
 
-  // Collect all thermal front features within the hours window
-  for (const item of thermalFrontState.frameData) {
-    if (item.t < cutoff) continue;
+  // Collect all thermal front items within the hours window
+  const frontItems = (thermalFrontState.frameData || []).filter(item => item.t >= cutoff);
+
+  // Scan time: mid-point timestamp in local format
+  const tSorted = frontItems.map(i => i.t).filter(Boolean).sort((a, b) => a - b);
+  const scanTime = tSorted.length > 0
+    ? new Date(tSorted[Math.floor(tSorted.length / 2)]).toLocaleString(undefined, {
+        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      })
+    : "";
+
+  // Build line features with spectral color (same approach as thermal-fronts.html)
+  const spectralSource = new ol.source.Vector({ wrapX: false });
+  for (const item of frontItems) {
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sf of sourceFeatures) {
+      const coords = sf?.geometry?.coordinates || [];
+      if (sf.geometry?.type === "LineString" && coords.length >= 2) {
+        const segments = thermalSegmentedLineStrings(coords);
+        const ageNorm = tSorted.length > 1 ? (item.t - tSorted[0]) / (tSorted[tSorted.length - 1] - tSorted[0]) : 0;
+        const [r, g, b] = spectralRgb(ageNorm);
+        for (const seg of segments) {
+          if (seg.length < 2) continue;
+          spectralSource.addFeature(new ol.Feature({
+            geometry: new ol.geom.LineString(seg),
+            style: new ol.style.Style({
+              stroke: new ol.style.Stroke({ color: `rgba(${r},${g},${b},0.85)`, width: 1.5, lineCap: "round", lineJoin: "round" })
+            })
+          }));
+        }
+      }
+    }
+  }
+  const lineLayer = new ol.layer.Vector({
+    source: spectralSource, zIndex: 32,
+    updateWhileAnimating: true, updateWhileInteracting: true
+  });
+
+  // Build density canvas — same 0.005° cell as thermal-fronts.html
+  const cellDeg = 0.005;
+  const [west, south, east, north] = BBOX.map(Number);
+  const nx = Math.max(2, Math.ceil((east - west) / cellDeg) + 1);
+  const ny = Math.max(2, Math.ceil((north - south) / cellDeg) + 1);
+  const counts = new Int32Array(nx * ny);
+
+  for (const item of frontItems) {
+    const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const sf of sourceFeatures) {
+      const coords = sf?.geometry?.coordinates || [];
       if (sf.geometry?.type === "MultiPoint") {
-        const pts = sf.geometry?.coordinates || [];
-        for (const pt of pts) {
+        for (const pt of coords) {
           if (!pt || pt.length < 2) continue;
           const lon = pt[0], lat = pt[1];
           if (!isFinite(lon) || !isFinite(lat)) continue;
-          const cellX = Math.floor(lon / cellDeg);
-          const cellY = Math.floor(lat / cellDeg);
-          const key = cellX + "," + cellY;
-          densityGrid[key] = (densityGrid[key] || 0) + 1;
-        }
-      } else if (sf.geometry?.type === "LineString") {
-        // Filter out NaN/Infinity coordinates — don't connect bad points
-        const rawCoords = sf.geometry?.coordinates || [];
-        const validSegs = [];
-        let currentSeg = null;
-        for (const pt of rawCoords) {
-          if (!pt || pt.length < 2) { if (currentSeg) { validSegs.push(currentSeg); currentSeg = null; } continue; }
-          const lon = pt[0], lat = pt[1];
-          if (!isFinite(lon) || !isFinite(lat)) { if (currentSeg) { validSegs.push(currentSeg); currentSeg = null; } continue; }
-          if (!currentSeg) currentSeg = [];
-          currentSeg.push([lon, lat]);
-        }
-        if (currentSeg) validSegs.push(currentSeg);
-        const ageNorm = (item.t - cutoff) / (now - cutoff);
-        const r = Math.round(180 + 75 * (1 - ageNorm));
-        const g = Math.round(20 + 30 * ageNorm);
-        const b = Math.round(20 + 10 * ageNorm);
-        for (const seg of validSegs) {
-          if (seg.length < 2) continue;
-          const style = new ol.style.Style({
-            stroke: new ol.style.Stroke({ color: `rgba(${r},${g},${b},0.85)`, width: 1.5, lineCap: "round", lineJoin: "round" })
-          });
-          lineFeatures.push(new ol.Feature({ geometry: new ol.geom.LineString(seg), style }));
-        }
-      }
-      // Density: accumulate into grid cells
-      if (sf.geometry?.type === "MultiPoint" || (sf.geometry?.type === "Point")) {
-        const pts = sf.geometry?.type === "MultiPoint" ? (sf.geometry?.coordinates || []) : [sf.geometry?.coordinates || []];
-        for (const pt of pts) {
-          if (!pt || pt.length < 2) continue;
-          const cellX = Math.floor(pt[0] / 0.014);
-          const cellY = Math.floor(pt[1] / 0.014);
-          const key = cellX + "," + cellY;
-          densityGrid[key] = (densityGrid[key] || 0) + 1;
+          const cx = Math.round((lon - west) / cellDeg);
+          const cy = Math.round((lat - south) / cellDeg);
+          if (cx >= 0 && cx < nx && cy >= 0 && cy < ny) counts[cy * nx + cx]++;
         }
       }
     }
   }
 
-  const lineSource = new ol.source.Vector({ features: lineFeatures, wrapX: false });
-  const lineLayer = new ol.layer.Vector({
-    source: lineSource,
-    zIndex: 32,
-    updateWhileAnimating: true,
-    updateWhileInteracting: true
-  });
-
-  // Build density canvas
-  const cellDeg = 0.014;
-  const nx = Math.max(2, Math.ceil((BBOX[2] - BBOX[0]) / cellDeg) + 1);
-  const ny = Math.max(2, Math.ceil((BBOX[3] - BBOX[1]) / cellDeg) + 1);
+  const nonzero = Array.from(counts).filter(v => v > 0);
+  const max = Math.max(1, ...nonzero);
+  const cutoffVal = Math.max(2, Math.round(max * 0.15));
   const canvas = document.createElement("canvas");
   canvas.width = nx; canvas.height = ny;
   const ctx = canvas.getContext("2d");
-  const maxCount = Math.max(1, ...Object.values(densityGrid));
-  const radiusPx = hours <= 6 ? 2 : (hours <= 24 ? 3 : 4);
-  for (const [key, count] of Object.entries(densityGrid)) {
-    const [cx, cy] = key.split(",").map(Number);
-    const alpha = 40 + Math.round(180 * count / maxCount);
+  for (let i = 0; i < nx * ny; i++) {
+    const c = counts[i];
+    if (c < cutoffVal) continue;
+    const cx = i % nx;
+    const cy = Math.floor(i / nx);
+    const alpha = 40 + Math.round(180 * c / max);
     ctx.beginPath();
-    ctx.arc(cx, ny - 1 - cy, radiusPx, 0, Math.PI * 2);
+    ctx.arc(cx, ny - 1 - cy, 2, 0, Math.PI * 2);
     ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
     ctx.fill();
   }
-  const extent = [BBOX[0], BBOX[1], BBOX[0] + nx * cellDeg, BBOX[1] + ny * cellDeg];
+  const extent = [west, south, west + (nx - 1) * cellDeg, south + (ny - 1) * cellDeg];
   const densitySrc = new ol.source.ImageStatic({ url: canvas.toDataURL("image/png"), imageExtent: extent, projection: "EPSG:4326", interpolate: false });
   const densityLayer = new ol.layer.Image({ source: densitySrc, zIndex: 30, opacity: 0.85 });
 
-  return { lineLayer, densityLayer };
+  return { lineLayer, densityLayer, scanTime };
 }
+
 
 /* ============================================================
    Combined-mode helpers: build CHL nanmedian composite layer
