@@ -4404,19 +4404,19 @@ async function buildChlCompositeLayer(map, count) {
     JSON.stringify(item.data?.bbox || []) === JSON.stringify(base.data?.bbox || [])
   );
 
-  let renderData = base.data;
+  // Most-recent-first: item[0]=newest. For each pixel, take the first (newest) valid value.
+  // This fills spatial gaps from older scans while preserving temporal freshness.
   if (compatible.length > 1) {
     const composite = Array.from({ length: ny }, () => Array(nx).fill(null));
     for (let row = 0; row < ny; row++) {
       for (let col = 0; col < nx; col++) {
-        const vals = [];
+        // Iterate newest-first (compatible is already sorted desc by time)
         for (const item of compatible) {
           const value = Number(item.z[row]?.[col]);
-          if (Number.isFinite(value) && value > 0 && Math.abs(value) < 1e20) vals.push(value);
-        }
-        if (vals.length) {
-          vals.sort((a, b) => a - b);
-          composite[row][col] = vals[Math.floor(vals.length / 2)];
+          if (Number.isFinite(value) && value > 0 && Math.abs(value) < 1e20) {
+            composite[row][col] = value;
+            break; // take the first (newest) valid value, skip older scans for this pixel
+          }
         }
       }
     }
@@ -4435,9 +4435,10 @@ async function buildChlCompositeLayer(map, count) {
     }),
     zIndex: 10
   });
-  const times = compatible.map(item => epochMsForFrame("chl", item.frame)).filter(Boolean).sort((a, b) => a - b);
-  const scanTime = times.length
-    ? new Date(times[Math.floor(times.length / 2)]).toLocaleString(undefined, {
+  // Use the newest frame's timestamp for the scan time label
+  const newestTime = compatible.length > 0 ? epochMsForFrame("chl", compatible[0].frame) : null;
+  const scanTime = newestTime
+    ? new Date(newestTime).toLocaleString(undefined, {
         year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
       })
     : "";
