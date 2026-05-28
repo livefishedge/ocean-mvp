@@ -1961,33 +1961,87 @@ if (sstHoursSelect) {
       window._combinedMap.removeLayer(window._combinedSstLayer);
       window._combinedSstLayer = null;
     }
-    const frames = await fetchFramesForVar("sst");
-    const now = Date.now();
-    const cutoff = now - hours * 3600000;
-    const recent = frames.filter(f => {
+    const sstFrames = framesByVar.sst || [];
+    if (!sstFrames.length) { if (sstScanTimeDiv) sstScanTimeDiv.textContent = "No data"; return; }
+    const sorted = [...sstFrames].sort((a, b) => {
+      const ta = epochMsForFrame("sst", a) || 0;
+      const tb = epochMsForFrame("sst", b) || 0;
+      return tb - ta;
+    });
+    // Compute cutoff relative to the newest frame, not wall-clock time
+    const latestT = epochMsForFrame("sst", sorted[0]) || Date.now();
+    const cutoff = latestT - hours * 3600000;
+    const selected = sorted.filter(f => {
       const t = epochMsForFrame("sst", f);
       return t && t >= cutoff;
     });
-    if (!recent.length) { if (sstScanTimeDiv) sstScanTimeDiv.textContent = "No data"; return; }
-    const latest = recent[0];
-    const data = await fetchFrameData("sst", latest);
-    const grid = await loadGridForVar("sst", data);
-    window._combinedSstData = data;
-    window._combinedSstGrid = grid;
-    const canvas = makeMobileRasterCanvas("sst", grid, data);
-    const url = canvas.toDataURL("image/png");
-    if (url && url.startsWith("data:image/png")) {
-      const extent = frameExtentFromGrid(grid);
-      const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-      const layer = new ol.layer.Image({ source: src, zIndex: 9 });
-      const chk = document.getElementById("chk-combined-sst");
-      layer.setVisible(chk ? chk.checked : false);
-      window._combinedMap.addLayer(layer);
-      window._combinedSstLayer = layer;
+    if (!selected.length) { if (sstScanTimeDiv) sstScanTimeDiv.textContent = "No data"; return; }
+    const loaded = (await Promise.all(selected.map(async frame => {
+      try {
+        const data = await fetchFrameData("sst", frame);
+        const grid = await loadGridForVar("sst", data);
+        const z = mobileZForVar("sst", data);
+        return is2D(z) ? { frame, data, grid, z } : null;
+      } catch (_) { return null; }
+    }))).filter(Boolean);
+    if (!loaded.length) { if (sstScanTimeDiv) sstScanTimeDiv.textContent = "No data"; return; }
+    const base = loaded[0];
+    const ny = base.z.length, nx = base.z[0]?.length || 0;
+    if (!ny || !nx) { if (sstScanTimeDiv) sstScanTimeDiv.textContent = "No data"; return; }
+    // Resample all to base grid
+    const compatible = loaded.map(item => {
+      if (item.z.length === ny && item.z[0]?.length === nx) return item;
+      const nyS = item.z.length, nxS = item.z[0]?.length || 0;
+      const result = Array.from({ length: ny }, () => Array(nx).fill(null));
+      for (let rT = 0; rT < ny; rT++) {
+        const rS = rT * (nyS - 1) / (ny - 1), rS0 = Math.floor(rS), rS1 = Math.min(rS0 + 1, nyS - 1), dr = rS - rS0;
+        for (let cT = 0; cT < nx; cT++) {
+          const cS = cT * (nxS - 1) / (nx - 1), cS0 = Math.floor(cS), cS1 = Math.min(cS0 + 1, nxS - 1), dc = cS - cS0;
+          const v00 = item.z[rS0]?.[cS0], v01 = item.z[rS0]?.[cS1], v10 = item.z[rS1]?.[cS0], v11 = item.z[rS1]?.[cS1];
+          const f00 = Number.isFinite(v00) && v00 > 0 && v00 < 1e20;
+          const f01 = Number.isFinite(v01) && v01 > 0 && v01 < 1e20;
+          const f10 = Number.isFinite(v10) && v10 > 0 && v10 < 1e20;
+          const f11 = Number.isFinite(v11) && v11 > 0 && v11 < 1e20;
+          if (f00 && f01 && f10 && f11) result[rT][cT] = v00*(1-dr)*(1-dc) + v01*(1-dr)*dc + v10*dr*(1-dc) + v11*dr*dc;
+          else if (f00) result[rT][cT] = v00;
+          else if (f01) result[rT][cT] = v01;
+          else if (f10) result[rT][cT] = v10;
+          else if (f11) result[rT][cT] = v11;
+        }
+      }
+      return { ...item, z: result };
+    });
+    // Composite: first valid value found
+    const composite = Array.from({ length: ny }, () => Array(nx).fill(null));
+    for (let row = 0; row < ny; row++) {
+      for (let col = 0; col < nx; col++) {
+        for (const item of compatible) {
+          const v = Number(item.z[row]?.[col]);
+          if (Number.isFinite(v) && v > 0 && Math.abs(v) < 1e20) { composite[row][col] = v; break; }
+        }
+      }
     }
-    const t = epochMsForFrame("sst", latest);
-    if (sstScanTimeDiv) sstScanTimeDiv.textContent = t
-      ? new Date(t).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    const renderData = { ...base.data, z: composite, sst: composite, data: composite, nx, ny, bbox: base.data?.bbox };
+    const canvas = makeMobileRasterCanvas("sst", base.grid, renderData);
+    const url = canvas.toDataURL("image/png");
+    if (!url || !url.startsWith("data:image/png")) { if (sstScanTimeDiv) sstScanTimeDiv.textContent = "Render failed"; return; }
+    const layer = new ol.layer.Image({
+      source: new ol.source.ImageStatic({
+        url, imageExtent: frameExtentFromGrid(base.grid),
+        projection: "EPSG:4326", interpolate: false
+      }),
+      zIndex: 9
+    });
+    const chk = document.getElementById("chk-combined-sst");
+    layer.setVisible(chk ? chk.checked : false);
+    window._combinedMap.addLayer(layer);
+    window._combinedSstLayer = layer;
+    window._combinedSstData = renderData;
+    window._combinedSstGrid = base.grid;
+    const epochTimes = selected.map(item => epochMsForFrame("sst", item.frame)).filter(t => t);
+    const meanTime = epochTimes.length ? epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length : null;
+    if (sstScanTimeDiv) sstScanTimeDiv.textContent = meanTime
+      ? new Date(meanTime).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
   });
 }
@@ -4112,47 +4166,79 @@ async function renderCombinedMode() {
   // ── Layer: SST Temperature (unchecked by default — conflicts visually with CHL) ──
   const sstFrames = framesByVar.sst || [];
   const sstScanTimeDiv = document.getElementById("combined-sst-scan-time");
-  const sstPaletteCanvas = document.getElementById("combined-sst-palette-canvas");
   if (sstFrames.length) {
-    const frame = sstFrames[0];
-    const data = await fetchFrameData("sst", frame);
-    const grid = await loadGridForVar("sst", data);
-    window._combinedSstData = data;
-    window._combinedSstGrid = grid;
-    const canvas = makeMobileRasterCanvas("sst", grid, data);
-    const url = canvas.toDataURL("image/png");
-    if (url && url.startsWith("data:image/png")) {
-      const extent = frameExtentFromGrid(grid);
-      const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
-      const layer = new ol.layer.Image({ source: src, zIndex: 9 });
-      layer.setVisible(false); // unchecked by default
-      map.addLayer(layer);
-      window._combinedSstLayer = layer;
-      // Draw color palette
-      if (sstPaletteCanvas) {
-        const ctx = sstPaletteCanvas.getContext("2d");
-        const w = sstPaletteCanvas.width, h = sstPaletteCanvas.height;
-        const grad = ctx.createLinearGradient(0, 0, w, 0);
-        // SST palette: cool blues to warm oranges
-        grad.addColorStop(0, "#313695");
-        grad.addColorStop(0.25, "#4575b4");
-        grad.addColorStop(0.5, "#fee090");
-        grad.addColorStop(0.75, "#f46d43");
-        grad.addColorStop(1, "#d73027");
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, w, h);
-        const lo = document.getElementById("combined-sst-palette-low");
-        const hi = document.getElementById("combined-sst-palette-high");
-        if (data?.min !== undefined && data?.max !== undefined) {
-          if (lo) lo.textContent = `${data.min.toFixed(1)}°`;
-          if (hi) hi.textContent = `${data.max.toFixed(1)}°`;
+    const sorted = [...sstFrames].sort((a, b) => {
+      const ta = epochMsForFrame("sst", a) || 0, tb = epochMsForFrame("sst", b) || 0;
+      return tb - ta;
+    });
+    // Default: Last 24h composite, same logic as dropdown
+    const latestT = epochMsForFrame("sst", sorted[0]) || Date.now();
+    const cutoff = latestT - 24 * 3600000;
+    const selected = sorted.filter(f => { const t = epochMsForFrame("sst", f); return t && t >= cutoff; });
+    const compositeFrames = selected.length ? selected : sorted.slice(0, 1);
+    const loaded = (await Promise.all(compositeFrames.map(async frame => {
+      try {
+        const data = await fetchFrameData("sst", frame);
+        const grid = await loadGridForVar("sst", data);
+        const z = mobileZForVar("sst", data);
+        return is2D(z) ? { frame, data, grid, z } : null;
+      } catch (_) { return null; }
+    }))).filter(Boolean);
+    if (loaded.length) {
+      const base = loaded[0];
+      const ny = base.z.length, nx = base.z[0]?.length || 0;
+      if (ny && nx) {
+        const compatible = loaded.map(item => {
+          if (item.z.length === ny && item.z[0]?.length === nx) return item;
+          const nyS = item.z.length, nxS = item.z[0]?.length || 0;
+          const result = Array.from({ length: ny }, () => Array(nx).fill(null));
+          for (let rT = 0; rT < ny; rT++) {
+            const rS = rT * (nyS - 1) / (ny - 1), rS0 = Math.floor(rS), rS1 = Math.min(rS0 + 1, nyS - 1), dr = rS - rS0;
+            for (let cT = 0; cT < nx; cT++) {
+              const cS = cT * (nxS - 1) / (nx - 1), cS0 = Math.floor(cS), cS1 = Math.min(cS0 + 1, nxS - 1), dc = cS - cS0;
+              const v00 = item.z[rS0]?.[cS0], v01 = item.z[rS0]?.[cS1], v10 = item.z[rS1]?.[cS0], v11 = item.z[rS1]?.[cS1];
+              const f00 = Number.isFinite(v00) && v00 > 0 && v00 < 1e20;
+              const f01 = Number.isFinite(v01) && v01 > 0 && v01 < 1e20;
+              const f10 = Number.isFinite(v10) && v10 > 0 && v10 < 1e20;
+              const f11 = Number.isFinite(v11) && v11 > 0 && v11 < 1e20;
+              if (f00 && f01 && f10 && f11) result[rT][cT] = v00*(1-dr)*(1-dc) + v01*(1-dr)*dc + v10*dr*(1-dc) + v11*dr*dc;
+              else if (f00) result[rT][cT] = v00;
+              else if (f01) result[rT][cT] = v01;
+              else if (f10) result[rT][cT] = v10;
+              else if (f11) result[rT][cT] = v11;
+            }
+          }
+          return { ...item, z: result };
+        });
+        const composite = Array.from({ length: ny }, () => Array(nx).fill(null));
+        for (let row = 0; row < ny; row++) {
+          for (let col = 0; col < nx; col++) {
+            for (const item of compatible) {
+              const v = Number(item.z[row]?.[col]);
+              if (Number.isFinite(v) && v > 0 && Math.abs(v) < 1e20) { composite[row][col] = v; break; }
+            }
+          }
         }
+        const renderData = { ...base.data, z: composite, sst: composite, data: composite, nx, ny, bbox: base.data?.bbox };
+        const canvas = makeMobileRasterCanvas("sst", base.grid, renderData);
+        const url = canvas.toDataURL("image/png");
+        if (url && url.startsWith("data:image/png")) {
+          const extent = frameExtentFromGrid(base.grid);
+          const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+          const layer = new ol.layer.Image({ source: src, zIndex: 9 });
+          layer.setVisible(false);
+          map.addLayer(layer);
+          window._combinedSstLayer = layer;
+          window._combinedSstData = renderData;
+          window._combinedSstGrid = base.grid;
+        }
+        const epochTimes = compositeFrames.map(item => epochMsForFrame("sst", item.frame)).filter(t => t);
+        const meanTime = epochTimes.length ? epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length : null;
+        if (sstScanTimeDiv) sstScanTimeDiv.textContent = meanTime
+          ? new Date(meanTime).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+          : "";
       }
     }
-    const sstT = epochMsForFrame("sst", frame);
-    if (sstScanTimeDiv) sstScanTimeDiv.textContent = sstT
-      ? new Date(sstT).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-      : "";
   } else {
     if (sstScanTimeDiv) sstScanTimeDiv.textContent = "";
   }
