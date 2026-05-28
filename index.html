@@ -1014,7 +1014,7 @@ let thermalDistUnit = localStorage.getItem("thermal_dist_unit") === "nm" ? "nm" 
 // cToF: converts absolute Celsius temperature to Fahrenheit (used for point values)
 function cToF(c) { return c * 9 / 5 + 32; }
 // kmToNm: converts kilometers to nautical miles (1 nm ≈ 1.852 km, so km → nm divides)
-function kmToNm(km) { return km / 1.852; }
+function kmToNm(km) { return km * 1.852; }
 function formatDist(km) {
   if (km === null || km === undefined) return "";
   if (thermalDistUnit === "nm") return `${kmToNm(km).toFixed(1)} nm`;
