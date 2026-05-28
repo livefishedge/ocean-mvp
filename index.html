@@ -1,7 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <m
+  setTimeout(applyUrlWaypoints, 200);
+}eta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>Captain's Dashboard</title>
   <link rel="icon" href="data:,">
@@ -592,26 +594,28 @@ body.combined-mode #combined-menu-btn{
       width:100%; height:100%;
     }
     #combined-map .ol-viewport{ background:#f8fbff; }
-    /* Captain tools palette */
+    /* Captain tools palette — horizontal row, upper-left */
     #captain-tools{
       display:none;
       position:fixed;
-      top:8px; left:56px;
+      top:8px; left:8px;
       z-index:1150;
       background:var(--panel);
       border:1px solid var(--border);
       border-radius:10px;
-      padding:6px;
+      padding:5px 6px;
       gap:4px;
-      flex-direction:column;
+      flex-direction:row;
       box-shadow:0 4px 16px rgba(0,0,0,0.4);
+      align-items:center;
     }
     body.combined-mode #captain-tools{ display:flex; }
     .captain-tool-btn{
-      width:38px; height:38px;
+      width:30px; height:30px;
+      min-width:30px;
       background:transparent;
       border:1px solid transparent;
-      border-radius:7px;
+      border-radius:6px;
       color:var(--fg);
       cursor:pointer;
       display:flex; align-items:center; justify-content:center;
@@ -620,7 +624,21 @@ body.combined-mode #combined-menu-btn{
     }
     .captain-tool-btn:hover{ background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.2); }
     .captain-tool-btn.active{ background:rgba(29,79,145,0.7); border-color:#4d7dff; }
-    #captain-save-btn{ display:none; }
+    #captain-save-btn{
+      display:none;
+      position:fixed;
+      top:44px; left:8px;
+      z-index:1150;
+      background:#1d4f91;
+      border:1px solid #4d7dff;
+      border-radius:8px;
+      color:#fff;
+      padding:0 10px;
+      height:28px;
+      cursor:pointer;
+      font-size:12px;
+      font-weight:700;
+    }
     body.combined-mode #captain-save-btn{ display:flex; }
     #captain-dist-panel.visible, #captain-pts-panel.visible{ display:block !important; }
     #combined-readout{
@@ -831,7 +849,7 @@ body.combined-mode #combined-menu-btn{
   <div id="combined-overlay"></div>
   <div id="captain-tools" role="toolbar" aria-label="Captain tools">
     <button id="captain-dist-tool" class="captain-tool-btn" title="Measure distance (M)" data-tool="dist">
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="18" height="18" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
         <line x1="3" y1="19" x2="19" y2="3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
         <circle cx="4" cy="18" r="2" fill="currentColor"/>
         <circle cx="18" cy="4" r="2" fill="currentColor"/>
@@ -840,7 +858,7 @@ body.combined-mode #combined-menu-btn{
       </svg>
     </button>
     <button id="captain-add-tool" class="captain-tool-btn" title="Add waypoint (A)" data-tool="add">
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="18" height="18" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2" fill="none"/>
         <circle cx="11" cy="11" r="2" fill="currentColor"/>
         <line x1="11" y1="2" x2="11" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -850,7 +868,7 @@ body.combined-mode #combined-menu-btn{
       </svg>
     </button>
   </div>
-  <button id="captain-save-btn" title="Save waypoints" style="display:none;position:fixed;left:8px;top:8px;z-index:1150;background:#1d4f91;border:1px solid #4d7dff;border-radius:8px;color:#fff;padding:0 12px;height:38px;cursor:pointer;font-size:13px;font-weight:700;letter-spacing:0.3px;gap:6px;align-items:center;">
+  <button id="captain-save-btn" title="Save waypoints" style="display:none;position:fixed;left:8px;top:44px;z-index:1150;background:#1d4f91;border:1px solid #4d7dff;border-radius:8px;color:#fff;padding:0 10px;height:28px;cursor:pointer;font-size:12px;font-weight:700;">
     Save Waypoints
   </button>
   <div id="captain-pts-panel" style="display:none;position:fixed;top:52px;left:8px;z-index:1150;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;width:280px;max-height:320px;overflow-y:auto;font-size:12px;color:var(--fg);">
@@ -6765,45 +6783,267 @@ setInterval(pollForUpdates, 60000);
 
 let captainDistTool = {
   active: false,
-  points: [],        // [{lon, lat}]
+  points: [],
   lineLayer: null,
-  labelLayer: null,
   mapRef: null
 };
 
 let captainAddTool = {
   active: false,
-  points: [],        // [{lon, lat, chl, sst, freshness, ts}]
+  points: [],
   markerLayer: null,
   mapRef: null
 };
 
-// ── Distance tool ───────────────────────────────────────────
+// ── Format writers ──────────────────────────────────────────────────────────
+
+function waypointsToGPX(pts) {
+  const wpts = pts.map((p, i) => {
+    const ts = p.ts ? new Date(p.ts).toISOString() : new Date().toISOString();
+    const name = `${i + 1}`;
+    const desc = [
+      p.chl !== null ? `CHL:${p.chl.toFixed(2)}mg/m3` : null,
+      p.sst !== null ? `SST:${p.sst.toFixed(1)}C` : null,
+      p.freshness !== null ? `Fresh:${p.freshness}h` : null,
+    ].filter(Boolean).join(' | ');
+    return `  <wpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}">
+    <name>${name}</name>
+    <time>${ts}</time>
+    <desc>${desc}</desc>
+  </wpt>`;
+  }).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="LiveFishEdge Ocean MVP"
+  xmlns="http://www.topografix.com/GPX/1/1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>Ocean MVP Waypoints</name>
+    <time>${new Date().toISOString()}</time>
+  </metadata>
+  ${wpts}
+</gpx>`;
+}
+
+function waypointsToCSV(pts) {
+  const rows = [['lat','lon','name','chl_mgm3','sst_c','freshness_h','timestamp']];
+  pts.forEach((p, i) => {
+    rows.push([
+      p.lat.toFixed(6), p.lon.toFixed(6), String(i + 1),
+      p.chl !== null ? p.chl.toFixed(3) : '',
+      p.sst !== null ? p.sst.toFixed(2) : '',
+      p.freshness !== null ? p.freshness : '',
+      p.ts ? new Date(p.ts).toISOString() : ''
+    ]);
+  });
+  return rows.map(r => r.join(',')).join('\n');
+}
+
+function waypointsToGeoJSON(pts) {
+  return JSON.stringify({
+    type: "FeatureCollection",
+    metadata: { generated: new Date().toISOString(), region: REGION_ID },
+    features: pts.map((p, i) => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [p.lon, p.lat] },
+      properties: {
+        name: String(i + 1),
+        chl_mgm3: p.chl,
+        sst_c: p.sst,
+        freshness_h: p.freshness,
+        ts: p.ts ? new Date(p.ts).toISOString() : null
+      }
+    }))
+  }, null, 2);
+}
+
+function waypointsToKML(pts) {
+  const wpts = pts.map((p, i) => {
+    const desc = [
+      p.chl !== null ? `CHL: ${p.chl.toFixed(2)} mg/m³` : '',
+      p.sst !== null ? `SST: ${p.sst.toFixed(1)} °C` : '',
+      p.freshness !== null ? `Fresh: ${p.freshness}h ago` : ''
+    ].filter(Boolean).join('<br/>');
+    return `  <Placemark>
+    <name>${i + 1}</name>
+    <description><![CDATA[${desc}]]></description>
+    <Point>
+      <coordinates>${p.lon.toFixed(6)},${p.lat.toFixed(6)},0</coordinates>
+    </Point>
+  </Placemark>`;
+  }).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Ocean MVP Waypoints</name>
+    <open>1</open>
+    ${wpts}
+  </Document>
+</kml>`;
+}
+
+// ── Share URL ──────────────────────────────────────────────────────────────
+
+function buildShareURL(pts) {
+  const minimal = pts.map(p => ({
+    l: p.lat.toFixed(5), L: p.lon.toFixed(5),
+    c: p.chl !== null ? p.chl.toFixed(3) : '',
+    s: p.sst !== null ? p.sst.toFixed(2) : '',
+    f: p.freshness !== null ? p.freshness : ''
+  }));
+  const json = JSON.stringify(minimal);
+  const b64 = btoa(encodeURIComponent(json));
+  const url = new URL(window.location.href);
+  url.searchParams.set('waypoints', b64);
+  url.searchParams.set('var', 'combined');
+  return url.toString();
+}
+
+function loadWaypointsFromURL() {
+  const url = new URL(window.location.href);
+  const b64 = url.searchParams.get('waypoints');
+  if (!b64) return;
+  try {
+    const json = decodeURIComponent(atob(b64));
+    const pts = JSON.parse(json);
+    if (!Array.isArray(pts)) return;
+    return pts.map(p => ({
+      lat: parseFloat(p.l), lon: parseFloat(p.L),
+      chl: p.c !== '' ? parseFloat(p.c) : null,
+      sst: p.s !== '' ? parseFloat(p.s) : null,
+      freshness: p.f !== '' ? parseFloat(p.f) : null,
+      ts: Date.now()
+    }));
+  } catch (e) {
+    console.warn('[captain] Could not parse share URL waypoints:', e);
+    return null;
+  }
+}
+
+async function shareWaypoints() {
+  if (!captainAddTool.points.length) return;
+  const url = buildShareURL(captainAddTool.points);
+  try {
+    await navigator.clipboard.writeText(url);
+    showCopyToast('Link copied!');
+  } catch (e) {
+    showCopyToast('URL: ' + url.slice(0, 80) + '...');
+  }
+}
+
+function showCopyToast(msg) {
+  const existing = document.getElementById('captain-toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'captain-toast';
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;top:52px;left:56px;z-index:1160;background:#1d4f91;color:#fff;padding:6px 14px;border-radius:8px;font-size:12px;font-weight:700;opacity:1;transition:opacity 1s;pointer-events:none;';
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 1000); }, 2000);
+}
+
+// ── Save menu ─────────────────────────────────────────────────────────────
+
+function showSaveMenu() {
+  closeSaveMenu();
+  if (!captainAddTool.points.length) return;
+  const menu = document.createElement('div');
+  menu.id = 'captain-save-menu';
+  menu.style.cssText = 'position:fixed;left:8px;top:100px;z-index:1155;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px;width:160px;display:flex;flex-direction:column;gap:2px;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+  const formats = [
+    { label: 'GPX (Chartplotter)', ext: 'gpx', fn: () => waypointsToGPX(captainAddTool.points) },
+    { label: 'CSV (Spreadsheet)', ext: 'csv', fn: () => waypointsToCSV(captainAddTool.points) },
+    { label: 'GeoJSON (Digital)', ext: 'geojson', fn: () => waypointsToGeoJSON(captainAddTool.points) },
+    { label: 'KML (Google Earth)', ext: 'kml', fn: () => waypointsToKML(captainAddTool.points) },
+  ];
+  formats.forEach(f => {
+    const btn = document.createElement('button');
+    btn.textContent = f.label;
+    btn.style.cssText = 'background:rgba(12,23,35,0.9);border:1px solid #2a3a50;border-radius:6px;color:var(--fg);cursor:pointer;font-size:12px;padding:7px 10px;text-align:left;width:100%;transition:background 0.15s;';
+    btn.addEventListener('mouseenter', () => btn.style.background = 'rgba(29,79,145,0.5)');
+    btn.addEventListener('mouseleave', () => btn.style.background = 'rgba(12,23,35,0.9)');
+    btn.addEventListener('click', () => {
+      downloadFile(f.fn(), `waypoints_${REGION_ID}_${Date.now()}.${f.ext}`, f.ext === 'csv' ? 'text/csv' : f.ext === 'geojson' ? 'application/geo+json' : f.ext === 'kml' ? 'application/vnd.google-earth.kml+xml' : 'application/gpx+xml');
+      closeSaveMenu();
+    });
+    menu.appendChild(btn);
+  });
+
+  const sep = document.createElement('div');
+  sep.style.cssText = 'height:1px;background:var(--border);margin:4px 0;';
+
+  const shareBtn = document.createElement('button');
+  shareBtn.textContent = '↗ Copy share link';
+  shareBtn.style.cssText = 'background:rgba(12,23,35,0.9);border:1px solid #2a3a50;border-radius:6px;color:#4d7dff;cursor:pointer;font-size:12px;padding:7px 10px;text-align:left;width:100%;font-weight:700;transition:background 0.15s;';
+  shareBtn.addEventListener('mouseenter', () => shareBtn.style.background = 'rgba(29,79,145,0.5)');
+  shareBtn.addEventListener('mouseleave', () => shareBtn.style.background = 'rgba(12,23,35,0.9)');
+  shareBtn.addEventListener('click', () => { shareWaypoints(); closeSaveMenu(); });
+  menu.appendChild(sep);
+  menu.appendChild(shareBtn);
+
+  document.body.appendChild(menu);
+
+  // Close on outside click
+  setTimeout(() => {
+    document.addEventListener('pointerdown', function handler(e) {
+      if (!menu.contains(e.target)) { closeSaveMenu(); document.removeEventListener('pointerdown', handler); }
+    });
+  }, 0);
+}
+
+function closeSaveMenu() {
+  const m = document.getElementById('captain-save-menu');
+  if (m) m.remove();
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Load waypoints from share URL on init ─────────────────────────────────
+function applyLoadedWaypoints(pts) {
+  captainAddTool.points = pts;
+  captainAddTool.active = true;
+  document.getElementById('captain-add-tool')?.classList.add('active');
+  document.getElementById('captain-pts-panel')?.classList.add('visible');
+  const map = window._combinedMapRef;
+  if (map) renderPtsLayer(map);
+  updatePtsPanel();
+  document.getElementById('captain-save-btn')?.style.setProperty('display', 'flex');
+}
+
+// ── Distance tool ────────────────────────────────────────────────────────
+
 function activateDistTool(map) {
   if (captainAddTool.active) toggleAddTool(map);
   captainDistTool.active = true;
   captainDistTool.mapRef = map;
   captainDistTool.points = [];
-  captainDistTool.lineLayer = null;
-  document.getElementById("captain-dist-tool")?.classList.add("active");
-  document.getElementById("captain-dist-panel")?.classList.add("visible");
+  document.getElementById('captain-dist-tool')?.classList.add('active');
+  document.getElementById('captain-dist-panel')?.classList.add('visible');
   updateDistPanel();
-  map.getTargetElement().style.cursor = "crosshair";
+  map.getTargetElement().style.cursor = 'crosshair';
 }
 
 function deactivateDistTool() {
   if (!captainDistTool.active) return;
   captainDistTool.active = false;
   clearDistLayer();
-  document.getElementById("captain-dist-tool")?.classList.remove("active");
-  document.getElementById("captain-dist-panel")?.classList.remove("visible");
-  if (captainDistTool.mapRef) captainDistTool.mapRef.getTargetElement().style.cursor = "crosshair";
+  document.getElementById('captain-dist-tool')?.classList.remove('active');
+  document.getElementById('captain-dist-panel')?.classList.remove('visible');
+  const map = captainDistTool.mapRef;
+  if (map) map.getTargetElement().style.cursor = 'crosshair';
   captainDistTool.points = [];
+  updateDistPanel();
 }
 
 function clearDistLayer() {
-  if (captainDistTool.lineLayer) {
-    captainDistTool.mapRef?.removeLayer(captainDistTool.lineLayer);
+  if (captainDistTool.lineLayer && captainDistTool.mapRef) {
+    captainDistTool.mapRef.removeLayer(captainDistTool.lineLayer);
     captainDistTool.lineLayer = null;
   }
 }
@@ -6813,16 +7053,15 @@ function getDistanceKm(p1, p2) {
   const dLat = (p2.lat - p1.lat) * Math.PI / 180;
   const dLon = (p2.lon - p1.lon) * Math.PI / 180;
   const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
+    Math.cos(p1.lat * Math.PI / 180) * Math.cos(p2.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function updateDistPanel() {
-  const list = document.getElementById("captain-dist-list");
-  const total = document.getElementById("captain-dist-total");
+  const list = document.getElementById('captain-dist-list');
+  const total = document.getElementById('captain-dist-total');
   if (!list) return;
-  list.innerHTML = "";
+  list.innerHTML = '';
   let running = 0;
   for (let i = 0; i < captainDistTool.points.length; i++) {
     const p = captainDistTool.points[i];
@@ -6830,69 +7069,51 @@ function updateDistPanel() {
       const prev = captainDistTool.points[i - 1];
       const d = getDistanceKm(prev, p);
       running += d;
-      list.innerHTML += `<div style="color:#7a8fa8;">Pt ${i}: ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)} &nbsp; <b>${d.toFixed(1)} km</b></div>`;
+      list.innerHTML += `<div style="color:#7a8fa8;margin-bottom:2px;">Pt ${i}: ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)} &nbsp;<b style="color:var(--fg);">${d.toFixed(1)} km</b></div>`;
     } else {
-      list.innerHTML += `<div style="color:#7a8fa8;">Pt ${i}: ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</div>`;
+      list.innerHTML += `<div style="color:#7a8fa8;margin-bottom:2px;">Pt ${i}: ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</div>`;
     }
   }
   if (total) total.textContent = captainDistTool.points.length >= 2
-    ? `Total: ${running.toFixed(2)} km (${(running / 1.852).toFixed(2)} nm)` : "";
+    ? `Total: ${running.toFixed(2)} km / ${(running / 1.852).toFixed(2)} nm` : '';
 }
 
 function renderDistLayer(map) {
   if (captainDistTool.lineLayer) map.removeLayer(captainDistTool.lineLayer);
   if (captainDistTool.points.length < 2) return;
-
   const pts = captainDistTool.points.map(p => [p.lon, p.lat]);
-  const coords = [];
-  let totalKm = 0;
+  const feats = [];
+  let running = 0;
   for (let i = 1; i < pts.length; i++) {
     const d = getDistanceKm(captainDistTool.points[i - 1], captainDistTool.points[i]);
-    totalKm += d;
-    coords.push({
+    running += d;
+    feats.push(new ol.Feature({
       geometry: new ol.geom.LineString([pts[i - 1], pts[i]]),
-      distance: d,
-      cumulative: totalKm,
       segIdx: i
-    });
+    }));
   }
-
-  const lineFeats = coords.map(c => new ol.Feature({
-    geometry: c.geometry,
-    distance: c.distance,
-    cumulative: c.cumulative,
-    segIdx: c.segIdx
-  }));
-
-  const labelFeats = captainDistTool.points.map((p, i) => new ol.Feature({
+  const ptFeats = captainDistTool.points.map((p, i) => new ol.Feature({
     geometry: new ol.geom.Point([p.lon, p.lat]),
-    label: String(i),
-    type: "pt"
+    label: String(i)
   }));
-
-  const lineSrc = new ol.source.Vector({ features: lineFeats, wrapX: false });
-  const lineLayer = new ol.layer.Vector({
-    source: lineSrc,
-    style: new ol.style.Style({
-      stroke: new ol.style.Stroke({ color: "#ff9800", width: 2.5, lineDash: [6, 4] }),
-      text: new ol.style.Text({ color: "#ff9800", font: "bold 11px monospace" })
-    }),
+  const src = new ol.source.Vector({ features: [...feats, ...ptFeats], wrapX: false });
+  const layer = new ol.layer.Vector({
+    source: src,
+    style: feat => {
+      if (feat.getGeometry().getType() === 'LineString') {
+        return new ol.style.Style({
+          stroke: new ol.style.Stroke({ color: '#ff9800', width: 2.5, lineDash: [6, 4] })
+        });
+      }
+      return new ol.style.Style({
+        image: new ol.style.Circle({ radius: 5, fill: new ol.style.Fill({ color: '#ff9800' }), stroke: new ol.style.Stroke({ color: '#fff', width: 1.5 }) }),
+        text: new ol.style.Text({ text: feat.get('label'), offsetY: -12, fill: new ol.style.Fill({ color: '#ff9800' }), font: 'bold 11px monospace', stroke: new ol.style.Stroke({ color: '#fff', width: 2 }) })
+      });
+    },
     zIndex: 50
   });
-
-  const labelSrc = new ol.source.Vector({ features: labelFeats, wrapX: false });
-  const labelLayer = new ol.layer.Vector({
-    source: labelSrc,
-    style: feat => new ol.style.Style({
-      image: new ol.style.Circle({ radius: 5, fill: new ol.style.Fill({ color: "#ff9800" }), stroke: new ol.style.Stroke({ color: "#fff", width: 1.5 }) }),
-      text: new ol.style.Text({ text: feat.get("label"), offsetY: -12, fill: new ol.style.Fill({ color: "#ff9800" }), font: "bold 11px monospace", stroke: new ol.style.Stroke({ color: "#fff", width: 2 }) })
-    }),
-    zIndex: 51
-  });
-
-  map.addLayer(lineLayer);
-  map.addLayer(labelLayer);
-  captainDistTool.lineLayer = lineLayer;
+  map.addLayer(layer);
+  captainDistTool.lineLayer = layer;
 }
 
 function addDistPoint(lon, lat, map) {
@@ -6901,90 +7122,72 @@ function addDistPoint(lon, lat, map) {
   updateDistPanel();
 }
 
-// ── Add waypoint tool ───────────────────────────────────────
-function activateAddTool(map) {
-  if (captainDistTool.active) deactivateDistTool();
-  captainAddTool.active = true;
-  captainAddTool.mapRef = map;
-  document.getElementById("captain-add-tool")?.classList.add("active");
-  document.getElementById("captain-pts-panel")?.classList.add("visible");
-  updatePtsPanel();
-  map.getTargetElement().style.cursor = "crosshair";
-}
+// ── Add waypoint tool ─────────────────────────────────────────────────
 
-function deactivateAddTool() {
-  if (!captainAddTool.active) return;
-  captainAddTool.active = false;
-  document.getElementById("captain-add-tool")?.classList.remove("active");
-  document.getElementById("captain-pts-panel")?.classList.remove("visible");
-  if (captainAddTool.mapRef) captainAddTool.mapRef.getTargetElement().style.cursor = "crosshair";
+function toggleAddTool(map) {
+  if (captainAddTool.active) {
+    captainAddTool.active = false;
+    document.getElementById('captain-add-tool')?.classList.remove('active');
+    document.getElementById('captain-pts-panel')?.classList.remove('visible');
+    map.getTargetElement().style.cursor = 'crosshair';
+  } else {
+    if (captainDistTool.active) deactivateDistTool();
+    captainAddTool.active = true;
+    captainAddTool.mapRef = map;
+    document.getElementById('captain-add-tool')?.classList.add('active');
+    document.getElementById('captain-pts-panel')?.classList.add('visible');
+    updatePtsPanel();
+    map.getTargetElement().style.cursor = 'crosshair';
+  }
 }
 
 function clearAddLayer() {
-  if (captainAddTool.markerLayer) {
-    captainAddTool.mapRef?.removeLayer(captainAddTool.markerLayer);
+  if (captainAddTool.markerLayer && captainAddTool.mapRef) {
+    captainAddTool.mapRef.removeLayer(captainAddTool.markerLayer);
     captainAddTool.markerLayer = null;
   }
 }
 
 function sampleAt(lon, lat) {
   let chl = null, sst = null;
-  try {
-    const chlVal = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
-    if (chlVal?.value !== undefined) chl = chlVal.value;
-  } catch (e) {}
-  try {
-    const sstVal = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
-    if (sstVal?.value !== undefined) sst = sstVal.value;
-  } catch (e) {}
+  try { const v = sampleRasterValueAt('chl', window._combinedChlGrid, window._combinedChlData, lon, lat); if (v?.value !== undefined) chl = v.value; } catch (_) {}
+  try { const v = sampleRasterValueAt('sst', window._combinedSstGrid, window._combinedSstData, lon, lat); if (v?.value !== undefined) sst = v.value; } catch (_) {}
   return { chl, sst };
 }
 
-function hoursSince(ts) {
-  if (!ts) return null;
-  return ((Date.now() - ts) / 3600000).toFixed(1);
-}
-
 function updatePtsPanel() {
-  const list = document.getElementById("captain-pts-list");
+  const list = document.getElementById('captain-pts-list');
   if (!list) return;
   if (captainAddTool.points.length === 0) {
-    list.innerHTML = '<div style="color:#7a8fa8;font-size:11px;">Click map to add waypoints</div>';
+    list.innerHTML = '<div style="color:#7a8fa8;font-size:11px;">Click map to drop waypoints</div>';
     return;
   }
   list.innerHTML = captainAddTool.points.map((p, i) => {
-    const chlStr = p.chl !== null ? `${p.chl.toFixed(2)} mg/m³` : "—";
-    const sstStr = p.sst !== null ? `${p.sst.toFixed(1)}°C` : "—";
-    return `<div style="margin-bottom:8px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);">
-      <div style="display:flex;justify-content:space-between;gap:8px;">
+    const chlStr = p.chl !== null ? `${p.chl.toFixed(2)} mg/m³` : '—';
+    const sstStr = p.sst !== null ? `${p.sst.toFixed(1)} °C` : '—';
+    return `<div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.07);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
         <b style="color:#4d7dff;">${i + 1}. ${p.lat.toFixed(4)}, ${p.lon.toFixed(4)}</b>
-        <button onclick="removeWaypoint(${i})" style="background:none;border:none;color:#7a8fa8;cursor:pointer;font-size:11px;padding:0;" title="Remove">✕</button>
+        <button onclick="window.removeWaypoint(${i})" style="background:none;border:none;color:#7a8fa8;cursor:pointer;font-size:11px;padding:2px 4px;" title="Remove">✕</button>
       </div>
-      <div style="color:#9fb0c3;font-size:11px;">CHL: ${chlStr} &nbsp; SST: ${sstStr}</div>
-      ${p.freshness !== null ? `<div style="color:#9fb0c3;font-size:11px;">Fresh: ${p.freshness}h ago</div>` : ""}
+      <div style="color:#9fb0c3;font-size:11px;">CHL ${chlStr} &nbsp;|&nbsp; SST ${sstStr}${p.freshness !== null ? ` &nbsp;|&nbsp; ${p.freshness}h ago` : ''}</div>
     </div>`;
-  }).join("");
+  }).join('');
 }
 
 function renderPtsLayer(map) {
   if (captainAddTool.markerLayer) map.removeLayer(captainAddTool.markerLayer);
   if (captainAddTool.points.length === 0) return;
-
   const feats = captainAddTool.points.map((p, i) => {
-    const feat = new ol.Feature({
-      geometry: new ol.geom.Point([p.lon, p.lat]),
-      idx: i,
-      type: "waypoint"
-    });
-    return feat;
+    const f = new ol.Feature({ geometry: new ol.geom.Point([p.lon, p.lat]), idx: i });
+    return f;
   });
-
   const src = new ol.source.Vector({ features: feats, wrapX: false });
   const layer = new ol.layer.Vector({
     source: src,
     style: feat => new ol.style.Style({
-      image: new ol.style.Circle({ radius: 8, fill: new ol.style.Fill({ color: "#1d4f91" }), stroke: new ol.style.Stroke({ color: "#4d7dff", width: 2 }) }),
-      text: new ol.style.Text({ text: String(feat.get("idx") + 1), offsetY: 1, fill: new ol.style.Fill({ color: "#fff" }), font: "bold 11px monospace", textAlign: "center", textBaseline: "middle" })
+      image: new ol.style.Circle({ radius: 8, fill: new ol.style.Fill({ color: '#1d4f91' }), stroke: new ol.style.Stroke({ color: '#4d7dff', width: 2 }) }),
+      text: new ol.style.Text({ text: String(feat.get('idx') + 1), offsetY: 1, fill: new ol.style.Fill({ color: '#fff' }), font: 'bold 11px monospace', textAlign: 'center', textBaseline: 'middle' })
     }),
     zIndex: 52
   });
@@ -6994,11 +7197,13 @@ function renderPtsLayer(map) {
 
 function addWaypoint(lon, lat, map) {
   const { chl, sst } = sampleAt(lon, lat);
-  const freshness = hoursSince(window._combinedChlScanTime || window._combinedSstScanTime);
+  const freshness = window._combinedChlScanTime
+    ? ((Date.now() - new Date(window._combinedChlScanTime).getTime()) / 3600000).toFixed(1)
+    : null;
   captainAddTool.points.push({ lon, lat, chl, sst, freshness, ts: Date.now() });
   renderPtsLayer(map);
   updatePtsPanel();
-  document.getElementById("captain-save-btn")?.style.setProperty("display", "flex");
+  document.getElementById('captain-save-btn')?.style.setProperty('display', 'flex');
 }
 
 window.removeWaypoint = function(idx) {
@@ -7006,92 +7211,75 @@ window.removeWaypoint = function(idx) {
   renderPtsLayer(captainAddTool.mapRef);
   updatePtsPanel();
   if (captainAddTool.points.length === 0) {
-    document.getElementById("captain-save-btn")?.style.setProperty("display", "none");
+    document.getElementById('captain-save-btn')?.style.setProperty('display', 'none');
   }
 };
 
-// ── Save waypoints ──────────────────────────────────────────
-document.getElementById("captain-save-btn")?.addEventListener("click", () => {
-  if (captainAddTool.points.length === 0) return;
-  const data = {
-    version: 1,
-    saved: new Date().toISOString(),
-    region: REGION_ID,
-    points: captainAddTool.points.map(p => ({
-      lat: p.lat, lon: p.lon,
-      chl: p.chl, sst: p.sst,
-      freshness_h: p.freshness
-    }))
-  };
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `waypoints_${REGION_ID}_${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
+// ── Map click handler ───────────────────────────────────────────────────
 
-// ── Map click handler for captain tools ────────────────────
 let _captainMapClickHandler = null;
 
 function installCaptainToolHandler(map) {
-  if (_captainMapClickHandler) {
-    map.un("click", _captainMapClickHandler);
-    _captainMapClickHandler = null;
-  }
+  if (_captainMapClickHandler) { map.un('click', _captainMapClickHandler); _captainMapClickHandler = null; }
   _captainMapClickHandler = (ev) => {
     if (!ev.coordinate) return;
     const [lon, lat] = ev.coordinate;
-    if (captainDistTool.active) {
-      addDistPoint(lon, lat, map);
-    } else if (captainAddTool.active) {
-      addWaypoint(lon, lat, map);
-    }
+    if (captainDistTool.active) { addDistPoint(lon, lat, map); }
+    else if (captainAddTool.active) { addWaypoint(lon, lat, map); }
   };
-  map.on("click", _captainMapClickHandler);
+  map.on('click', _captainMapClickHandler);
 }
 
-// ── Button wiring ───────────────────────────────────────────
-document.getElementById("captain-dist-tool")?.addEventListener("click", () => {
+// ── Button wiring ───────────────────────────────────────────────────────
+
+document.getElementById('captain-dist-tool')?.addEventListener('click', () => {
   const map = window._combinedMapRef;
   if (!map) return;
-  if (captainDistTool.active) {
+  if (captainDistTool.active) { deactivateDistTool(); }
+  else { activateDistTool(map); }
+});
+
+document.getElementById('captain-add-tool')?.addEventListener('click', () => {
+  const map = window._combinedMapRef;
+  if (!map) return;
+  toggleAddTool(map);
+});
+
+document.getElementById('captain-save-btn')?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const menu = document.getElementById('captain-save-menu');
+  if (menu) { closeSaveMenu(); return; }
+  showSaveMenu();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const map = window._combinedMapRef;
+  if (!map) return;
+  if (e.key === 'm' || e.key === 'M') {
+    if (captainDistTool.active) deactivateDistTool();
+    else activateDistTool(map);
+  } else if (e.key === 'a' || e.key === 'A') {
+    toggleAddTool(map);
+  } else if (e.key === 'Escape') {
     deactivateDistTool();
-  } else {
-    activateDistTool(map);
+    captainAddTool.active = false;
+    document.getElementById('captain-add-tool')?.classList.remove('active');
+    document.getElementById('captain-pts-panel')?.classList.remove('visible');
+    document.getElementById('captain-dist-panel')?.classList.remove('visible');
+    closeSaveMenu();
+  } else if ((e.key === 's' || e.key === 'S') && !e.metaKey && !e.ctrlKey) {
+    if (captainAddTool.points.length) showSaveMenu();
   }
 });
 
-document.getElementById("captain-add-tool")?.addEventListener("click", () => {
-  const map = window._combinedMapRef;
-  if (!map) return;
-  if (captainAddTool.active) {
-    deactivateAddTool();
-  } else {
-    activateAddTool(map);
-  }
-});
-
-// Keyboard shortcuts
-let _keyboardToolHandler = null;
-document.addEventListener("keydown", (e) => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-  const map = window._combinedMapRef;
-  if (!map) return;
-  if (e.key === "m" || e.key === "M") {
-    if (captainDistTool.active) { deactivateDistTool(); }
-    else { activateDistTool(map); }
-  } else if (e.key === "a" || e.key === "A") {
-    if (captainAddTool.active) { deactivateAddTool(); }
-    else { activateAddTool(map); }
-  } else if (e.key === "Escape") {
-    deactivateDistTool();
-    deactivateAddTool();
-  }
-});
-
-
+// ── Load waypoints from URL on init ────────────────────────────────────
+let _urlWaypoints = loadWaypointsFromURL();
+function applyUrlWaypoints() {
+  if (!_urlWaypoints || !window._combinedMapRef) return;
+  applyLoadedWaypoints(_urlWaypoints);
+  _urlWaypoints = null;
+}
 </script>
 </body>
 </html>
