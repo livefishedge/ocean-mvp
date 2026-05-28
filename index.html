@@ -5156,6 +5156,37 @@ function thermalHaversineKm([lon1, lat1], [lon2, lat2]) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function thermalNearestGradient(coord) {
+  const lon = coord[0];
+  const lat = coord[1];
+  let bestDist = Infinity;
+  let bestGrad = null;
+  let bestPoint = null;
+  let bestDelta = null;
+  for (const item of thermalDisplayedFrontItems()) {
+    const features = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      const props = feature?.properties || {};
+      for (let i = 0; i < coords.length; i++) {
+        const pt = coords[i];
+        if (!Array.isArray(pt) || pt.length < 2) continue;
+        const ptLon = Number(pt[0]);
+        const ptLat = Number(pt[1]);
+        if (!Number.isFinite(ptLon) || !Number.isFinite(ptLat)) continue;
+        const d = thermalHaversineKm([lon, lat], [ptLon, ptLat]);
+        if (d < bestDist) {
+          bestDist = d;
+          bestPoint = [ptLon, ptLat];
+          bestGrad = thermalGradientForFeaturePoint(props, i);
+          bestDelta = thermalDeltaSstForFeature(props);
+        }
+      }
+    }
+  }
+  return { dist: bestDist, gradient: bestGrad, point: bestPoint, deltaSst: bestDelta };
+}
+
 // Daily mode: compute 5km-radius mean gradient and SST delta around cursor
 function thermalRadiusMean(coord) {
   const RADIUS_KM = 5;
