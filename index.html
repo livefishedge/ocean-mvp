@@ -865,10 +865,7 @@ body.combined-mode #combined-menu-btn{
   <div id="captain-tools" role="toolbar" aria-label="Captain tools">
     <button id="captain-fs-btn" class="captain-tool-btn" title="Fullscreen">
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="1" y1="1" x2="6" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="17" y1="1" x2="12" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="1" y1="17" x2="6" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-        <line x1="17" y1="17" x2="12" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        <rect x="2" y="2" width="14" height="14" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linejoin="round"/>
       </svg>
     </button>
     <button id="captain-dist-tool" class="captain-tool-btn" title="Measure distance (M)" data-tool="dist">
@@ -3812,14 +3809,8 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
       const k = (row * nx + col) * 4;
       const numericValue = Number(value);
       if (isMobileMissingValue(varKey, value, numericValue)) {
-        if (varKey === "uv") {
-          img.data[k + 3] = 0;
-        } else {
-          img.data[k] = 255;
-          img.data[k + 1] = 255;
-          img.data[k + 2] = 255;
-          img.data[k + 3] = 255;
-        }
+        // All missing data (including land/no-data-on-land) → fully transparent
+        img.data[k + 3] = 0;
         continue;
       }
       const t = (cfg.transform(numericValue) - cfg.lo) / denom;
@@ -7322,10 +7313,10 @@ function updateFsIcon() {
          <line x1="17" y1="17" x2="12" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
        </svg>`
     : `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-         <line x1="1" y1="1" x2="6" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-         <line x1="17" y1="1" x2="12" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-         <line x1="1" y1="17" x2="6" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-         <line x1="17" y1="17" x2="12" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+         <polyline points="1,6 1,1 6,1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+         <polyline points="12,1 17,1 17,6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+         <polyline points="1,12 1,17 6,17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+         <polyline points="17,12 17,17 12,17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
        </svg>`;
   btn.title = isFs ? 'Exit fullscreen' : 'Fullscreen';
 }
