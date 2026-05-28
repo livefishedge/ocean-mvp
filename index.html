@@ -879,6 +879,17 @@ body.combined-mode #combined-menu-btn{
         <span>Bathymetry</span>
       </label>
       <div id="combined-bathy-legend" class="combined-inline-legend"></div>
+      <div id="combined-thermal-units" style="margin:8px 0 4px 0;display:flex;flex-direction:column;gap:6px;">
+        <div style="font-size:11px;color:#9fb0c3;">Units</div>
+        <div class="combined-mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button id="combined-thermal-mode-c" class="active" type="button">°C</button>
+          <button id="combined-thermal-mode-f" type="button">°F</button>
+        </div>
+        <div class="combined-mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button id="combined-thermal-mode-km" class="active" type="button">km</button>
+          <button id="combined-thermal-mode-nm" type="button">nm</button>
+        </div>
+      </div>
     </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:8px;right:8px;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-left:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
@@ -1852,6 +1863,46 @@ if (chlCompositeSelect) {
 }
 
 /* Thermal unit & dist settings — silently shared, no UI in combined sidebar */
+/* Combined sidebar: C/F and km/nm unit toggles */
+const combinedThermalModeCBtn = document.getElementById("combined-thermal-mode-c");
+const combinedThermalModeFBtn = document.getElementById("combined-thermal-mode-f");
+const combinedThermalModeKmBtn = document.getElementById("combined-thermal-mode-km");
+const combinedThermalModeNmBtn = document.getElementById("combined-thermal-mode-nm");
+combinedThermalModeCBtn?.addEventListener("click", () => {
+  thermalSetTempUnit("C");
+  combinedThermalModeCBtn?.classList.add("active");
+  combinedThermalModeFBtn?.classList.remove("active");
+});
+combinedThermalModeFBtn?.addEventListener("click", () => {
+  thermalSetTempUnit("F");
+  combinedThermalModeFBtn?.classList.add("active");
+  combinedThermalModeCBtn?.classList.remove("active");
+});
+combinedThermalModeKmBtn?.addEventListener("click", () => {
+  thermalSetDistUnit("km");
+  combinedThermalModeKmBtn?.classList.add("active");
+  combinedThermalModeNmBtn?.classList.remove("active");
+});
+combinedThermalModeNmBtn?.addEventListener("click", () => {
+  thermalSetDistUnit("nm");
+  combinedThermalModeNmBtn?.classList.add("active");
+  combinedThermalModeKmBtn?.classList.remove("active");
+});
+/* Restore combined sidebar toggle state from localStorage */
+if (tempUnit === "F") {
+  combinedThermalModeFBtn?.classList.add("active");
+  combinedThermalModeCBtn?.classList.remove("active");
+} else {
+  combinedThermalModeCBtn?.classList.add("active");
+  combinedThermalModeFBtn?.classList.remove("active");
+}
+if (thermalDistUnit === "nm") {
+  combinedThermalModeNmBtn?.classList.add("active");
+  combinedThermalModeKmBtn?.classList.remove("active");
+} else {
+  combinedThermalModeKmBtn?.classList.add("active");
+  combinedThermalModeNmBtn?.classList.remove("active");
+}
 /* Marker state */
 let markers = [];
 let markerMode = "off"; // "off" | "add" | "remove"
@@ -3786,7 +3837,7 @@ async function renderCombinedMode() {
   // ── Layer: Bathymetry contours ───────────────────────────────────────
   const bathyData = await loadBathymetryJson(BATHY_JSON_URL);
   const bathyGridInfo = { xAxis: bathyData.xAxis, yAxis: bathyData.yAxis, nx: bathyData.xAxis.length, ny: bathyData.yAxis.length };
-  const bathyLayer = buildBathyContourLayer(bathyData, bathyGridInfo);
+  const bathyLayer = buildBathyContourLayer(bathyData, bathyGridInfo, map);
   if (bathyLayer) { map.addLayer(bathyLayer); window._combinedBathyLayer = bathyLayer; }
 
   // ── Layer: UV arrows ─────────────────────────────────────────────────
@@ -3894,7 +3945,7 @@ async function renderCombinedMode() {
 
 // ── Helpers for combined mode ──────────────────────────────────────────────
 
-function buildBathyContourLayer(bathyData, gridInfo) {
+function buildBathyContourLayer(bathyData, gridInfo, map) {
   const source = new ol.source.Vector({ wrapX: false });
   const layer = new ol.layer.Vector({
     source,
@@ -3909,7 +3960,7 @@ function buildBathyContourLayer(bathyData, gridInfo) {
     nx: bathyData.xAxis.length, ny: bathyData.yAxis.length
   };
   window._bathyContourSource = source;
-  updateBathyContoursForMap(window._combinedMap);
+  updateBathyContoursForMap(map);
   window._combinedMap?.on("moveend", () => updateBathyContoursForMap(window._combinedMap));
   return layer;
 }
@@ -4279,7 +4330,9 @@ function buildThermalHoursComposite(map, hours) {
       nonzero++;
       const alpha = Math.min(180, c * 25);
       ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
-      ctx.fillRect(x - 2, row - 2, 5, 5);
+      ctx.beginPath();
+      ctx.arc(x, row, 2.5, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -5317,6 +5370,30 @@ function thermalRenderDensityLayer() {
   thermalFrontState.densityLayer.setVisible(true);
 }
 
+function thermalDailyStats() {
+  const dayItem = thermalFrontState.dailyFrames[thermalFrontState.frameIdx];
+  if (!dayItem) return null;
+  const dayFrames = thermalFramesForDate(dayItem.date);
+  const gradVals = [], sstVals = [];
+  for (const item of dayFrames) {
+    const features = Array.isArray(item?.data?.features) ? item.data.features : [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      const props = feature?.properties || {};
+      for (let i = 0; i < coords.length; i++) {
+        const g = thermalGradientForFeaturePoint(props, i);
+        if (g !== null && Number.isFinite(g)) gradVals.push(g);
+      }
+      const ds = thermalDeltaSstForFeature(props);
+      if (ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
+    }
+  }
+  if (!gradVals.length && !sstVals.length) return null;
+  const meanGrad = gradVals.length ? gradVals.reduce((a, b) => a + b, 0) / gradVals.length : null;
+  const meanSst = sstVals.length ? sstVals.reduce((a, b) => a + b, 0) / sstVals.length : null;
+  return { meanGrad, meanSst };
+}
+
 function thermalRenderFrontLayer() {
   const map = thermalFrontState.map;
   if (!map) return;
@@ -5424,7 +5501,21 @@ function thermalUpdateLegendAndStatus() {
     const field = thermalActiveDensityField();
     const shownDays = thermalAllDayCb?.checked ? thermalFrontState.dailyFrames.length : 1;
     const sourceText = shownDays === 1 ? `${count} hourly frames` : `${field?.hourlyCount || 0} hourly frames across ${shownDays} days`;
-    if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${thermalFrontState.dailyFrames.length} daily frames - ${dayItem?.date || ""} - density from ${sourceText}`;
+    const stats = thermalDailyStats();
+    const unitLabel = thermalDistUnit === "nm" ? "°C/nm" : "°C/km";
+    const sstLabel = tempUnit === "F" ? "°F" : "°C";
+    let statsText = ` - ${sourceText}`;
+    if (stats) {
+      if (stats.meanGrad !== null) {
+        const displayGrad = thermalDistUnit === "nm" ? stats.meanGrad * 1.852 : stats.meanGrad;
+        statsText += ` | mean gradient: ${displayGrad.toFixed(3)} ${unitLabel}`;
+      }
+      if (stats.meanSst !== null) {
+        const displaySst = tempUnit === "F" ? stats.meanSst * 9 / 5 : stats.meanSst;
+        statsText += ` | mean ΔSST: ${displaySst.toFixed(2)}${sstLabel}`;
+      }
+    }
+    if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${thermalFrontState.dailyFrames.length} daily frames - ${dayItem?.date || ""}${statsText}`;
     if (legendEl) {
       legendEl.style.display = "";
       legendEl.textContent = thermalAllDayCb?.checked ? "Color = day; shade = hourly front-point density" : "Shade = hourly front-point density";
