@@ -871,7 +871,7 @@ body.combined-mode #combined-menu-btn{
   <button id="captain-save-btn" title="Save waypoints" style="display:none;position:fixed;left:8px;top:44px;z-index:1150;background:#1d4f91;border:1px solid #4d7dff;border-radius:8px;color:#fff;padding:0 10px;height:28px;cursor:pointer;font-size:12px;font-weight:700;">
     Save Waypoints
   </button>
-  <div id="captain-pts-panel" style="display:none;position:fixed;top:52px;left:8px;z-index:1150;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;width:280px;max-height:320px;overflow-y:auto;font-size:12px;color:var(--fg);">
+  <div id="captain-pts-panel" style="display:none;position:fixed;top:80px;left:8px;z-index:1150;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;width:280px;max-height:320px;overflow-y:auto;font-size:12px;color:var(--fg);">
     <div id="captain-pts-title" style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#7a8fa8;margin-bottom:8px;">My Waypoints</div>
     <div id="captain-pts-list"></div>
   </div>
@@ -1890,8 +1890,17 @@ const chkChl = document.getElementById("chk-combined-chl");
 const chkUv = document.getElementById("chk-combined-uv");
 const chkBathy = document.getElementById("chk-combined-bathy");
 const chkFront = document.getElementById("chk-combined-front");
-if (chkChl) chkChl.addEventListener("change", e => {
-  if (window._combinedChlLayer) window._combinedChlLayer.setVisible(e.target.checked);
+if (chkChl) chkChl.addEventListener("change", async e => {
+  const checked = e.target.checked;
+  if (window._combinedChlLayer) window._combinedChlLayer.setVisible(checked);
+  if (checked && window._combinedMap) {
+    const count = parseInt((document.getElementById("combined-chl-composite") || {value:"1"}).value, 10);
+    if (window._combinedChlLayer) { window._combinedMap.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
+    const result = await buildChlCompositeLayer(window._combinedMap, count);
+    if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
+    if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
+    if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
+  }
 });
 if (chkUv) chkUv.addEventListener("change", e => {
   if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
@@ -6949,7 +6958,7 @@ function showSaveMenu() {
   if (!captainAddTool.points.length) return;
   const menu = document.createElement('div');
   menu.id = 'captain-save-menu';
-  menu.style.cssText = 'position:fixed;left:8px;top:100px;z-index:1155;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px;width:160px;display:flex;flex-direction:column;gap:2px;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
+  menu.style.cssText = 'position:fixed;left:8px;top:80px;z-index:1155;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px;width:160px;display:flex;flex-direction:column;gap:2px;box-shadow:0 4px 16px rgba(0,0,0,0.4);';
   const formats = [
     { label: 'GPX (Chartplotter)', ext: 'gpx', fn: () => waypointsToGPX(captainAddTool.points) },
     { label: 'CSV (Spreadsheet)', ext: 'csv', fn: () => waypointsToCSV(captainAddTool.points) },
@@ -6969,17 +6978,7 @@ function showSaveMenu() {
     menu.appendChild(btn);
   });
 
-  const sep = document.createElement('div');
-  sep.style.cssText = 'height:1px;background:var(--border);margin:4px 0;';
 
-  const shareBtn = document.createElement('button');
-  shareBtn.textContent = '↗ Copy share link';
-  shareBtn.style.cssText = 'background:rgba(12,23,35,0.9);border:1px solid #2a3a50;border-radius:6px;color:#4d7dff;cursor:pointer;font-size:12px;padding:7px 10px;text-align:left;width:100%;font-weight:700;transition:background 0.15s;';
-  shareBtn.addEventListener('mouseenter', () => shareBtn.style.background = 'rgba(29,79,145,0.5)');
-  shareBtn.addEventListener('mouseleave', () => shareBtn.style.background = 'rgba(12,23,35,0.9)');
-  shareBtn.addEventListener('click', () => { shareWaypoints(); closeSaveMenu(); });
-  menu.appendChild(sep);
-  menu.appendChild(shareBtn);
 
   document.body.appendChild(menu);
 
