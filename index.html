@@ -3991,8 +3991,6 @@ async function renderCombinedMode() {
   });
   map.addLayer(osmLayer);
 
-  await ensureCombinedPlaceLayer(map);
-  console.log("[combined] after ensureCombinedPlaceLayer");
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
   if (chlFrames.length) {
