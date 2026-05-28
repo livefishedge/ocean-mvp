@@ -4379,7 +4379,7 @@ function combinedNearestFrontHover(map, coord, pixel) {
   if (sstVals.length) {
     const avg = sstVals.reduce((a, b) => a + b, 0) / sstVals.length;
     const deltaVal = tempUnit === "F" ? avg * 9 / 5 : avg;
-    parts.push(`${deltaSst.label} ${deltaVal.toFixed(2)} ${tempUnitLabel()}`);
+    parts.push(`ΔSST ${deltaVal.toFixed(2)} ${tempUnitLabel()}`);
   }
   return parts.length ? parts.join("  ") : null;
 }
