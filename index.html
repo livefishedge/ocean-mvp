@@ -1011,7 +1011,9 @@ let userRanges = {
 
 let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
 let thermalDistUnit = localStorage.getItem("thermal_dist_unit") === "nm" ? "nm" : "km";
+// cToF: converts absolute Celsius temperature to Fahrenheit (used for point values)
 function cToF(c) { return c * 9 / 5 + 32; }
+// kmToNm: converts kilometers to nautical miles
 function kmToNm(km) { return km * 0.539957; }
 function formatDist(km) {
   if (km === null || km === undefined) return "";
@@ -4315,12 +4317,14 @@ function combinedNearestFrontHover(map, coord, pixel) {
   const parts = [];
   if (gradVals.length) {
     const avg = gradVals.reduce((a, b) => a + b, 0) / gradVals.length;
-    parts.push(`${avg.toFixed(3)} °C/km`);
+    const displayGrad = thermalDistUnit === "nm" ? kmToNm(avg) : avg;
+    const unit = tempUnit + (thermalDistUnit === "nm" ? "/nm" : "/km");
+    parts.push(`${displayGrad.toFixed(3)} °${unit}`);
   }
   if (sstVals.length) {
     const avg = sstVals.reduce((a, b) => a + b, 0) / sstVals.length;
-    const displayVal = tempUnit === "F" ? cToF(avg) : avg;
-    parts.push(`ΔSST ${displayVal.toFixed(2)} ${tempUnitLabel()}`);
+    const deltaVal = tempUnit === "F" ? avg * 9 / 5 : avg;
+    parts.push(`${deltaSst.label} ${deltaVal.toFixed(2)} ${tempUnitLabel()}`);
   }
   return parts.length ? parts.join("  ") : null;
 }
@@ -5141,13 +5145,21 @@ function thermalEnsureCursorLayer(map) {
   map.addLayer(thermalFrontState.cursorLayer);
 }
 
-function thermalNearestGradient(coord) {
-  const lon = coord[0];
-  const lat = coord[1];
-  let bestDist = Infinity;
-  let bestGrad = null;
-  let bestPoint = null;
-  let bestDelta = null;
+// Haversine distance between two [lon, lat] points in km
+function thermalHaversineKm([lon1, lat1], [lon2, lat2]) {
+  const R = 6371;
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Daily mode: compute 5km-radius mean gradient and SST delta around cursor
+function thermalRadiusMean(coord) {
+  const RADIUS_KM = 5;
+  const gradVals = [], sstVals = [];
   for (const item of thermalDisplayedFrontItems()) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
@@ -5159,17 +5171,20 @@ function thermalNearestGradient(coord) {
         const ptLon = Number(pt[0]);
         const ptLat = Number(pt[1]);
         if (!Number.isFinite(ptLon) || !Number.isFinite(ptLat)) continue;
-        const d = Math.hypot(ptLon - lon, ptLat - lat);
-        if (d < bestDist) {
-          bestDist = d;
-          bestPoint = [ptLon, ptLat];
-          bestGrad = thermalGradientForFeaturePoint(props, i);
-          bestDelta = thermalDeltaSstForFeature(props);
-        }
+        const d = thermalHaversineKm([coord[0], coord[1]], [ptLon, ptLat]);
+        if (d > RADIUS_KM) continue;
+        const g = thermalGradientForFeaturePoint(props, i);
+        if (g !== null && Number.isFinite(g)) gradVals.push(g);
+        const ds = thermalDeltaSstForFeature(props);
+        if (ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
       }
     }
   }
-  return { dist: bestDist, gradient: bestGrad, point: bestPoint, deltaSst: bestDelta };
+  if (!gradVals.length && !sstVals.length) return null;
+  return {
+    gradient: gradVals.length ? gradVals.reduce((a, b) => a + b, 0) / gradVals.length : null,
+    deltaSst: sstVals.length ? { label: "ΔSST", value: sstVals.reduce((a, b) => a + b, 0) / sstVals.length } : null
+  };
 }
 
 function thermalRenderReadout(coord, pixel) {
@@ -5183,14 +5198,21 @@ function thermalRenderReadout(coord, pixel) {
   let readoutCoord = coord;
   let gradient = null;
   let deltaSst = null;
-  const hit = thermalNearestGradient(coord);
-  if (pixel && hit.point && Number.isFinite(hit.gradient)) {
-    const hitPixel = thermalFrontState.map?.getPixelFromCoordinate(hit.point);
-    if (hitPixel && Math.hypot(hitPixel[0] - pixel[0], hitPixel[1] - pixel[1]) <= 14) {
-      cursorCoord = hit.point;
-      readoutCoord = hit.point;
-      gradient = hit.gradient;
-      deltaSst = hit.deltaSst;
+  if (thermalFrontState.mode === "daily") {
+    // Daily mode: compute 5km-radius mean of gradient and SST delta across all front points within 5km
+    const mean = thermalRadiusMean(coord);
+    if (mean) { gradient = mean.gradient; deltaSst = mean.deltaSst; }
+  } else {
+    // Animation mode: find nearest front point within 14px
+    const hit = thermalNearestGradient(coord);
+    if (pixel && hit.point && Number.isFinite(hit.gradient)) {
+      const hitPixel = thermalFrontState.map?.getPixelFromCoordinate(hit.point);
+      if (hitPixel && Math.hypot(hitPixel[0] - pixel[0], hitPixel[1] - pixel[1]) <= 14) {
+        cursorCoord = hit.point;
+        readoutCoord = hit.point;
+        gradient = hit.gradient;
+        deltaSst = hit.deltaSst;
+      }
     }
   }
   if (thermalFrontState.cursorFeature) thermalFrontState.cursorFeature.getGeometry().setCoordinates(cursorCoord);
@@ -5359,8 +5381,7 @@ function updateThermalFrontsNav() {
 }
 
 function thermalUpdateLegendAndStatus() {
-  console.log("[thermalUpdateLegendAndStatus] CALLED currentVar:", currentVar);
-  if (currentVar !== "thermal_fronts") { console.log("[thermalUpdateLegendAndStatus] early return"); return; }
+  if (currentVar !== "thermal_fronts") return;
   const legendEl = document.getElementById("legend");
   const list = thermalActiveFrameList();
   if (thermalFrontState.mode === "daily") {
@@ -5560,7 +5581,6 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   }
 
   syncRangeInputsToVar();
-  console.log("[setCurrentVar] AFTER syncRangeInputsToVar currentVar:", currentVar);
   updateSliderUI();
   syncTimeControls();
   syncArrowLegend();
