@@ -1936,21 +1936,34 @@ const PLACE_LABELS = [
   {type:"city", name:"Charleston", lon:-79.9311, lat:32.7765},
   {type:"city", name:"Savannah", lon:-81.0998, lat:32.0809},
 
-  // Fishing ports / inlets
+  // Fishing ports / inlets — Long Island
   {type:"port", name:"Montauk", lon:-71.9448, lat:41.0359},
-  {type:"port", name:"Brielle / Manasquan", lon:-74.0565, lat:40.1079},
+  {type:"port", name:"Shinnecock Inlet", lon:-72.4751, lat:40.8524},
+  {type:"port", name:"Moriches Inlet", lon:-72.7742, lat:40.7684},
+  {type:"port", name:"Fire Island Inlet", lon:-73.2600, lat:40.6340},
+  // Fishing ports / inlets — New Jersey
+  {type:"port", name:"Manasquan Inlet", lon:-74.0458, lat:40.1068},
   {type:"port", name:"Barnegat Light", lon:-74.1065, lat:39.7576},
   {type:"port", name:"Cape May", lon:-74.9060, lat:38.9351},
+  {type:"port", name:"Cape Henlopen", lon:-75.1100, lat:38.7900},
+  // Fishing ports / inlets — Delaware / Maryland
+  {type:"port", name:"Indian River Inlet", lon:-75.0654, lat:38.6145},
   {type:"port", name:"Ocean City MD", lon:-75.0849, lat:38.3365},
   {type:"port", name:"Wachapreague", lon:-75.6896, lat:37.6057},
+  // Fishing ports / inlets — Virginia
+  {type:"port", name:"Little Creek", lon:-76.1342, lat:36.9435},
+  {type:"port", name:"Oceana", lon:-76.1786, lat:36.8179},
+  // Fishing ports / inlets — NC Outer Banks
   {type:"port", name:"Oregon Inlet", lon:-75.5488, lat:35.7957},
   {type:"port", name:"Hatteras", lon:-75.6902, lat:35.2196},
   {type:"port", name:"Morehead City", lon:-76.7260, lat:34.7229},
   {type:"port", name:"Beaufort NC", lon:-76.6638, lat:34.7182},
+  // Fishing ports / inlets — NC/SC
   {type:"port", name:"Wrightsville Beach", lon:-77.7950, lat:34.2085},
   {type:"port", name:"Little River", lon:-78.6142, lat:33.8732},
   {type:"port", name:"Georgetown", lon:-79.2945, lat:33.3768},
   {type:"port", name:"Charleston Harbor", lon:-79.9237, lat:32.7810},
+  {type:"port", name:"Winyah Bay", lon:-79.2650, lat:33.3500},
   // USEC South tournament spots
   {type:"spot", name:"Wilmington Canyon", lon:-73.60, lat:38.10},
   {type:"spot", name:"Norfolk Canyon", lon:-74.80, lat:36.90},
@@ -1965,7 +1978,7 @@ const PLACE_LABELS = [
   // For dynamic discovery: briefing reads CHL/SST grid cells near departure port,
   // scores by fishing quality (CHL intensity × SST fit), ranks by port proximity.
 // Mid-Atlantic cities
-];
+]; 
 
 function placeInRegion(p) {
   const [w, s, e, n] = BBOX.map(Number);
@@ -4108,37 +4121,46 @@ async function ensureCombinedLandLayer(map) {
 
 async function ensureCombinedPlaceLayer(map) {
   if (!map || window._combinedPlaceLayer) return;
-  const layer = new ol.layer.VectorImage({
-    source: new ol.source.Vector({ wrapX: false }),
-    style: new ol.style.Style({
-      text: new ol.style.Text({
-        font: "bold 12px sans-serif",
-        fill: new ol.style.Fill({ color: "rgba(255,255,255,0.55)" }),
-        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.7)", width: 3 }),
-        overflow: true
-      })
-    }),
-    zIndex: 40
+  const places = PLACE_LABELS.filter(placeInRegion);
+  const features = places.map(p => new ol.Feature({
+    geometry: new ol.geom.Point([p.lon, p.lat]),
+    name: p.name,
+    type: p.type
+  }));
+  const source = new ol.source.Vector({ features, wrapX: false });
+  const layer = new ol.layer.Vector({
+    source,
+    style: combinedPlaceStyle,
+    zIndex: 40,
+    declutter: true
   });
   map.addLayer(layer);
   window._combinedPlaceLayer = layer;
-  const src = layer.getSource();
-  PLACE_LABELS.filter(placeInRegion).forEach(p => {
-    src.addFeature(new ol.Feature({ geometry: new ol.geom.Point([p.lon, p.lat]), name: p.name }));
+}
+
+function combinedPlaceStyle(feature) {
+  const type = feature.get("type");
+  const isPort = type === "port";
+  const isSpot = type === "spot";
+  const fill = isSpot ? "#ffb000" : isPort ? "#ffe066" : "#ffffff";
+  const image = new ol.style.RegularShape({
+    points: isSpot ? 5 : isPort ? 4 : 20,
+    radius: isSpot ? 6 : isPort ? 5 : 4,
+    radius2: isSpot ? 3 : undefined,
+    angle: isPort ? Math.PI / 4 : 0,
+    fill: new ol.style.Fill({ color: isSpot ? "#ff6b35" : isPort ? "#ffb000" : "#7bdff2" }),
+    stroke: new ol.style.Stroke({ color: "#000", width: 2 })
   });
-  const style = layer.getStyle();
-  style.setText(new ol.style.Text({
-    font: "bold 12px sans-serif",
-    fill: new ol.style.Fill({ color: "rgba(255,255,255,0.55)" }),
-    stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.7)", width: 3 }),
-    overflow: true,
-    text: getText(undefined, PLACE_LABELS.filter(placeInRegion))
-  }));
-  layer.setStyle(style);
-  function getText(resolution, places) {
-    if (!resolution || resolution > 15000) return "";
-    return places.map(p => p.name).join("\n");
-  }
+  return new ol.style.Style({
+    image,
+    text: new ol.style.Text({
+      text: feature.get("name"),
+      offsetY: isPort ? 16 : -14,
+      font: "700 12px system-ui, -apple-system, Segoe UI, sans-serif",
+      fill: new ol.style.Fill({ color: fill }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.9)", width: 3 })
+    })
+  });
 }
 
 function buildDesktopUvArrowLayer(data, grid) {
