@@ -747,6 +747,7 @@ body.combined-mode #combined-menu-btn{
     .dot-uv{ background:#00c8ff; }
     .dot-bathy{ background:#b25cff; }
     .dot-front{ background:#ff4040; }
+    .dot-sst{ background:#ff8c00; }
     .combined-inline-legend{
       margin:4px 0 8px 28px;
       color:#9fb0c3;
@@ -941,6 +942,21 @@ body.combined-mode #combined-menu-btn{
         <option value="24">Last 24 scans</option>
       </select>
       <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
+      <label class="combined-toggle">
+        <input type="checkbox" id="chk-combined-sst">
+        <span class="box"></span>
+        <span class="combined-dot dot-sst"></span>
+        <span>Temperature</span>
+      </label>
+      <div id="combined-sst-scan-time" style="font-size:11px;color:#ff8c00;margin-left:28px;margin-bottom:4px;"></div>
+      <div class="combined-legend-row" style="margin:6px 0 8px 28px;display:flex;align-items:center;gap:8px;">
+        <canvas id="combined-sst-palette-canvas" width="120" height="14" style="border-radius:4px;border:1px solid #2a3a50;"></canvas>
+        <div style="font-size:11px;color:#9fb0c3;white-space:nowrap;">
+          <span id="combined-sst-palette-low">--</span>
+          &nbsp;to&nbsp;
+          <span id="combined-sst-palette-high">--</span>
+        </div>
+      </div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-front" checked>
         <span class="box"></span>
@@ -1907,6 +1923,7 @@ if (combinedRegionSelect) {
 
 /* Combined layer toggle wiring */
 const chkChl = document.getElementById("chk-combined-chl");
+const chkSst = document.getElementById("chk-combined-sst");
 const chkUv = document.getElementById("chk-combined-uv");
 const chkBathy = document.getElementById("chk-combined-bathy");
 const chkFront = document.getElementById("chk-combined-front");
@@ -1921,6 +1938,11 @@ if (chkChl) chkChl.addEventListener("change", async e => {
     if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
   }
+});
+if (chkSst) chkSst.addEventListener("change", e => {
+  if (window._combinedSstLayer) window._combinedSstLayer.setVisible(e.target.checked);
+  const palette = document.getElementById("combined-sst-palette-canvas");
+  if (palette) palette.style.opacity = e.target.checked ? "1" : "0.3";
 });
 if (chkUv) chkUv.addEventListener("change", e => {
   if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
@@ -3904,6 +3926,7 @@ async function renderCombinedMode() {
     window._combinedLandLayer = null;
     window._combinedPlaceLayer = null;
     window._combinedChlLayer = null;
+    window._combinedSstLayer = null;
     window._combinedBathyLayer = null;
     window._combinedUvLayer = null;
     window._combinedFrontDensityLayer = null;
@@ -4014,6 +4037,54 @@ async function renderCombinedMode() {
       : "";
   } else {
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = "";
+  }
+
+  // ── Layer: SST Temperature (unchecked by default — conflicts visually with CHL) ──
+  const sstFrames = framesByVar.sst || [];
+  const sstScanTimeDiv = document.getElementById("combined-sst-scan-time");
+  const sstPaletteCanvas = document.getElementById("combined-sst-palette-canvas");
+  if (sstFrames.length) {
+    const frame = sstFrames[0];
+    const data = await fetchFrameData("sst", frame);
+    const grid = await loadGridForVar("sst", data);
+    window._combinedSstData = data;
+    window._combinedSstGrid = grid;
+    const canvas = makeMobileRasterCanvas("sst", grid, data);
+    const url = canvas.toDataURL("image/png");
+    if (url && url.startsWith("data:image/png")) {
+      const extent = frameExtentFromGrid(grid);
+      const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+      const layer = new ol.layer.Image({ source: src, zIndex: 9 });
+      layer.setVisible(false); // unchecked by default
+      map.addLayer(layer);
+      window._combinedSstLayer = layer;
+      // Draw color palette
+      if (sstPaletteCanvas) {
+        const ctx = sstPaletteCanvas.getContext("2d");
+        const w = sstPaletteCanvas.width, h = sstPaletteCanvas.height;
+        const grad = ctx.createLinearGradient(0, 0, w, 0);
+        // SST palette: cool blues to warm oranges
+        grad.addColorStop(0, "#313695");
+        grad.addColorStop(0.25, "#4575b4");
+        grad.addColorStop(0.5, "#fee090");
+        grad.addColorStop(0.75, "#f46d43");
+        grad.addColorStop(1, "#d73027");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, w, h);
+        const lo = document.getElementById("combined-sst-palette-low");
+        const hi = document.getElementById("combined-sst-palette-high");
+        if (data?.min !== undefined && data?.max !== undefined) {
+          if (lo) lo.textContent = `${data.min.toFixed(1)}°`;
+          if (hi) hi.textContent = `${data.max.toFixed(1)}°`;
+        }
+      }
+    }
+    const sstT = epochMsForFrame("sst", frame);
+    if (sstScanTimeDiv) sstScanTimeDiv.textContent = sstT
+      ? new Date(sstT).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "";
+  } else {
+    if (sstScanTimeDiv) sstScanTimeDiv.textContent = "";
   }
 
   // ── Layer: Bathymetry contours ───────────────────────────────────────
