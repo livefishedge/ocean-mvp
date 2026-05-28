@@ -787,7 +787,6 @@ body.combined-mode #combined-menu-btn{
       <span id="frame-label"></span>
     </span>
     <span id="toolbar-status"></span>
-    <button id="temp-unit-toggle" aria-label="Toggle temperature unit">°C</button>
   </div>
 
   <div id="mobile-map"></div>
@@ -5198,12 +5197,12 @@ function thermalRenderReadout(coord, pixel) {
   const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
   if (Number.isFinite(gradient)) {
     const gradDisplay = thermalDistUnit === "nm"
-      ? `${kmToNm(gradient).toFixed(3)} °C/nm`
-      : `${gradient.toFixed(3)} °C/km`;
+      ? `${kmToNm(gradient).toFixed(3)} °${tempUnit}/nm`
+      : `${gradient.toFixed(3)} °${tempUnit}/km`;
     const parts = [gradDisplay];
     if (deltaSst && Number.isFinite(deltaSst.value)) {
-      const displayVal = tempUnit === "F" ? cToF(deltaSst.value) : deltaSst.value;
-      parts.push(`${deltaSst.label} ${displayVal.toFixed(2)} ${tempUnitLabel()}`);
+      const deltaVal = tempUnit === "F" ? deltaSst.value * 9 / 5 : deltaSst.value;
+      parts.push(`${deltaSst.label} ${deltaVal.toFixed(2)} ${tempUnitLabel()}`);
     }
     setReadout(`${base}, ${parts.join(", ")}`);
   } else {
