@@ -4459,9 +4459,12 @@ async function buildChlCompositeLayer(map, count) {
     }),
     zIndex: 10
   });
-  const newestTime = compatible.length > 0 ? epochMsForFrame("chl", compatible[0].frame) : null;
-  const scanTime = newestTime
-    ? new Date(newestTime).toLocaleString(undefined, {
+  const epochTimes = selected.map(item => epochMsForFrame("chl", item.frame)).filter(t => t);
+  const meanTime = epochTimes.length
+    ? epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length
+    : null;
+  const scanTime = meanTime
+    ? new Date(meanTime).toLocaleString(undefined, {
         year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
       })
     : "";
