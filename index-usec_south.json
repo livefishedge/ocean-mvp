@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-05-28T21:03:49.740077Z",
+  "last_updated": "2026-05-28T21:44:49.310534Z",
   "vars": [
     "chl",
     "sst",
@@ -1236,10 +1236,26 @@
       },
       {
         "var": "chl",
+        "id": "usec_south_2026148.1800_chl_VNP",
+        "label": "2026-05-28 18:00 UTC | VNP",
+        "time_iso": "2026-05-28T18:00:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026148.1800_chl_VNP.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
         "id": "usec_south_2026148.1818_chl_VJ1",
         "label": "2026-05-28 18:18 UTC | VJ1",
         "time_iso": "2026-05-28T18:18:00Z",
         "json_path": "data/usec_south/chl/usec_south_2026148.1818_chl_VJ1.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_2026148.1906_chl_VJ2",
+        "label": "2026-05-28 19:06 UTC | VJ2",
+        "time_iso": "2026-05-28T19:06:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026148.1906_chl_VJ2.json",
         "grid_file": "frame_bbox"
       }
     ],
@@ -5218,10 +5234,26 @@
       },
       {
         "var": "chl_front",
+        "id": "chlfront_usec_south_2026148.1800_VNP",
+        "label": "2026-05-28 18:00 UTC | VNP",
+        "time_iso": "2026-05-28T18:00:00Z",
+        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026148.1800_VNP.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl_front",
         "id": "chlfront_usec_south_2026148.1818_VJ1",
         "label": "2026-05-28 18:18 UTC | VJ1",
         "time_iso": "2026-05-28T18:18:00Z",
         "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026148.1818_VJ1.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl_front",
+        "id": "chlfront_usec_south_2026148.1906_VJ2",
+        "label": "2026-05-28 19:06 UTC | VJ2",
+        "time_iso": "2026-05-28T19:06:00Z",
+        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026148.1906_VJ2.json",
         "grid_file": "frame_bbox"
       }
     ],
