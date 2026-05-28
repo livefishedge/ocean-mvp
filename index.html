@@ -1013,8 +1013,8 @@ let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
 let thermalDistUnit = localStorage.getItem("thermal_dist_unit") === "nm" ? "nm" : "km";
 // cToF: converts absolute Celsius temperature to Fahrenheit (used for point values)
 function cToF(c) { return c * 9 / 5 + 32; }
-// kmToNm: converts kilometers to nautical miles
-function kmToNm(km) { return km * 0.539957; }
+// kmToNm: converts kilometers to nautical miles (1 nm ≈ 1.852 km, so km → nm divides)
+function kmToNm(km) { return km / 1.852; }
 function formatDist(km) {
   if (km === null || km === undefined) return "";
   if (thermalDistUnit === "nm") return `${kmToNm(km).toFixed(1)} nm`;
@@ -2818,11 +2818,12 @@ function buildFrontLines(gridInfo, dataObj, varKey) {
         custom.push(null);
       }
       const grad = props.gradient_per_km ?? null;
-      const gradUnit = '°C/km';
+      const gradC = grad !== null ? grad * (tempUnit === 'F' ? 9/5 : 1) : null;
+      const gradUnit = `°${tempUnitLabel()}/km`;
       const lenKm = props.length_km ?? null;
-      const textVal = grad != null ? `${grad.toFixed(3)} ${gradUnit}` : '';
+      const textVal = gradC != null ? `${gradC.toFixed(3)} ${gradUnit}` : '';
       const customEntry = {
-        gradient: grad,
+        gradient: gradC,
         gradient_unit: gradUnit,
         length_km: lenKm,
         time_iso: props.time_iso || null,
@@ -4317,7 +4318,8 @@ function combinedNearestFrontHover(map, coord, pixel) {
   const parts = [];
   if (gradVals.length) {
     const avg = gradVals.reduce((a, b) => a + b, 0) / gradVals.length;
-    const displayGrad = thermalDistUnit === "nm" ? kmToNm(avg) : avg;
+    const avgC = avg * (tempUnit === "F" ? 9 / 5 : 1);
+    const displayGrad = thermalDistUnit === "nm" ? kmToNm(avgC) : avgC;
     const unit = tempUnit + (thermalDistUnit === "nm" ? "/nm" : "/km");
     parts.push(`${displayGrad.toFixed(3)} °${unit}`);
   }
@@ -5249,9 +5251,10 @@ function thermalRenderReadout(coord, pixel) {
   if (thermalFrontState.cursorFeature) thermalFrontState.cursorFeature.getGeometry().setCoordinates(cursorCoord);
   const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
   if (Number.isFinite(gradient)) {
+    const gradC = gradient * (tempUnit === "F" ? 9 / 5 : 1);
     const gradDisplay = thermalDistUnit === "nm"
-      ? `${kmToNm(gradient).toFixed(3)} °${tempUnit}/nm`
-      : `${gradient.toFixed(3)} °${tempUnit}/km`;
+      ? `${kmToNm(gradC).toFixed(3)} °${tempUnit}/nm`
+      : `${gradC.toFixed(3)} °${tempUnit}/km`;
     const parts = [gradDisplay];
     if (deltaSst && Number.isFinite(deltaSst.value)) {
       const deltaVal = tempUnit === "F" ? deltaSst.value * 9 / 5 : deltaSst.value;
