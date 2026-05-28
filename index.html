@@ -3983,11 +3983,15 @@ async function renderCombinedMode() {
   // ── Layer: OSM base (coastal context — roads, cities) ─────────────────────
   const osmLayer = new ol.layer.Tile({
     source: new ol.source.OSM(),
-    zIndex: 50,
+    zIndex: 0,
     opacity: 1.0,
     preload: 0
   });
-  map.addLayer(osmLayer);  // OSM will be moved to z50 after data layers
+  map.addLayer(osmLayer);
+
+  // ── Layer: land mask (transparent ocean, opaque land — lets OSM show ocean through CHL no-data gaps, and land stays solid on top) ─
+  await ensureCombinedLandMaskLayer(map);
+
 
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
