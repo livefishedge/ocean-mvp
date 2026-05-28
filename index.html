@@ -4011,7 +4011,7 @@ async function renderCombinedMode() {
   const uvFrames = framesByVar.uv || [];
   const uvScanTimeDiv = document.getElementById("combined-uv-scan-time");
   if (uvFrames.length) {
-    const frame = uvFrames[uvFrames.length - 1];
+    const frame = uvFrames[0];
     const data = await fetchFrameData("uv", frame);
     const grid = await loadGridForVar("uv", data);
     window._combinedUvGrid = grid;
@@ -6064,7 +6064,7 @@ async function loadIndex() {
   framesByVar.combined = [{ json_path: "__combined_native__" }];
 
   for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts","combined"]) {
-    framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));
+    framesByVar[v].sort((a,b) => (epochMsForFrame(v,b) ?? 0) - (epochMsForFrame(v,a) ?? 0));  // newest-first
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
 
