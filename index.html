@@ -948,13 +948,20 @@ body.combined-mode #combined-menu-btn{
         <span class="combined-dot dot-sst"></span>
         <span>Temperature</span>
       </label>
+      <select id="combined-sst-hours" style="margin:6px 0 4px 28px;font-size:13px;">
+        <option value="1">Latest</option>
+        <option value="3">Last 3 hours</option>
+        <option value="6">Last 6 hours</option>
+        <option value="12">Last 12 hours</option>
+        <option value="24" selected>Last 24 hours</option>
+        <option value="48">Last 48 hours</option>
+      </select>
       <div id="combined-sst-scan-time" style="font-size:11px;color:#ff8c00;margin-left:28px;margin-bottom:4px;"></div>
-      <div class="combined-legend-row" style="margin:6px 0 8px 28px;display:flex;align-items:center;gap:8px;">
-        <canvas id="combined-sst-palette-canvas" width="120" height="14" style="border-radius:4px;border:1px solid #2a3a50;"></canvas>
-        <div style="font-size:11px;color:#9fb0c3;white-space:nowrap;">
-          <span id="combined-sst-palette-low">--</span>
-          &nbsp;to&nbsp;
-          <span id="combined-sst-palette-high">--</span>
+      <div id="combined-sst-units" style="margin:0 0 8px 0;display:flex;flex-direction:column;gap:5px;">
+        <div style="font-size:11px;color:#9fb0c3;">Units</div>
+        <div class="combined-mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button id="combined-sst-mode-c" class="active" type="button">°C</button>
+          <button id="combined-sst-mode-f" type="button">°F</button>
         </div>
       </div>
       <label class="combined-toggle">
@@ -1941,9 +1948,50 @@ if (chkChl) chkChl.addEventListener("change", async e => {
 });
 if (chkSst) chkSst.addEventListener("change", e => {
   if (window._combinedSstLayer) window._combinedSstLayer.setVisible(e.target.checked);
-  const palette = document.getElementById("combined-sst-palette-canvas");
-  if (palette) palette.style.opacity = e.target.checked ? "1" : "0.3";
 });
+
+/* Combined dropdown: SST hours composite */
+const sstHoursSelect = document.getElementById("combined-sst-hours");
+const sstScanTimeDiv = document.getElementById("combined-sst-scan-time");
+if (sstHoursSelect) {
+  sstHoursSelect.addEventListener("change", async () => {
+    const hours = parseInt(sstHoursSelect.value, 10);
+    if (!window._combinedMap) return;
+    if (window._combinedSstLayer) {
+      window._combinedMap.removeLayer(window._combinedSstLayer);
+      window._combinedSstLayer = null;
+    }
+    const frames = await fetchFramesForVar("sst");
+    const now = Date.now();
+    const cutoff = now - hours * 3600000;
+    const recent = frames.filter(f => {
+      const t = epochMsForFrame("sst", f);
+      return t && t >= cutoff;
+    });
+    if (!recent.length) { if (sstScanTimeDiv) sstScanTimeDiv.textContent = "No data"; return; }
+    const latest = recent[0];
+    const data = await fetchFrameData("sst", latest);
+    const grid = await loadGridForVar("sst", data);
+    window._combinedSstData = data;
+    window._combinedSstGrid = grid;
+    const canvas = makeMobileRasterCanvas("sst", grid, data);
+    const url = canvas.toDataURL("image/png");
+    if (url && url.startsWith("data:image/png")) {
+      const extent = frameExtentFromGrid(grid);
+      const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+      const layer = new ol.layer.Image({ source: src, zIndex: 9 });
+      const chk = document.getElementById("chk-combined-sst");
+      layer.setVisible(chk ? chk.checked : false);
+      window._combinedMap.addLayer(layer);
+      window._combinedSstLayer = layer;
+    }
+    const t = epochMsForFrame("sst", latest);
+    if (sstScanTimeDiv) sstScanTimeDiv.textContent = t
+      ? new Date(t).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+      : "";
+  });
+}
+
 if (chkUv) chkUv.addEventListener("change", e => {
   if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
   const scale = document.getElementById("combined-current-scale");
@@ -2027,6 +2075,28 @@ if (tempUnit === "F") {
 } else {
   combinedThermalModeCBtn?.classList.add("active");
   combinedThermalModeFBtn?.classList.remove("active");
+}
+/* SST unit toggle */
+const combinedSstModeCBtn = document.getElementById("combined-sst-mode-c");
+const combinedSstModeFBtn = document.getElementById("combined-sst-mode-f");
+combinedSstModeCBtn?.addEventListener("click", () => {
+  tempUnit = "C";
+  localStorage.setItem("sst_temp_unit", "C");
+  combinedSstModeCBtn?.classList.add("active");
+  combinedSstModeFBtn?.classList.remove("active");
+});
+combinedSstModeFBtn?.addEventListener("click", () => {
+  tempUnit = "F";
+  localStorage.setItem("sst_temp_unit", "F");
+  combinedSstModeFBtn?.classList.add("active");
+  combinedSstModeCBtn?.classList.remove("active");
+});
+if (tempUnit === "F") {
+  combinedSstModeFBtn?.classList.add("active");
+  combinedSstModeCBtn?.classList.remove("active");
+} else {
+  combinedSstModeCBtn?.classList.add("active");
+  combinedSstModeFBtn?.classList.remove("active");
 }
 if (thermalDistUnit === "nm") {
   combinedThermalModeNmBtn?.classList.add("active");
@@ -4138,6 +4208,8 @@ async function renderCombinedMode() {
     const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
     const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
+    const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
+    if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
     const bathyFeature = map.forEachFeatureAtPixel(ev.pixel, feature => (
       Number.isFinite(feature.get("depth")) ? feature : null
     ), { hitTolerance: 6 });
@@ -4163,8 +4235,10 @@ async function renderCombinedMode() {
     if (!ev.coordinate) return;
     const [lon, lat] = ev.coordinate;
     const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
+    const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
     const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
+    if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
     if (readoutEl) readoutEl.textContent = parts.join("  ");
   });
   map.getTargetElement()?.addEventListener("pointerleave", () => {
