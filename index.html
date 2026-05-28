@@ -5174,6 +5174,7 @@ function thermalNearestGradient(coord) {
 }
 
 function thermalRenderReadout(coord, pixel) {
+  if (currentVar !== "thermal_fronts") return;
   if (coord && Number.isFinite(coord[0]) && Number.isFinite(coord[1])) {
     lastThermalCoord = coord;
     lastThermalPixel = pixel;
@@ -5197,7 +5198,7 @@ function thermalRenderReadout(coord, pixel) {
   const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
   if (Number.isFinite(gradient)) {
     const gradDisplay = thermalDistUnit === "nm"
-      ? `${(gradient * kmPerNm).toFixed(3)} °C/nm`
+      ? `${kmToNm(gradient).toFixed(3)} °C/nm`
       : `${gradient.toFixed(3)} °C/km`;
     const parts = [gradDisplay];
     if (deltaSst && Number.isFinite(deltaSst.value)) {
@@ -6017,6 +6018,11 @@ function thermalSetTempUnit(u) {
       console.log("[thermalSetTempUnit] showFrame() done, refreshing readout at", lastThermalCoord);
       if (lastThermalCoord) thermalRenderReadout(lastThermalCoord, lastThermalPixel);
     });
+  } else if (currentVar === "sst") {
+    // SST also uses temp unit — just update the display without rebuilding the map
+    if (toolbarStatus) toolbarStatus.textContent = "";
+    if (document.getElementById("legend")) document.getElementById("legend").textContent = "";
+    showFrame();
   }
 }
 function thermalSetDistUnit(u) {
