@@ -3462,6 +3462,13 @@ function extractContourSegments(bd, level, sx, sy, extent) {
       }
       if (crossings.length >= 2) {
         const coords = crossings.slice(0, 2).map(c => c[0]);
+        if (coords[0] && coords[1]) {
+          const d0 = Math.hypot(coords[0][0] - vx0, coords[0][1] - vy0);
+          const d1 = Math.hypot(coords[1][0] - vx0, coords[1][1] - vy0);
+          if (d0 > 0.01 && d1 > 0.01) {
+            segments.push(coords);
+          }
+        }
         if (coords[0] && coords[1] && Math.hypot(coords[0][0] - coords[1][0], coords[0][1] - coords[1][1]) > 0.01) {
           segments.push(coords);
         }
@@ -4058,6 +4065,13 @@ function extractContourSegments(bd, level, sx, sy, extent) {
       }
       if (crossings.length >= 2) {
         const coords = crossings.slice(0, 2).map(c => c[0]);
+        if (coords[0] && coords[1]) {
+          const d0 = Math.hypot(coords[0][0] - vx0, coords[0][1] - vy0);
+          const d1 = Math.hypot(coords[1][0] - vx0, coords[1][1] - vy0);
+          if (d0 > 0.01 && d1 > 0.01) {
+            segments.push(coords);
+          }
+        }
         if (coords[0] && coords[1] && Math.hypot(coords[0][0] - coords[1][0], coords[0][1] - coords[1][1]) > 0.01) {
           segments.push(coords);
         }
