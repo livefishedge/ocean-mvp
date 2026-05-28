@@ -4398,24 +4398,48 @@ async function buildChlCompositeLayer(map, count) {
   const ny = base.z.length;
   const nx = base.z[0]?.length || 0;
   if (!ny || !nx) return {};
-  const compatible = loaded.filter(item =>
-    item.z.length === ny &&
-    item.z[0]?.length === nx &&
-    JSON.stringify(item.data?.bbox || []) === JSON.stringify(base.data?.bbox || [])
-  );
 
-  // Most-recent-first: item[0]=newest. For each pixel, take the first (newest) valid value.
-  // This fills spatial gaps from older scans while preserving temporal freshness.
+  // Resample all frames to the base grid so even 1-pixel mismatches are bridged
+  const compatible = loaded.map(item => {
+    if (item.z.length === ny && item.z[0]?.length === nx) return item;
+    // Different grid size — resample to base dimensions via bilinear
+    const nyS = item.z.length, nxS = item.z[0]?.length || 0;
+    const result = Array.from({ length: ny }, () => Array(nx).fill(null));
+    for (let rT = 0; rT < ny; rT++) {
+      const rS = rT * (nyS - 1) / (ny - 1);
+      const rS0 = Math.floor(rS), rS1 = Math.min(rS0 + 1, nyS - 1);
+      const dr = rS - rS0;
+      for (let cT = 0; cT < nx; cT++) {
+        const cS = cT * (nxS - 1) / (nx - 1);
+        const cS0 = Math.floor(cS), cS1 = Math.min(cS0 + 1, nxS - 1);
+        const dc = cS - cS0;
+        const v00 = item.z[rS0]?.[cS0], v01 = item.z[rS0]?.[cS1];
+        const v10 = item.z[rS1]?.[cS0], v11 = item.z[rS1]?.[cS1];
+        const f00 = Number.isFinite(v00) && v00 > 0 && v00 < 1e20;
+        const f01 = Number.isFinite(v01) && v01 > 0 && v01 < 1e20;
+        const f10 = Number.isFinite(v10) && v10 > 0 && v10 < 1e20;
+        const f11 = Number.isFinite(v11) && v11 > 0 && v11 < 1e20;
+        if (f00 && f01 && f10 && f11) {
+          result[rT][cT] = v00*(1-dr)*(1-dc) + v01*(1-dr)*dc + v10*dr*(1-dc) + v11*dr*dc;
+        } else if (f00) { result[rT][cT] = v00; }
+        else if (f01) { result[rT][cT] = v01; }
+        else if (f10) { result[rT][cT] = v10; }
+        else if (f11) { result[rT][cT] = v11; }
+      }
+    }
+    return { ...item, z: result };
+  });
+
+  let renderData = { ...base.data };
   if (compatible.length > 1) {
     const composite = Array.from({ length: ny }, () => Array(nx).fill(null));
     for (let row = 0; row < ny; row++) {
       for (let col = 0; col < nx; col++) {
-        // Iterate newest-first (compatible is already sorted desc by time)
         for (const item of compatible) {
           const value = Number(item.z[row]?.[col]);
           if (Number.isFinite(value) && value > 0 && Math.abs(value) < 1e20) {
             composite[row][col] = value;
-            break; // take the first (newest) valid value, skip older scans for this pixel
+            break;
           }
         }
       }
@@ -4435,7 +4459,6 @@ async function buildChlCompositeLayer(map, count) {
     }),
     zIndex: 10
   });
-  // Use the newest frame's timestamp for the scan time label
   const newestTime = compatible.length > 0 ? epochMsForFrame("chl", compatible[0].frame) : null;
   const scanTime = newestTime
     ? new Date(newestTime).toLocaleString(undefined, {
@@ -4444,7 +4467,6 @@ async function buildChlCompositeLayer(map, count) {
     : "";
   return { layer, scanTime, data: renderData, grid: base.grid };
 }
-
 
 /* ============================================================
    Combined-mode helpers: build ThermalHours composite layers
