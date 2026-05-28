@@ -3978,16 +3978,15 @@ async function renderCombinedMode() {
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
-  // Layer order: OSM(0) -> CHL(10) -> bathy contours(15) -> UV(20) -> land(24) -> fronts(30/32) -> labels(40)
+  // Layer order: CHL(10) -> bathy contours(15) -> UV(20) -> fronts(30/32) -> OSM(50)
 
-  // ── Layer: OSM base (coastal context — roads, cities) ─────────────────────
   const osmLayer = new ol.layer.Tile({
     source: new ol.source.OSM(),
     zIndex: 50,
     opacity: 1.0,
     preload: 0
   });
-  map.addLayer(osmLayer);  // OSM will be moved to z50 after data layers
+  map.addLayer(osmLayer);
 
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
