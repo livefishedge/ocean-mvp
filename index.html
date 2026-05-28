@@ -7294,15 +7294,22 @@ document.getElementById('captain-save-btn')?.addEventListener('click', (e) => {
 
 document.getElementById('captain-fs-btn')?.addEventListener('click', () => {
   const el = document.documentElement;
-  if (!document.fullscreenElement) { el.requestFullscreen?.(); }
-  else { document.exitFullscreen?.(); }
+  if (!document.fullscreenElement) {
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.webkitEnterFullscreen) el.webkitEnterFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if (document.webkitCancelFullScreen) document.webkitCancelFullScreen();
+  }
 });
 
 // Fullscreen icon toggle
 function updateFsIcon() {
   const btn = document.getElementById('captain-fs-btn');
   if (!btn) return;
-  const isFs = !!document.fullscreenElement;
+  const isFs = !!(document.fullscreenElement || document.webkitIsFullScreen);
   btn.innerHTML = isFs
     ? `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
          <line x1="1" y1="1" x2="6" y2="6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
@@ -7319,6 +7326,7 @@ function updateFsIcon() {
   btn.title = isFs ? 'Exit fullscreen' : 'Fullscreen';
 }
 document.addEventListener('fullscreenchange', updateFsIcon);
+document.addEventListener('webkitfullscreenchange', updateFsIcon);
 
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
