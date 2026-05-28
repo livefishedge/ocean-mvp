@@ -3992,6 +3992,15 @@ async function renderCombinedMode() {
   await ensureCombinedPlaceLayer(map);
   console.log("[combined] after ensureCombinedPlaceLayer");
 
+  // ── Layer: OSM base (coastal context — roads, cities) ─────────────────────
+  const osmLayer = new ol.layer.Tile({
+    source: new ol.source.OSM(),
+    zIndex: 0,
+    opacity: 0.35,
+    preload: 0
+  });
+  map.addLayer(osmLayer);
+
   // ── Layer: CHL raster ────────────────────────────────────────────────
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
@@ -7299,6 +7308,16 @@ document.getElementById('captain-fs-btn')?.addEventListener('click', () => {
   if (!document.fullscreenElement) { el.requestFullscreen?.(); }
   else { document.exitFullscreen?.(); }
 });
+
+// Fullscreen icon toggle
+function updateFsIcon() {
+  const btn = document.getElementById('captain-fs-btn');
+  if (!btn) return;
+  const isFs = !!document.fullscreenElement;
+  btn.innerHTML = isFs ? '&#9975;' : '&#9974;';
+  btn.title = isFs ? 'Exit fullscreen' : 'Fullscreen';
+}
+document.addEventListener('fullscreenchange', updateFsIcon);
 
 document.getElementById('captain-back-btn')?.addEventListener('click', () => {
   if (document.fullscreenElement) { document.exitFullscreen?.(); }
