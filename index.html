@@ -3401,7 +3401,7 @@ function updateBathyContours(map) {
   for (const level of levels) {
     const segs = extractContourSegments(bd, level, sx, sy, extent);
     for (const seg of segs) {
-      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg), depth: level }));
     }
   }
 }
