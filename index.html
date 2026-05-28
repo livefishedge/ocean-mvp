@@ -530,7 +530,7 @@
     /* Plot: full viewport */
     #plot{ height: 100dvh; min-height: 200px; }
     body.mobile-map-ready #plot{ display:none; }
-    body.mobile-map-ready #mobile-map{ display:block; }
+    body.mobile-map-ready #mobile-map{ display:block; cursor:crosshair; }
     body.thermal-fronts-mode #plot{
       display:block !important;
       width:100vw;
@@ -538,7 +538,7 @@
       cursor:crosshair;
       background:#f8fbff;
     }
-    body.thermal-fronts-mode #mobile-map{ display:none !important; }
+    body.thermal-fronts-mode #mobile-map{ display:none !important; cursor:crosshair; }
     body.thermal-fronts-mode #ranges{ display:none !important; }
     body.thermal-fronts-mode #mobile-time-badge{ display:none !important; }
     body.thermal-fronts-mode #toolbar{ display:flex !important; }
@@ -560,8 +560,8 @@ body.combined-mode #combined-menu-btn{
     body.combined-mode #toolbar{ display:none !important; }
     body.combined-mode #hamburger-btn{ display:none !important; }
     body.combined-mode #plot{ display:none !important; }
-    body.combined-mode #mobile-map{ display:none !important; }
-    body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; }
+    body.combined-mode #mobile-map{ display:none !important; cursor:crosshair; }
+    body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; cursor:crosshair; }
     body.combined-mode #combined-map .ol-viewport{ background:#f8fbff; }
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
@@ -854,7 +854,18 @@ body.combined-mode #combined-menu-btn{
         <option value="48">Last 48 hours</option>
         <option value="72">Last 72 hours</option>
       </select>
-      <div id="combined-thermal-scan-time" style="font-size:11px;color:#ff6666;margin-left:28px;margin-bottom:8px;"></div>
+      <div id="combined-thermal-scan-time" style="font-size:11px;color:#ff6666;margin-left:28px;margin-bottom:4px;"></div>
+      <div id="combined-thermal-units" style="margin:0 0 8px 0;display:flex;flex-direction:column;gap:5px;">
+        <div style="font-size:11px;color:#9fb0c3;">Units</div>
+        <div class="combined-mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button id="combined-thermal-mode-c" class="active" type="button">°C</button>
+          <button id="combined-thermal-mode-f" type="button">°F</button>
+        </div>
+        <div class="combined-mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+          <button id="combined-thermal-mode-km" class="active" type="button">km</button>
+          <button id="combined-thermal-mode-nm" type="button">nm</button>
+        </div>
+      </div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-uv" checked>
         <span class="box"></span>
@@ -862,7 +873,6 @@ body.combined-mode #combined-menu-btn{
         <span>Currents</span>
       </label>
       <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
-      <div id="combined-current-scale" class="combined-inline-legend">
         <div class="combined-legend-row">
           <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;background:#fff;border-radius:4px;">
             <line x1="2" y1="10" x2="54" y2="10" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round"/>
@@ -879,17 +889,6 @@ body.combined-mode #combined-menu-btn{
         <span>Bathymetry</span>
       </label>
       <div id="combined-bathy-legend" class="combined-inline-legend"></div>
-      <div id="combined-thermal-units" style="margin:8px 0 4px 0;display:flex;flex-direction:column;gap:6px;">
-        <div style="font-size:11px;color:#9fb0c3;">Units</div>
-        <div class="combined-mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-          <button id="combined-thermal-mode-c" class="active" type="button">°C</button>
-          <button id="combined-thermal-mode-f" type="button">°F</button>
-        </div>
-        <div class="combined-mode-row" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
-          <button id="combined-thermal-mode-km" class="active" type="button">km</button>
-          <button id="combined-thermal-mode-nm" type="button">nm</button>
-        </div>
-      </div>
     </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:8px;right:8px;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-left:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
@@ -1106,7 +1105,7 @@ let lastUpdateTimestamp = null;
 let framesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [], combined: [] };
 let frameTimesByVar = { chl: [], sst: [], chl_front: [], sst_front: [], uv: [], bathy: [], thermal_fronts: [], combined: [] };
 const INITIAL_VAR = QUERY_PARAMS.get("var");
-let currentVar = VAR_LABELS[INITIAL_VAR] ? INITIAL_VAR : "chl";
+let currentVar = VAR_LABELS[INITIAL_VAR] ? INITIAL_VAR : "combined";
 let currentFrameIdx = 0;
 let playing = false;
 let playTimer = null;
