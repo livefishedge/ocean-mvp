@@ -3786,7 +3786,9 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   canvas.width = nx;
   canvas.height = ny;
   const ctx = canvas.getContext("2d", { willReadFrequently: false });
-  const img = ctx.createImageData(nx, ny);  // RGBA(0,0,0,0) = fully transparent by default
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, nx, ny);
+  const img = ctx.createImageData(nx, ny);
   const xAxis = gridInfo.xAxis || [];
   const yAxis = gridInfo.yAxis || [];
   const xAscending = xAxis.length < 2 || xAxis[0] <= xAxis[xAxis.length - 1];
@@ -3988,10 +3990,6 @@ async function renderCombinedMode() {
     preload: 0
   });
   map.addLayer(osmLayer);
-
-  // ── Layer: land mask (transparent ocean, opaque land — lets OSM show ocean through CHL no-data gaps, and land stays solid on top) ─
-  await ensureCombinedLandMaskLayer(map);
-
 
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
@@ -4258,56 +4256,29 @@ function extractContourSegments(bd, level, sx, sy, extent) {
   return segments;
 }
 
-// Generates a land mask on the same pixel grid as CHL data.
-// Land pixels = opaque (so OSM shows through only at ocean/no-data areas).
-// Ocean/no-data pixels = fully transparent.
-async function ensureCombinedLandMaskLayer(map) {
-  if (!map || window._combinedLandMaskLayer) { return; }
-  const chlFrames = framesByVar.chl || [];
-  if (!chlFrames.length) return;
-  const firstFrame = chlFrames[0];
-  const data = await fetchFrameData("chl", firstFrame);
-  const grid = await loadGridForVar("chl", data);
+async function ensureCombinedLandLayer(map) {
+  console.log("[combined] ensureCombinedLandLayer ENTRY");
+  if (!map) { console.log("[combined] ensureCombinedLandLayer: EARLY RETURN — no map"); return; }
+  console.log("[combined] ensureCombinedLandLayer: map exists, _combinedLandLayer:", !!window._combinedLandLayer);
+  if (window._combinedLandLayer) { map.addLayer(window._combinedLandLayer); console.log("[combined] ensureCombinedLandLayer: REUSING cached layer"); return; }
+  console.log("[combined] ensureCombinedLandLayer: will build fresh layer");
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
-  const bNy = bathy.depth.length, bNx = bathy.depth[0]?.length || 0;
-  if (!bNy || !bNx) return;
-  const ny = grid.yAxis.length, nx = grid.xAxis.length;
-  if (!ny || !nx) return;
-  // Map grid coordinates to GEBCO grid coordinates (all south-up convention here)
-  const [lonMin, latMin, lonMax, latMax] = BBOX.map(Number);
-  // Draw land mask: land = opaque (180,190,170), ocean = transparent
-  const canvas = document.createElement("canvas");
-  canvas.width = nx; canvas.height = ny;
-  const ctx = canvas.getContext("2d", { willReadFrequently: false });
-  const img = ctx.createImageData(nx, ny);  // all transparent initially
-  for (let rT = 0; rT < ny; rT++) {
-    const lat = grid.yAxis[rT];
-    const rS = bNy > 1 ? (1 - (lat - latMin) / (latMax - latMin)) * (bNy - 1) : 0;
-    const rS0 = Math.max(0, Math.min(Math.floor(rS), bNy - 1));
-    for (let cT = 0; cT < nx; cT++) {
-      const lon = grid.xAxis[cT];
-      const cS = bNx > 1 ? (lon - lonMin) / (lonMax - lonMin) * (bNx - 1) : 0;
-      const cS0 = Math.max(0, Math.min(Math.floor(cS), bNx - 1));
-      const v = bathy.depth[rS0]?.[cS0];
-      const k = (rT * nx + cT) * 4;
-      const isLand = v !== null && isFinite(v) && v <= 0;
-      if (isLand) {
-        img.data[k] = 180; img.data[k+1] = 190; img.data[k+2] = 170; img.data[k+3] = 200;
-      }
-      // else: already transparent (alpha=0)
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  const extent = frameExtentFromGrid(grid);
+  console.log("[combined] ensureCombinedLandLayer bathy loaded");
+  console.log("[combined] bathy loaded, xAxis:", bathy?.xAxis?.slice(0,2), "yAxis:", bathy?.yAxis?.slice(0,2));
+  const landCanvas = makeMobileLandCanvas(bathy);
+  if (!landCanvas) return;
+  const extent = frameExtentFromGrid({ xAxis: bathy.xAxis, yAxis: bathy.yAxis });
+  console.log("[combined] land extent:", extent);
   const src = new ol.source.ImageStatic({
-    url: canvas.toDataURL("image/png"),
+    url: landCanvas.toDataURL("image/png"),
     imageExtent: extent,
     projection: "EPSG:4326",
     interpolate: false
   });
-  const layer = new ol.layer.Image({ source: src, zIndex: 50 });
+  const layer = new ol.layer.Image({ source: src, zIndex: 24 });
   map.addLayer(layer);
-  window._combinedLandMaskLayer = layer;
+  window._combinedLandLayer = layer;
+  console.log("[combined] LAND layer added, total layers:", map.getLayers().getLength());
 }
 
 async function ensureCombinedPlaceLayer(map) {
