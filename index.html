@@ -869,12 +869,18 @@ body.combined-mode #combined-menu-btn{
       </svg>
     </button>
     <button id="captain-dist-tool" class="captain-tool-btn" title="Measure distance (M)" data-tool="dist">
-      <svg width="18" height="18" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <line x1="3" y1="19" x2="19" y2="3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-        <circle cx="4" cy="18" r="2" fill="currentColor"/>
-        <circle cx="18" cy="4" r="2" fill="currentColor"/>
-        <polyline points="19,3 14,3" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
-        <polyline points="19,3 19,8" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <line x1="2" y1="17" x2="17" y2="2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="17" x2="5.5" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="17" x2="2" y2="13.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="2" y1="14" x2="2" y2="17" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="2" y1="11" x2="2" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="6" y1="17" x2="6" y2="14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="10" y1="17" x2="10" y2="15" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="14" y1="17" x2="14" y2="15" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="17" y1="17" x2="17" y2="13.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        <line x1="17" y1="13.5" x2="17" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <line x1="17" y1="13.5" x2="13.5" y2="13.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
     <button id="captain-add-tool" class="captain-tool-btn" title="Add waypoint (A)" data-tool="add">
@@ -7293,11 +7299,12 @@ document.getElementById('captain-save-btn')?.addEventListener('click', (e) => {
 });
 
 document.getElementById('captain-fs-btn')?.addEventListener('click', () => {
-  const el = document.documentElement;
-  if (!document.fullscreenElement) {
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.webkitEnterFullscreen) el.webkitEnterFullscreen();
+  const fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || document.querySelector('#combined-map') || document.documentElement;
+  const target = document.fullscreenElement ? null : fullscreenEl;
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    if (fullscreenEl.requestFullscreen) fullscreenEl.requestFullscreen();
+    else if (fullscreenEl.webkitRequestFullscreen) fullscreenEl.webkitRequestFullscreen();
+    else if (fullscreenEl.webkitEnterFullscreen) fullscreenEl.webkitEnterFullscreen();
   } else {
     if (document.exitFullscreen) document.exitFullscreen();
     else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
