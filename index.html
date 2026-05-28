@@ -3979,7 +3979,7 @@ async function renderCombinedMode() {
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
   if (chlFrames.length) {
-    const frame = chlFrames[chlFrames.length - 1];
+    const frame = chlFrames[0];  // framesByVar.chl is sorted newest-first
     const data = await fetchFrameData("chl", frame);
     const grid = await loadGridForVar("chl", data);
     window._combinedChlData = data;
