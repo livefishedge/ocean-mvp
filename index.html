@@ -622,7 +622,7 @@ body.combined-mode #combined-menu-btn{
     .captain-tool-btn.active{ background:rgba(29,79,145,0.7); border-color:#4d7dff; }
     #captain-save-btn{ display:none; }
     body.combined-mode #captain-save-btn{ display:flex; }
-    #captain-dist-panel.visible, #captain-pts-panel.visible{ display:block; }
+    #captain-dist-panel.visible, #captain-pts-panel.visible{ display:block !important; }
     #combined-readout{
       display:none;
       position:fixed;
@@ -3886,6 +3886,7 @@ async function renderCombinedMode() {
   });
   window._combinedMap = map;
   window._combinedMapRef = map;
+  installCaptainToolHandler(map);
   map.on("moveend", () => syncViewStateFromOlMap(map));
   console.log("[combined] OL map created, target:", !!map.getTargetElement(), "size:", map.getSize());
   const cv0 = map.getTargetElement()?.querySelector("canvas");
@@ -7090,18 +7091,7 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-// ── Hook into combined render ────────────────────────────────
-// After combined map is created, install the tool handler
-// We patch renderCombinedMode to also install the handler
-const _origRenderCombinedMode = renderCombinedMode;
-renderCombinedMode = async function(...args) {
-  const result = await _origRenderCombinedMode.apply(this, args);
-  const map = window._combinedMapRef;
-  if (map) {
-    installCaptainToolHandler(map);
-  }
-  return result;
-};
+
 </script>
 </body>
 </html>
