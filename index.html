@@ -3780,7 +3780,7 @@ async function renderCombinedMode() {
       m.updateSize();
       const sz = m.getSize();
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        applyViewStateToOlMap(m, viewState); // restore saved viewport
+        applyViewStateToOlMap(m, null); // restore saved viewport (null=preserve center/zoom only)
         console.log("[combined] view fit retried, zoom:", m.getView().getZoom());
       }
     });
@@ -3790,12 +3790,12 @@ async function renderCombinedMode() {
       m.updateSize();
       const sz = m.getSize();
       if (Array.isArray(sz) && sz[0] > 0 && sz[1] > 0) {
-        applyViewStateToOlMap(m, viewState); // restore saved viewport
+        applyViewStateToOlMap(m, null); // restore saved viewport (null=preserve center/zoom only)
         console.log("[combined] view fit from timer, zoom:", m.getView().getZoom());
       }
     }, 500);
   } else {
-    applyViewStateToOlMap(map, viewState); // restore saved viewport from previous product page
+    applyViewStateToOlMap(map, null); // restore saved viewport from previous product page (null=preserve center/zoom)
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
