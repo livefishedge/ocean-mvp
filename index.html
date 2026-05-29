@@ -4165,6 +4165,7 @@ async function renderCombinedMode() {
 
   // ── Layer: SST Temperature (unchecked by default — conflicts visually with CHL) ──
   const sstFrames = framesByVar.sst || [];
+  console.log("[combined] SST frames count:", sstFrames.length);
   const sstScanTimeDiv = document.getElementById("combined-sst-scan-time");
   if (sstFrames.length) {
     const sorted = [...sstFrames].sort((a, b) => {
