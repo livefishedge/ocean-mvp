@@ -1,9 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <m
-  setTimeout(applyUrlWaypoints, 200);
-}eta charset="utf-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
   <title>Captain's Dashboard</title>
   <link rel="icon" href="data:,">
@@ -12,6 +10,9 @@
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
   <script src="drawMobileUvArrowsLite.js?v=20260517-arrows2"></script>
+  <!-- Auth + Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js"></script>
 
 
   <style>
@@ -835,13 +836,49 @@ body.combined-mode #combined-menu-btn{
   </style>
 </head>
 <body>
-  <div id="login-gate" style="display:none">
-  <div class="gate-box">
-    <h2 id="gate-title"></h2>
-  </div>
-  </div>
+  <!-- Auth + PostHog init -->
+  <script>
+    const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+    const { createClient } = window.supabase;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+    // PostHog
+    !function(t,e){var o,n,p,r;function d(){var e=document.createElement("script");
+    e.textContent="/* https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js was loaded */";
+    return e}function s(t,e,n){var a=document.createElement("script");
+    a.src=t,a.onerror=function(){var e=document.createElement("script");
+    e.src=t,e.onerror=n,document.head.appendChild(e)},document.head.appendChild(a)}
+    ;r=function(t,e,n){function a(e,n){t.defer?e.push.apply(e,n):e.concat(n)}
+    o[t]=o[t]||[];var e={};return r=function(t,o,n){a(o||[],n||[]);while(o.length)o.shift()();
+    return e},e},r(t,e,n),r(u,e,o)};
+    var u={push:function(){u.arrayPush([].slice.apply(arguments))},arrayPush:function(t){o(typeof t==="object"?t:[t]).forEach(function(e){
+    typeof e=="object"&&e!==null&&typeof e[0]==="string"&&(p=e[0],p.indexOf("posthog")===0&&"function"==typeof window.posthog?window.posthog[p].apply(window.posthog,e.slice(1)):typeof console<"u"&&console.warn)});
+    u.ready=1}};var i=["init","capture","identify","alias","groupIdentify","page","ready","reset","getFeatureFlag","onFeatureFlags","getLibraryInfo","getAnonymousId","setPersonProperties","setGroupProperties","setOncePersonProperties","setOnceGroupProperties","unsetGroupProperties"],
+    a=function(t){return function(){u.arrayPush([t].concat([].slice.call(arguments)))}};i.forEach(function(t){u[t]=a(t)});
+    window.posthog = u;var c=function(){return(window.posthog.coreLoader=d)};
+    s("https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js",c,function(){s("https://unpkg.com/posthog-js@4/dist/posthog.min.js",c,c)});
+    })(document,window.posthog||[]);
 
+    posthog.init('phc_vSJhhcgYknWa27Vydc2D3N8LxxPuTwJeKxYZXbLThwcF', {
+      api_host: 'https://app.posthog.com',
+      person_profiles: 'always',
+      capture_pageview: true,
+      autocapture: true,
+    });
+
+    // Auth: redirect to login if no session
+    supabase.auth.getSession().then(({ session }) => {
+      if (!session) {
+        window.location.replace('login.html');
+      } else {
+        // Track user in PostHog
+        posthog.identify(session.user.email, { email: session.user.email });
+        // Show main content (remove gate if it blocks)
+        document.getElementById('login-gate').style.display = 'none';
+      }
+    });
+  </script>
 
   <div id="toolbar">
     <span id="nav-bar">

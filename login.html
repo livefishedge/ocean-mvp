@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ocean MVP — Login</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.95); --border: #1b2836; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      height: 100vh; background: var(--bg); color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #login-card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 40px 36px; max-width: 400px; width: 90%;
+      backdrop-filter: blur(8px);
+    }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; color: var(--accent2); }
+    .subtitle { font-size: 13px; color: #7a8fa6; margin-bottom: 28px; line-height: 1.5; }
+    label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--fg); }
+    input[type="email"] {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: 8px; background: #0c1723; color: var(--fg);
+      font-size: 14px; outline: none; margin-bottom: 16px;
+    }
+    input[type="email"]:focus { border-color: var(--accent); }
+    button {
+      width: 100%; padding: 11px; background: var(--accent); color: #fff;
+      border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: background 0.15s;
+    }
+    button:hover { background: #1a9e92; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #msg {
+      margin-top: 16px; font-size: 13px; text-align: center; min-height: 20px;
+    }
+    .success { color: #2dd4bf; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div id="login-card">
+    <h1>Ocean MVP</h1>
+    <p class="subtitle">Enter your email to access the marine intelligence dashboard. No password required.</p>
+    <form id="magic-form">
+      <label for="email">Email address</label>
+      <input type="email" id="email" placeholder="captain@example.com" required />
+      <button type="submit" id="submit-btn">Send magic link</button>
+    </form>
+    <div id="msg"></div>
+  </div>
+
+  <!-- Supabase Auth -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+    const { createClient } = window.supabase;
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // If already logged in, go straight to viewer
+    supabase.auth.getSession().then(({ session }) => {
+      if (session) window.location.replace('index.html');
+    });
+
+    // PostHog init on login page
+    !function(){
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js';
+      script.onload = function(){
+        posthog.init('phc_vSJhhcgYknWa27Vydc2D3N8LxxPuTwJeKxYZXbLThwcF', {
+          api_host: 'https://app.posthog.com',
+          person_profiles: 'always',
+          capture_pageview: true,
+          autocapture: false,
+        });
+      };
+      document.head.appendChild(script);
+    }();
+
+    // Magic link form
+    document.getElementById('magic-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const btn = document.getElementById('submit-btn');
+      const msg = document.getElementById('msg');
+      btn.disabled = true;
+      btn.textContent = 'Sending...';
+
+      const { error } = await supabase.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin + '/index.html' }
+      });
+
+      if (error) {
+        msg.textContent = error.message;
+        msg.className = 'error';
+        btn.disabled = false;
+        btn.textContent = 'Send magic link';
+      } else {
+        msg.textContent = 'Check your email for a magic link. It expires in 1 hour.';
+        msg.className = 'success';
+        document.getElementById('email').value = '';
+        btn.textContent = 'Link sent';
+      }
+    });
+  </script>
+</body>
+</html>
