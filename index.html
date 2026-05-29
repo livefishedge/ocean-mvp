@@ -4713,15 +4713,29 @@ async function buildChlCompositeLayer(map, count) {
     zIndex: 10
   });
   const epochTimes = selected.map(item => epochMsForFrame("chl", item.frame)).filter(t => t);
-  const meanTime = epochTimes.length
-    ? epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length
-    : null;
-  window._combinedChlScanTime = meanTime;
-  const scanTime = meanTime
-    ? new Date(meanTime).toLocaleString(undefined, {
-        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-      })
-    : "";
+  let scanTime = "";
+  if (epochTimes.length > 0) {
+    // Median epoch, excluding outliers (>2 stddev from median)
+    const sortedT = [...epochTimes].sort((a, b) => a - b);
+    const mid = Math.floor(sortedT.length / 2);
+    const median = sortedT.length % 2 !== 0
+      ? sortedT[mid]
+      : (sortedT[mid - 1] + sortedT[mid]) / 2;
+    const mad = sortedT.reduce((s, t) => s + Math.abs(t - median), 0) / sortedT.length || 1;
+    const threshold = median + 2 * mad;
+    const filtered = sortedT.filter(t => Math.abs(t - median) <= threshold);
+    const medianFiltered = filtered.length > 0
+      ? (filtered.length % 2 !== 0
+          ? filtered[Math.floor(filtered.length / 2)]
+          : (filtered[Math.floor(filtered.length / 2) - 1] + filtered[Math.floor(filtered.length / 2)]) / 2)
+      : median;
+    window._combinedChlScanTime = medianFiltered;
+    scanTime = new Date(medianFiltered).toLocaleString(undefined, {
+      year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  } else {
+    window._combinedChlScanTime = null;
+  };
   return { layer, scanTime, data: renderData, grid: base.grid };
 }
 
@@ -6158,7 +6172,7 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
   const frames = framesByVar[currentVar] || [];
   const times = frameTimesByVar[currentVar] || [];
 
-  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : 0;
+  if (frames.length) currentFrameIdx = (keepTime && prevT !== null) ? closestDaytimeIndex(currentVar, times, frames, prevT) : frames.length - 1;
   else currentFrameIdx = 0;
 
   // Restore saved geographic viewport after switching
@@ -6321,7 +6335,7 @@ async function loadIndex() {
   framesByVar.combined = [{ json_path: "__combined_native__" }];
 
   for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts","combined"]) {
-    framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));  // oldest-first: rightmost=latest
+    framesByVar[v].sort((a,b) => (epochMsForFrame(v,b) ?? 0) - (epochMsForFrame(v,a) ?? 0));  // newest-first
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
 
@@ -6819,7 +6833,7 @@ async function loadCaptainBriefing() {
     const initialTimes = frameTimesByVar[currentVar] || [];
     currentFrameIdx = initialFrames.length && initialT !== null
       ? closestDaytimeIndex(currentVar, initialTimes, initialFrames, initialT)
-      : Math.max(0, (initialFrames.length || 1) - 1);
+      : 0;
     syncRangeInputsToVar();
     updateSliderUI();
     syncTimeControls();
