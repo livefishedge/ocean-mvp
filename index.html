@@ -5330,8 +5330,8 @@ function updateSliderUI() {
   if (n) currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, n - 1));
   else currentFrameIdx = 0;
 
-  // Default slider to newest (rightmost = index n-1, since frames are oldest-first)
-  if (currentFrameIdx === 0 && n > 1) currentFrameIdx = n - 1;
+  // Default: show newest (rightmost = n-1, since frames are oldest-first)
+  if (n > 1) currentFrameIdx = n - 1;
 
   slider.min = 0;
   slider.max = Math.max(0, n - 1);
@@ -6330,7 +6330,7 @@ async function loadIndex() {
   framesByVar.combined = [{ json_path: "__combined_native__" }];
 
   for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts","combined"]) {
-    framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));  // oldest-first → slider: left=oldest, right=newest
+    framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));  // oldest-first → left=oldest, right=newest
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
 
