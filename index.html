@@ -2040,6 +2040,7 @@ if (sstHoursSelect) {
     window._combinedSstGrid = base.grid;
     const epochTimes = selected.map(item => epochMsForFrame("sst", item.frame)).filter(t => t);
     const meanTime = epochTimes.length ? epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length : null;
+    window._combinedSstScanTime = meanTime;
     if (sstScanTimeDiv) sstScanTimeDiv.textContent = meanTime
       ? new Date(meanTime).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
@@ -4156,6 +4157,7 @@ async function renderCombinedMode() {
       window._combinedChlLayer = layer;
     }
     const chlT = epochMsForFrame("chl", frame);
+    window._combinedChlScanTime = chlT;
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = chlT
       ? new Date(chlT).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
       : "";
@@ -4710,6 +4712,7 @@ async function buildChlCompositeLayer(map, count) {
   const meanTime = epochTimes.length
     ? epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length
     : null;
+  window._combinedChlScanTime = meanTime;
   const scanTime = meanTime
     ? new Date(meanTime).toLocaleString(undefined, {
         year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
