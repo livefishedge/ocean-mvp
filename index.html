@@ -6812,7 +6812,7 @@ async function loadCaptainBriefing() {
     const initialTimes = frameTimesByVar[currentVar] || [];
     currentFrameIdx = initialFrames.length && initialT !== null
       ? closestDaytimeIndex(currentVar, initialTimes, initialFrames, initialT)
-      : Math.max(0, initialFrames.length - 1);
+      : Math.max(0, (initialFrames.length || 1) - 1);
     syncRangeInputsToVar();
     updateSliderUI();
     syncTimeControls();
