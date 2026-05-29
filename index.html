@@ -1948,6 +1948,10 @@ if (chkChl) chkChl.addEventListener("change", async e => {
 });
 if (chkSst) chkSst.addEventListener("change", e => {
   if (window._combinedSstLayer) window._combinedSstLayer.setVisible(e.target.checked);
+  if (e.target.checked && window._combinedMap) {
+    // Trigger SST render to show scan time
+    sstHoursSelect.dispatchEvent(new Event('change'));
+  }
 });
 
 /* Combined dropdown: SST hours composite */
