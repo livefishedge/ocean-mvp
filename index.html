@@ -6709,6 +6709,7 @@ thermalDaySelect?.addEventListener("change", () => {
 });
 
 slider.addEventListener("input", () => {
+  console.log("[slider input] value:", slider.value, "currentVar:", currentVar);
   if (currentVar === "thermal_fronts") {
     thermalSetFrame(slider.value);
     return;
