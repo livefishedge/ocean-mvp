@@ -6314,7 +6314,7 @@ async function loadIndex() {
   framesByVar.combined = [{ json_path: "__combined_native__" }];
 
   for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts","combined"]) {
-    framesByVar[v].sort((a,b) => (epochMsForFrame(v,b) ?? 0) - (epochMsForFrame(v,a) ?? 0));  // newest-first
+    framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));  // oldest-first: rightmost=latest
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
 
