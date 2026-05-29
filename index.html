@@ -6709,12 +6709,14 @@ thermalDaySelect?.addEventListener("change", () => {
 });
 
 slider.addEventListener("input", () => {
-  console.log("[slider input] value:", slider.value, "currentVar:", currentVar);
+  console.log("[slider INPUT]", slider.value, "n:", framesByVar[currentVar]?.length);
   if (currentVar === "thermal_fronts") {
     thermalSetFrame(slider.value);
     return;
   }
-  currentFrameIdx = Number(slider.value) || 0;
+  const newIdx = Number(slider.value) || 0;
+  if (newIdx === currentFrameIdx) { console.log("[slider] same index, skipping"); return; }
+  currentFrameIdx = newIdx;
   showFrame();
 });
 
