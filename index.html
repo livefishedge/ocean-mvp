@@ -6586,6 +6586,7 @@ async function showFrame() {
   currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, frames.length - 1));
 
   const frameMeta = frames[currentFrameIdx];
+  console.log('[showFrame] DEBUG frames.length:', frames.length, 'currentFrameIdx:', currentFrameIdx, 'frameMeta id:', frameMeta?.id);
 
   if (isMobileMapMode()) {
     try {
