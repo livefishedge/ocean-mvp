@@ -4683,18 +4683,22 @@ async function buildChlCompositeLayer(map, count) {
     return { ...item, z: result };
   });
 
+  // Median helper
+  function pixelMedian(values) {
+    const finite = values.filter(v => Number.isFinite(v) && v > 0 && Math.abs(v) < 1e20);
+    if (!finite.length) return null;
+    const sorted = finite.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
   let renderData = { ...base.data };
   if (compatible.length > 1) {
     const composite = Array.from({ length: ny }, () => Array(nx).fill(null));
     for (let row = 0; row < ny; row++) {
       for (let col = 0; col < nx; col++) {
-        for (const item of compatible) {
-          const value = Number(item.z[row]?.[col]);
-          if (Number.isFinite(value) && value > 0 && Math.abs(value) < 1e20) {
-            composite[row][col] = value;
-            break;
-          }
-        }
+        const values = compatible.map(item => Number(item.z[row]?.[col]));
+        composite[row][col] = pixelMedian(values);
       }
     }
     renderData = { ...base.data, z: composite, chl: composite, data: composite, nx, ny, bbox: base.data?.bbox };
@@ -4715,27 +4719,15 @@ async function buildChlCompositeLayer(map, count) {
   const epochTimes = selected.map(item => epochMsForFrame("chl", item.frame)).filter(t => t);
   let scanTime = "";
   if (epochTimes.length > 0) {
-    // Median epoch, excluding outliers (>2 stddev from median)
-    const sortedT = [...epochTimes].sort((a, b) => a - b);
-    const mid = Math.floor(sortedT.length / 2);
-    const median = sortedT.length % 2 !== 0
-      ? sortedT[mid]
-      : (sortedT[mid - 1] + sortedT[mid]) / 2;
-    const mad = sortedT.reduce((s, t) => s + Math.abs(t - median), 0) / sortedT.length || 1;
-    const threshold = median + 2 * mad;
-    const filtered = sortedT.filter(t => Math.abs(t - median) <= threshold);
-    const medianFiltered = filtered.length > 0
-      ? (filtered.length % 2 !== 0
-          ? filtered[Math.floor(filtered.length / 2)]
-          : (filtered[Math.floor(filtered.length / 2) - 1] + filtered[Math.floor(filtered.length / 2)]) / 2)
-      : median;
-    window._combinedChlScanTime = medianFiltered;
-    scanTime = new Date(medianFiltered).toLocaleString(undefined, {
+    // Mean scan time across all selected frames
+    const meanTime = epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length;
+    window._combinedChlScanTime = meanTime;
+    scanTime = new Date(meanTime).toLocaleString(undefined, {
       year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
     });
   } else {
     window._combinedChlScanTime = null;
-  };
+  }
   return { layer, scanTime, data: renderData, grid: base.grid };
 }
 
@@ -5337,6 +5329,9 @@ function updateSliderUI() {
   const n = frames.length;
   if (n) currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, n - 1));
   else currentFrameIdx = 0;
+
+  // Default slider to newest (rightmost = index n-1, since frames are oldest-first)
+  if (currentFrameIdx === 0 && n > 1) currentFrameIdx = n - 1;
 
   slider.min = 0;
   slider.max = Math.max(0, n - 1);
@@ -6335,7 +6330,7 @@ async function loadIndex() {
   framesByVar.combined = [{ json_path: "__combined_native__" }];
 
   for (const v of ["chl","sst","chl_front","sst_front","uv","bathy","thermal_fronts","combined"]) {
-    framesByVar[v].sort((a,b) => (epochMsForFrame(v,b) ?? 0) - (epochMsForFrame(v,a) ?? 0));  // newest-first
+    framesByVar[v].sort((a,b) => (epochMsForFrame(v,a) ?? 0) - (epochMsForFrame(v,b) ?? 0));  // oldest-first → slider: left=oldest, right=newest
     frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v,f));
   }
 
