@@ -1123,7 +1123,7 @@ const VAR_TO_GRID = {
 let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 
 const DEFAULT_RANGES = {
-  chl:   { vmin: 0.02, vmax: 60.0, unit: "mg/m3" },
+  chl:   { vmin: 0.02, vmax: 10.0, unit: "mg/m3" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   chl_front: { vmin: 1.0, vmax: 3.0, unit: "fold/km" },
   sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
@@ -1221,9 +1221,9 @@ const UV_SCALE = [
 ];
 
 /* show 0.01, 0.1, 1, 10 on CHL colorbar */
-const CHL_TICKS_LINEAR = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 60];
+const CHL_TICKS_LINEAR = [0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10];
 const CHL_TICKVALS = CHL_TICKS_LINEAR.map(v => Math.log10(v));
-const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => ([0.02,0.1,1,10,60].includes(v)) ? String(v) : "");
+const CHL_TICKTEXT = CHL_TICKS_LINEAR.map(v => ([0.02,0.1,1,10].includes(v)) ? String(v) : "");
 
 /* ========================= STATE ========================= */
 let lastUpdateTimestamp = null;
