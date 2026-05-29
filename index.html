@@ -843,22 +843,12 @@ body.combined-mode #combined-menu-btn{
     const { createClient } = window.supabase;
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // PostHog
-    !function(t,e){var o,n,p,r;function d(){var e=document.createElement("script");
-    e.textContent="/* https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js was loaded */";
-    return e}function s(t,e,n){var a=document.createElement("script");
-    a.src=t,a.onerror=function(){var e=document.createElement("script");
-    e.src=t,e.onerror=n,document.head.appendChild(e)},document.head.appendChild(a)}
-    ;r=function(t,e,n){function a(e,n){t.defer?e.push.apply(e,n):e.concat(n)}
-    o[t]=o[t]||[];var e={};return r=function(t,o,n){a(o||[],n||[]);while(o.length)o.shift()();
-    return e},e},r(t,e,n),r(u,e,o)};
-    var u={push:function(){u.arrayPush([].slice.apply(arguments))},arrayPush:function(t){o(typeof t==="object"?t:[t]).forEach(function(e){
-    typeof e=="object"&&e!==null&&typeof e[0]==="string"&&(p=e[0],p.indexOf("posthog")===0&&"function"==typeof window.posthog?window.posthog[p].apply(window.posthog,e.slice(1)):typeof console<"u"&&console.warn)});
-    u.ready=1}};var i=["init","capture","identify","alias","groupIdentify","page","ready","reset","getFeatureFlag","onFeatureFlags","getLibraryInfo","getAnonymousId","setPersonProperties","setGroupProperties","setOncePersonProperties","setOnceGroupProperties","unsetGroupProperties"],
-    a=function(t){return function(){u.arrayPush([t].concat([].slice.call(arguments)))}};i.forEach(function(t){u[t]=a(t)});
-    window.posthog = u;var c=function(){return(window.posthog.coreLoader=d)};
-    s("https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js",c,function(){s("https://unpkg.com/posthog-js@4/dist/posthog.min.js",c,c)});
-    })(document,window.posthog||[]);
+    // PostHog (inline shim to prevent errors before PostHog script loads)
+    window.posthog = window.posthog || {};
+    window.posthog.push = function() { window.posthog._q = window.posthog._q || []; window.posthog._q.push.apply(window.posthog._q, arguments); };
+    window.posthog._q = [];
+    var _posthog_methods = ['init','capture','identify','alias','groupIdentify','page','ready','reset','getFeatureFlag','onFeatureFlags','getLibraryInfo','getAnonymousId','setPersonProperties','setGroupProperties','setOncePersonProperties','setOnceGroupProperties','unsetGroupProperties'];
+    _posthog_methods.forEach(function(m) { window.posthog[m] = function() { window.posthog._q.push([m].concat(Array.prototype.slice.call(arguments))); }; });
 
     posthog.init('phc_vSJhhcgYknWa27Vydc2D3N8LxxPuTwJeKxYZXbLThwcF', {
       api_host: 'https://app.posthog.com',
