@@ -54,61 +54,65 @@
   </div>
 
   <!-- Supabase Auth -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260530"></script>
   <script>
-    const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
-    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
-    const { createClient } = window.supabase;
-    const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-
     // If already logged in, go straight to viewer
-    supabase.auth.getSession().then(({ session }) => {
-      if (session) window.location.replace('index.html');
-    });
+    if (window.supabase) {
+      const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
+      const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-    // PostHog init on login page
-    !function(){
-      var script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js';
-      script.onload = function(){
-        posthog.init('phc_vSJhhcgYknWa27Vydc2D3N8LxxPuTwJeKxYZXbLThwcF', {
-          api_host: 'https://app.posthog.com',
-          person_profiles: 'always',
-          capture_pageview: true,
-          autocapture: false,
-        });
-      };
-      document.head.appendChild(script);
-    }();
-
-    // Magic link form
-    document.getElementById('magic-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email').value;
-      const btn = document.getElementById('submit-btn');
-      const msg = document.getElementById('msg');
-      btn.disabled = true;
-      btn.textContent = 'Sending...';
-
-      const result = await supabase.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.origin + '/index.html' }
+      supabase.auth.getSession().then(({ session }) => {
+        if (session) window.location.replace('index.html');
       });
-      console.log('signInWithOtp result:', JSON.stringify(result));
 
-      if (result.error) {
-        msg.textContent = result.error.message;
-        msg.className = 'error';
-        btn.disabled = false;
-        btn.textContent = 'Send magic link';
-        console.error('Auth error:', result.error);
-      } else {
-        msg.textContent = 'Check your email for a magic link. It expires in 1 hour.';
-        msg.className = 'success';
-        document.getElementById('email').value = '';
-        btn.textContent = 'Link sent';
-      }
-    });
+      // PostHog init
+      !function(){
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js';
+        script.onload = function(){
+          posthog.init('phc_vSJhhcgYknWa27Vydc2D3N8LxxPuTwJeKxYZXbLThwcF', {
+            api_host: 'https://app.posthog.com',
+            person_profiles: 'always',
+            capture_pageview: true,
+            autocapture: false,
+          });
+        };
+        document.head.appendChild(script);
+      }();
+
+      // Magic link form
+      document.getElementById('magic-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const btn = document.getElementById('submit-btn');
+        const msg = document.getElementById('msg');
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+
+        const result = await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: window.location.origin + '/index.html' }
+        });
+        console.log('signInWithOtp result:', JSON.stringify(result));
+
+        if (result.error) {
+          msg.textContent = result.error.message;
+          msg.className = 'error';
+          btn.disabled = false;
+          btn.textContent = 'Send magic link';
+          console.error('Auth error:', result.error);
+        } else {
+          msg.textContent = 'Check your email for a magic link. It expires in 1 hour.';
+          msg.className = 'success';
+          document.getElementById('email').value = '';
+          btn.textContent = 'Link sent';
+        }
+      });
+    } else {
+      document.getElementById('msg').textContent = 'Supabase failed to load. Check your connection.';
+      document.getElementById('msg').className = 'error';
+    }
   </script>
 </body>
 </html>
