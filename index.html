@@ -3979,10 +3979,12 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   const cfg = mobileValueConfig(varKey);
   const denom = cfg.hi === cfg.lo ? 1 : (cfg.hi - cfg.lo);
 
-  // yFlip determines when to reverse row order relative to yAscending:
-  //   CHL north-up data: flip when yAscending (data 0=north=top), no flip when yAscending is false (data 0=south)
-  //   UV south-up data: flip when yAscending is false (data 0=south), no flip when yAscending (data 0=south)
-  const yFlip = (varKey === "uv") ? yAscending : yAscending;
+  // yFlip: south-up data needs no flip; north-up data (SGLI, VIIRS L2) needs flip.
+  // SGLI H5 is north-up; pipeline stores JSON row 0 = north = latMax (36N), row 742 = south (31N).
+  // With yAscending=true, the yFlip=true inverts SGLI data incorrectly.
+  // Fix: skip yFlip when the frame is SGLI (north-up H5, stored north-up in JSON).
+  const isNorthUp = gridInfo.sensor === "SGLI";
+  const yFlip = (varKey === "uv") ? yAscending : (yAscending && !isNorthUp ? false : yAscending);
 
   for (let row = 0; row < ny; row++) {
     const srcJ = yFlip ? (ny - 1 - row) : row;
@@ -6385,7 +6387,7 @@ function inferGridFromFrame(v, dataObj) {
   // Therefore inferred CHL axes must be ascending to keep z[row] aligned with latitude.
   // SST keeps its existing north-up convention; UV remains south-up.
   const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny);
-  return { xAxis, yAxis, nx, ny };
+  return { xAxis, yAxis, nx, ny, sensor: "SGLI" };
 }
 
 async function loadGridForVar(v, dataObj = null) {
