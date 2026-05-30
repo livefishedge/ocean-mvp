@@ -90,16 +90,18 @@
       btn.disabled = true;
       btn.textContent = 'Sending...';
 
-      const { error } = await supabase.auth.signInWithOtp({
+      const result = await supabase.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: window.location.origin + '/index.html' }
       });
+      console.log('signInWithOtp result:', JSON.stringify(result));
 
-      if (error) {
-        msg.textContent = error.message;
+      if (result.error) {
+        msg.textContent = result.error.message;
         msg.className = 'error';
         btn.disabled = false;
         btn.textContent = 'Send magic link';
+        console.error('Auth error:', result.error);
       } else {
         msg.textContent = 'Check your email for a magic link. It expires in 1 hour.';
         msg.className = 'success';
