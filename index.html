@@ -2798,6 +2798,11 @@ function epochMsForFrame(varKey, frameMeta) {
   if (varKey === "sst") dt = parseSstUtcFromName(filename);
   if (varKey === "chl_front" || varKey === "sst_front") dt = parseFrontUtcFromName(filename);
   if (varKey === "uv")  dt = parseUvDateFromName(filename);
+  // Fallback: use time_iso from frame metadata (handles SGLI and other sensors with non-standard filenames)
+  if (!dt && frameMeta?.time_iso) {
+    dt = new Date(frameMeta.time_iso);
+    if (isNaN(dt.getTime())) dt = null;
+  }
   return dt ? dt.getTime() : null;
 }
 
@@ -5354,11 +5359,10 @@ function updateSliderUI() {
   }
   const frames = framesByVar[currentVar] || [];
   const n = frames.length;
+  // Clamp to valid range only — do NOT reset to newest on every render,
+  // otherwise prev/next navigation snaps back to the rightmost frame.
   if (n) currentFrameIdx = Math.max(0, Math.min(currentFrameIdx, n - 1));
   else currentFrameIdx = 0;
-
-  // Default: show newest (rightmost = n-1, since frames are oldest-first)
-  if (n > 1) currentFrameIdx = n - 1;
 
   slider.min = 0;
   slider.max = Math.max(0, n - 1);
