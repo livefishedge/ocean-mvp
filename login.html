@@ -57,9 +57,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+    const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
     const { createClient } = window.supabase;
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
     // If already logged in, go straight to viewer
     supabase.auth.getSession().then(({ session }) => {

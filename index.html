@@ -841,7 +841,7 @@ body.combined-mode #combined-menu-btn{
     const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
     const { createClient } = window.supabase;
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
     // PostHog (inline shim to prevent errors before PostHog script loads)
     window.posthog = window.posthog || {};
