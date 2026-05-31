@@ -62,7 +62,7 @@
       const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      sb.auth.getSession().then(({ session }) => {
+      sb.auth.getSession().then(({ data: { session } }) => {
         if (session) window.location.replace('index.html');
       });
 

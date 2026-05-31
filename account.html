@@ -139,7 +139,8 @@
   }
 
   async function init() {
-    const { session, user } = await sb.auth.getSession();
+    const { data: { session } } = await sb.auth.getSession();
+    const user = session && session.user;
     if (!session || !user) {
       // No session yet — listen for magic link redirect to complete
       sb.auth.onAuthStateChange((event, session) => {
