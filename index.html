@@ -862,6 +862,27 @@ body.combined-mode #combined-menu-btn{
     if (session) {
       document.getElementById('login-gate').style.display = 'none';
       posthog.identify(session.user.email, { email: session.user.email });
+      // Load user's selected region from profiles table and override REGION_ID if URL has no region param
+      fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${session.user.id}&select=selected_region,name,phone`,
+        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${session.access_token}` } }
+      ).then(r => r.json()).then(profiles => {
+        if (profiles && profiles.length > 0 && profiles[0].selected_region) {
+          const savedRegion = profiles[0].selected_region;
+          if (!QUERY_PARAMS.get('region') && REGIONS[savedRegion]) {
+            REGION_ID = savedRegion;
+            BBOX = REGION_ID === 'usec_md' ? [-81, 35, -71, 42] : [-81, 31, -71, 40];
+            initializeData();
+          }
+          // Update PostHog identity with full profile
+          posthog.identify(session.user.email, {
+            email: session.user.email,
+            name: profiles[0].name || undefined,
+            phone: profiles[0].phone || undefined,
+            selected_region: profiles[0].selected_region
+          });
+          posthog.capture('account_viewed', { email: session.user.email, region: savedRegion });
+        }
+      }).catch(() => {});
     }
     sb.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
@@ -1111,6 +1132,9 @@ body.combined-mode #combined-menu-btn{
         </div>
       </div>
       <div id="hamburger-cbar"></div>
+      <div style="text-align:center;margin-top:14px;">
+        <a href="account.html" style="color:var(--accent2);font-size:12px;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a>
+      </div>
     </div>
 
   <div id="ranges">
