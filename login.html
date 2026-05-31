@@ -6,7 +6,7 @@
   <title>Ocean MVP — Login</title>
   <link rel="icon" href="data:,">
   <style>
-    :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.95); --border: #1b2836; }
+    :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.95); --border: #1b2836; --err: #ff6b6b; --success: #2dd4bf; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       height: 100vh; background: var(--bg); color: var(--fg);
@@ -21,42 +21,97 @@
     h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; color: var(--accent2); }
     .subtitle { font-size: 13px; color: #7a8fa6; margin-bottom: 28px; line-height: 1.5; }
     label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--fg); }
-    input[type="email"] {
+    input[type="email"], input[type="password"] {
       width: 100%; padding: 10px 12px; border: 1px solid var(--border);
       border-radius: 8px; background: #0c1723; color: var(--fg);
-      font-size: 14px; outline: none; margin-bottom: 16px;
+      font-size: 14px; outline: none; margin-bottom: 12px;
     }
-    input[type="email"]:focus { border-color: var(--accent); }
+    input:focus { border-color: var(--accent); }
     button {
       width: 100%; padding: 11px; background: var(--accent); color: #fff;
       border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
-      cursor: pointer; transition: background 0.15s;
+      cursor: pointer; transition: background 0.15s; margin-top: 4px;
     }
     button:hover { background: #1a9e92; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary {
+      background: transparent; border: 1px solid var(--border); color: var(--fg);
+      margin-top: 8px;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.05); }
     #msg {
-      margin-top: 16px; font-size: 13px; text-align: center; min-height: 20px;
+      margin-top: 14px; font-size: 13px; text-align: center; min-height: 20px;
     }
     .success { color: #2dd4bf; }
     .error { color: #f87171; }
+
+    /* Tab switcher */
+    .tab-bar { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+    .tab-btn {
+      flex: 1; padding: 8px 4px; background: none; border: none;
+      color: #7a8fa6; font-size: 13px; font-weight: 600; cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color 0.15s, border-color 0.15s; border-radius: 0;
+    }
+    .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+    .tab-btn:hover:not(.active) { color: var(--fg); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .register-link { font-size: 12px; text-align: center; margin-top: 14px; opacity: 0.6; }
+    .register-link a { color: var(--accent2); text-decoration: none; }
+    .register-link a:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
   <div id="login-card">
     <h1>Ocean MVP</h1>
-    <p class="subtitle">Enter your email to access the marine intelligence dashboard. No password required.</p>
-    <form id="magic-form">
-      <label for="email">Email address</label>
-      <input type="email" id="email" placeholder="captain@example.com" required />
-      <button type="submit" id="submit-btn">Send magic link</button>
-    </form>
+    <p class="subtitle">Marine intelligence dashboard — sign in to access your data.</p>
+
+    <!-- Tab switcher -->
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-magic" onclick="switchTab('magic')">Magic Link</button>
+      <button class="tab-btn" id="tab-password" onclick="switchTab('password')">Password</button>
+    </div>
+
+    <!-- Magic link panel -->
+    <div class="tab-panel active" id="panel-magic">
+      <form id="magic-form">
+        <label for="magic-email">Email address</label>
+        <input type="email" id="magic-email" placeholder="captain@example.com" required />
+        <button type="submit" id="magic-btn">Send magic link</button>
+      </form>
+    </div>
+
+    <!-- Password login panel -->
+    <div class="tab-panel" id="panel-password">
+      <form id="password-form">
+        <label for="pw-email">Email address</label>
+        <input type="email" id="pw-email" placeholder="captain@example.com" required />
+        <label for="pw-password" style="margin-top:4px">Password</label>
+        <input type="password" id="pw-password" placeholder="Your password" required />
+        <button type="submit" id="pw-btn">Sign in</button>
+      </form>
+    </div>
+
     <div id="msg"></div>
+
+    <div class="register-link">New here? <a href="register.html">Create an account</a></div>
   </div>
 
   <!-- Supabase Auth -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260530"></script>
   <script>
-    // If already logged in, go straight to viewer
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.getElementById('panel-' + tab).classList.add('active');
+      document.getElementById('msg').textContent = '';
+      document.getElementById('msg').className = '';
+    }
+
     if (window.supabase) {
       const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
       const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
@@ -84,8 +139,8 @@
       // Magic link form
       document.getElementById('magic-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = document.getElementById('email').value;
-        const btn = document.getElementById('submit-btn');
+        const email = document.getElementById('magic-email').value;
+        const btn = document.getElementById('magic-btn');
         const msg = document.getElementById('msg');
         btn.disabled = true;
         btn.textContent = 'Sending...';
@@ -94,21 +149,47 @@
           email,
           options: { emailRedirectTo: 'https://livefishedge.github.io/ocean-mvp/account.html' }
         });
-        console.log('signInWithOtp result:', JSON.stringify(result));
 
         if (result.error) {
           msg.textContent = result.error.message;
           msg.className = 'error';
           btn.disabled = false;
           btn.textContent = 'Send magic link';
-          console.error('Auth error:', result.error);
         } else {
           msg.textContent = 'Check your email for a magic link. It expires in 1 hour.';
           msg.className = 'success';
-          document.getElementById('email').value = '';
+          document.getElementById('magic-email').value = '';
           btn.textContent = 'Link sent';
         }
       });
+
+      // Password login form
+      document.getElementById('password-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('pw-email').value;
+        const password = document.getElementById('pw-password').value;
+        const btn = document.getElementById('pw-btn');
+        const msg = document.getElementById('msg');
+        btn.disabled = true;
+        btn.textContent = 'Signing in...';
+        msg.textContent = '';
+        msg.className = '';
+
+        const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+        if (error) {
+          msg.textContent = error.message || 'Sign in failed. Check your credentials.';
+          msg.className = 'error';
+          btn.disabled = false;
+          btn.textContent = 'Sign in';
+        } else {
+          msg.textContent = 'Signed in! Loading dashboard…';
+          msg.className = 'success';
+          btn.textContent = 'Done';
+          setTimeout(() => window.location.replace('index.html'), 600);
+        }
+      });
+
     } else {
       document.getElementById('msg').textContent = 'Supabase failed to load. Check your connection.';
       document.getElementById('msg').className = 'error';

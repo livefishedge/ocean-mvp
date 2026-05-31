@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ocean MVP — Register</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.97); --border: #1b2836; --err: #ff6b6b; --success: #2dd4bf; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { height: 100vh; background: var(--bg); color: var(--fg); font-family: system-ui,-apple-system,"Segoe UI",sans-serif; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    #register-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 36px 32px; max-width: 420px; width: 100%; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; color: var(--accent2); }
+    .subtitle { font-size: 0.85rem; opacity: 0.6; margin-bottom: 28px; line-height: 1.5; }
+    label { display: block; font-size: 0.8rem; margin-bottom: 4px; opacity: 0.8; }
+    input { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: var(--accent); }
+    .field { margin-top: 14px; }
+    #register-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background 0.15s; margin-top: 18px; }
+    #register-btn:hover { background: #1a9f96; }
+    #register-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .msg { font-size: 0.82rem; margin-top: 10px; padding: 8px 12px; border-radius: 6px; display: none; }
+    .msg.error { background: rgba(255,107,107,0.15); color: var(--err); display: block; }
+    .msg.success { background: rgba(45,212,191,0.15); color: var(--success); display: block; }
+    .field-error { font-size: 0.75rem; color: var(--err); margin-top: 3px; }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    .login-link { font-size: 0.85rem; text-align: center; margin-top: 16px; opacity: 0.6; }
+    .login-link a { color: var(--accent2); text-decoration: none; }
+    .login-link a:hover { text-decoration: underline; }
+    .reqs { font-size: 0.72rem; opacity: 0.5; margin-top: 4px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+<div id="register-card">
+  <h1>Create Account</h1>
+  <p class="subtitle">Register with your email and a password to access the marine intelligence dashboard.</p>
+
+  <form id="register-form" novalidate>
+    <div class="field">
+      <label for="email">Email address *</label>
+      <input id="email" type="email" placeholder="captain@example.com" required />
+    </div>
+    <div class="field">
+      <label for="password">Password *</label>
+      <input id="password" type="password" placeholder="Create a password" required />
+      <div class="reqs">Min 8 characters. At least one uppercase letter, one lowercase letter, and one number.</div>
+    </div>
+    <div class="field">
+      <label for="name">Name *</label>
+      <input id="name" type="text" placeholder="Your name" required />
+    </div>
+    <div class="field">
+      <label for="region">Preferred Region *</label>
+      <select id="region" required>
+        <option value="">Select a region...</option>
+        <option value="usec_south">US East Coast — South-Atlantic</option>
+        <option value="usec_md">US East Coast — Mid-Atlantic</option>
+      </select>
+    </div>
+
+    <div class="msg" id="form-msg"></div>
+    <button type="submit" id="register-btn">Create Account</button>
+  </form>
+
+  <div class="login-link">Already have an account? <a href="login.html">Sign in</a></div>
+</div>
+
+<!-- Supabase Auth -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260531"></script>
+<script>
+(function() {
+  const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  function showMsg(msg, type) {
+    const el = document.getElementById('form-msg');
+    el.textContent = msg;
+    el.className = 'msg ' + (type || '');
+  }
+
+  function clearFieldErrors() {
+    document.querySelectorAll('.field-error').forEach(el => el.remove());
+    document.querySelectorAll('input, select').forEach(el => el.style.borderColor = '');
+  }
+
+  function setFieldError(id, msg) {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.style.borderColor = 'var(--err)';
+    const existing = document.getElementById(id + '-error');
+    if (existing) return;
+    const err = document.createElement('div');
+    err.id = id + '-error';
+    err.className = 'field-error';
+    err.textContent = msg;
+    input.parentNode.appendChild(err);
+  }
+
+  function validateForm() {
+    clearFieldErrors();
+    let valid = true;
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const name = document.getElementById('name').value.trim();
+    const region = document.getElementById('region').value;
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldError('email', 'Valid email address required'); valid = false;
+    }
+    if (password.length < 8) { setFieldError('password', 'Must be at least 8 characters'); valid = false; }
+    if (!/[A-Z]/.test(password)) { setFieldError('password', 'Must include at least one uppercase letter'); valid = false; }
+    if (!/[a-z]/.test(password)) { setFieldError('password', 'Must include at least one lowercase letter'); valid = false; }
+    if (!/[0-9]/.test(password)) { setFieldError('password', 'Must include at least one number'); valid = false; }
+    if (!name) { setFieldError('name', 'Name is required'); valid = false; }
+    if (!region) { setFieldError('region', 'Please select a region'); valid = false; }
+
+    return valid;
+  }
+
+  document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
+    const btn = document.getElementById('register-btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+    showMsg('', '');
+
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const name = document.getElementById('name').value.trim();
+    const region = document.getElementById('region').value;
+
+    const { data, error: signUpError } = await sb.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name, selected_region: region }
+      }
+    });
+
+    if (signUpError) {
+      showMsg(signUpError.message || 'Registration failed. Try again.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Create Account';
+      return;
+    }
+
+    if (data.user) {
+      // Create profile record
+      const { error: profileError } = await sb.from('profiles').insert({
+        user_id: data.user.id,
+        name,
+        selected_region: region,
+        phone: ''
+      });
+
+      if (profileError) {
+        console.warn('Profile insert warning:', profileError.message);
+      }
+    }
+
+    showMsg('Account created! You can now sign in with your password.', 'success');
+    btn.textContent = 'Redirecting…';
+    setTimeout(() => window.location.replace('login.html'), 1500);
+  });
+})();
+</script>
+</body>
+</html>
