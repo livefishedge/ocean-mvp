@@ -28,14 +28,18 @@
     .login-link a:hover { text-decoration: underline; }
     .reqs { font-size: 0.72rem; opacity: 0.5; margin-top: 4px; line-height: 1.5; }
     .pw-wrap { position: relative; }
-    .pw-wrap input { padding-right: 40px; }
-    .pw-toggle {
-      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-      background: none; border: none; cursor: pointer; color: #7a8fa6;
-      padding: 4px; display: flex; align-items: center;
+    .pw-wrap input { padding-right: 46px; }
+    .pw-wrap .pw-toggle {
+      all: unset;
+      position: absolute; top: 1px; right: 1px; bottom: 1px;
+      width: 42px; display: flex; align-items: center; justify-content: center;
+      border-radius: 0 7px 7px 0; color: #7a8fa6; cursor: pointer;
+      background: transparent !important; box-sizing: border-box;
+      z-index: 2; touch-action: manipulation;
     }
-    .pw-toggle:hover { color: var(--fg); }
-    .pw-toggle svg { width: 18px; height: 18px; }
+    .pw-wrap .pw-toggle:hover { color: var(--fg); }
+    .pw-wrap .pw-toggle:focus-visible { outline: 2px solid var(--accent2); outline-offset: -3px; }
+    .pw-wrap .pw-toggle svg { width: 18px; height: 18px; display: block; }
   </style>
 </head>
 <body>
@@ -179,7 +183,8 @@
   // Password visibility toggle
   var pwToggle = document.getElementById('pw-toggle');
   if (pwToggle) {
-    pwToggle.addEventListener('click', function() {
+    pwToggle.addEventListener('click', function(e) {
+      e.preventDefault();
       var pw = document.getElementById('password');
       var open = document.getElementById('eye-open');
       var closed = document.getElementById('eye-closed');
@@ -188,6 +193,7 @@
       } else {
         pw.type = 'password'; open.style.display = 'block'; closed.style.display = 'none';
       }
+      pw.focus();
     });
   }
 })();
