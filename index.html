@@ -856,15 +856,13 @@ body.combined-mode #combined-menu-btn{
       autocapture: true,
     });
 
-    // Auth: redirect to login if no session
-    sb.auth.getSession().then(({ session }) => {
-      if (!session) {
-        window.location.replace('login.html');
-      } else {
-        // Track user in PostHog
+    // Auth: use onAuthStateChange to handle magic link redirects with #access_token
+    sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
         posthog.identify(session.user.email, { email: session.user.email });
-        // Show main content (remove gate if it blocks)
         document.getElementById('login-gate').style.display = 'none';
+      } else if (event === 'SIGNED_OUT' || !session) {
+        window.location.replace('login.html');
       }
     });
   </script>
