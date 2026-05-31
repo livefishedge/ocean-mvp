@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ocean MVP — Verify Email</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.96); --border: #1b2836; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #verify-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 36px 32px;
+      text-align: center;
+    }
+    .mark {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid rgba(45,212,191,0.35);
+      color: var(--accent2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+    .mark svg { width: 25px; height: 25px; }
+    h1 { color: var(--accent2); font-size: 1.45rem; margin-bottom: 10px; }
+    p { color: #9fb0c2; font-size: 0.92rem; line-height: 1.55; margin-top: 10px; }
+    .email {
+      color: var(--fg);
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    a.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 18px;
+      margin-top: 24px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: white;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    a.button:hover { background: #1a9f96; }
+  </style>
+</head>
+<body>
+  <main id="verify-card">
+    <div class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+        <path d="m3 7 9 6 9-6"></path>
+      </svg>
+    </div>
+    <h1>Check your email</h1>
+    <p>We sent a verification link<span id="email-line"></span>. Open that email and confirm your account before signing in.</p>
+    <p>The dashboard stays locked until your email is verified.</p>
+    <a class="button" href="login.html">Back to sign in</a>
+  </main>
+
+  <script>
+    (function() {
+      var email = new URLSearchParams(window.location.search).get('email');
+      if (!email) return;
+      var el = document.getElementById('email-line');
+      el.innerHTML = ' to <span class="email"></span>';
+      el.querySelector('.email').textContent = email;
+    })();
+  </script>
+</body>
+</html>

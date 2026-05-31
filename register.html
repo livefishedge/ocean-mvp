@@ -173,10 +173,7 @@
       await sb.auth.signOut();
     }
 
-    showMsg('Account created. Check your email and verify it before signing in.', 'success');
-    btn.disabled = false;
-    btn.textContent = 'Create Account';
-    document.getElementById('reg-form').reset();
+    window.location.replace('verify-email.html?email=' + encodeURIComponent(email));
   });
 
   // Password visibility toggle
