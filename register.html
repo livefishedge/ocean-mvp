@@ -142,6 +142,10 @@
     return valid;
   }
 
+  function authRedirectUrl(path) {
+    return new URL(path, window.location.href).href;
+  }
+
   document.getElementById('reg-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     if (!validateForm()) return;
@@ -162,7 +166,7 @@
       password: password,
       options: {
         data: { name: name, phone: phone, selected_region: region },
-        emailRedirectTo: window.location.origin + '/account.html'
+        emailRedirectTo: authRedirectUrl('account.html')
       }
     });
 
