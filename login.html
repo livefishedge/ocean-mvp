@@ -44,84 +44,66 @@
     }
     .success { color: #2dd4bf; }
     .error { color: #f87171; }
-
-    /* Tab switcher */
-    .tab-bar { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
-    .tab-btn {
-      flex: 1; padding: 8px 4px; background: none; border: none;
-      color: #7a8fa6; font-size: 13px; font-weight: 600; cursor: pointer;
-      border-bottom: 2px solid transparent; margin-bottom: -1px;
-      transition: color 0.15s, border-color 0.15s; border-radius: 0;
-    }
-    .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent2); }
-    .tab-btn:hover:not(.active) { color: var(--fg); }
-
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
-
-    .register-link { font-size: 12px; text-align: center; margin-top: 14px; opacity: 0.6; }
+    .register-link { font-size: 12px; text-align: center; margin-top: 16px; opacity: 0.6; }
     .register-link a { color: var(--accent2); text-decoration: none; }
     .register-link a:hover { text-decoration: underline; }
+    .field-error { font-size: 0.75rem; color: var(--err); margin-top: -8px; margin-bottom: 8px; }
   </style>
 </head>
 <body>
   <div id="login-card">
     <h1>Ocean MVP</h1>
-    <p class="subtitle">Marine intelligence dashboard — sign in to access your data.</p>
+    <p class="subtitle">Sign in to access your marine intelligence dashboard.</p>
 
-    <!-- Tab switcher -->
-    <div class="tab-bar">
-      <button class="tab-btn active" id="tab-magic" onclick="switchTab('magic')">Magic Link</button>
-      <button class="tab-btn" id="tab-password" onclick="switchTab('password')">Password</button>
-    </div>
+    <form id="login-form" novalidate>
+      <label for="email">Email address</label>
+      <input type="email" id="email" placeholder="captain@example.com" required />
 
-    <!-- Magic link panel -->
-    <div class="tab-panel active" id="panel-magic">
-      <form id="magic-form">
-        <label for="magic-email">Email address</label>
-        <input type="email" id="magic-email" placeholder="captain@example.com" required />
-        <button type="submit" id="magic-btn">Send magic link</button>
-      </form>
-    </div>
+      <label for="password" style="margin-top:4px">Password</label>
+      <input type="password" id="password" placeholder="Your password" required />
 
-    <!-- Password login panel -->
-    <div class="tab-panel" id="panel-password">
-      <form id="password-form">
-        <label for="pw-email">Email address</label>
-        <input type="email" id="pw-email" placeholder="captain@example.com" required />
-        <label for="pw-password" style="margin-top:4px">Password</label>
-        <input type="password" id="pw-password" placeholder="Your password" required />
-        <button type="submit" id="pw-btn">Sign in</button>
-      </form>
-    </div>
+      <div id="email-error" class="field-error" style="display:none"></div>
+      <div id="pw-error" class="field-error" style="display:none"></div>
+
+      <button type="submit" id="signin-btn">Sign in</button>
+    </form>
 
     <div id="msg"></div>
 
     <div class="register-link">New here? <a href="register.html">Create an account</a></div>
   </div>
 
-  <!-- Supabase Auth -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260530"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260531"></script>
   <script>
-    function switchTab(tab) {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('tab-' + tab).classList.add('active');
-      document.getElementById('panel-' + tab).classList.add('active');
-      document.getElementById('msg').textContent = '';
-      document.getElementById('msg').className = '';
-    }
-
-    if (window.supabase) {
+    (function() {
       const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
       const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+      function showMsg(msg, type) {
+        const el = document.getElementById('msg');
+        el.textContent = msg;
+        el.className = type || '';
+      }
+
+      function clearErrors() {
+        document.querySelectorAll('.field-error').forEach(el => { el.style.display = 'none'; el.textContent = ''; });
+        document.querySelectorAll('input').forEach(el => el.style.borderColor = '');
+      }
+
+      function setFieldError(id, msg) {
+        const el = document.getElementById(id);
+        el.textContent = msg;
+        el.style.display = 'block';
+        document.getElementById(id.replace('-error', '')).style.borderColor = 'var(--err)';
+      }
+
+      // Redirect if already logged in
       sb.auth.getSession().then(({ data: { session } }) => {
         if (session) window.location.replace('index.html');
       });
 
-      // PostHog init
+      // PostHog
       !function(){
         var script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js';
@@ -136,64 +118,38 @@
         document.head.appendChild(script);
       }();
 
-      // Magic link form
-      document.getElementById('magic-form').addEventListener('submit', async (e) => {
+      document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const email = document.getElementById('magic-email').value;
-        const btn = document.getElementById('magic-btn');
-        const msg = document.getElementById('msg');
-        btn.disabled = true;
-        btn.textContent = 'Sending...';
+        clearErrors();
+        const email = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const btn = document.getElementById('signin-btn');
 
-        const result = await sb.auth.signInWithOtp({
-          email,
-          options: { emailRedirectTo: 'https://livefishedge.github.io/ocean-mvp/account.html' }
-        });
-
-        if (result.error) {
-          msg.textContent = result.error.message;
-          msg.className = 'error';
-          btn.disabled = false;
-          btn.textContent = 'Send magic link';
-        } else {
-          msg.textContent = 'Check your email for a magic link. It expires in 1 hour.';
-          msg.className = 'success';
-          document.getElementById('magic-email').value = '';
-          btn.textContent = 'Link sent';
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          setFieldError('email-error', 'Valid email required'); return;
         }
-      });
+        if (!password) {
+          setFieldError('pw-error', 'Password required'); return;
+        }
 
-      // Password login form
-      document.getElementById('password-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const email = document.getElementById('pw-email').value;
-        const password = document.getElementById('pw-password').value;
-        const btn = document.getElementById('pw-btn');
-        const msg = document.getElementById('msg');
         btn.disabled = true;
         btn.textContent = 'Signing in...';
-        msg.textContent = '';
-        msg.className = '';
+        showMsg('', '');
 
         const { data, error } = await sb.auth.signInWithPassword({ email, password });
 
         if (error) {
-          msg.textContent = error.message || 'Sign in failed. Check your credentials.';
-          msg.className = 'error';
+          showMsg(error.message || 'Sign in failed.', 'error');
           btn.disabled = false;
           btn.textContent = 'Sign in';
-        } else {
-          msg.textContent = 'Signed in! Loading dashboard…';
-          msg.className = 'success';
-          btn.textContent = 'Done';
-          setTimeout(() => window.location.replace('index.html'), 600);
+          return;
         }
-      });
 
-    } else {
-      document.getElementById('msg').textContent = 'Supabase failed to load. Check your connection.';
-      document.getElementById('msg').className = 'error';
-    }
+        showMsg('Signed in! Loading dashboard…', 'success');
+        btn.textContent = 'Done';
+        setTimeout(() => window.location.replace('index.html'), 600);
+      });
+    })();
   </script>
 </body>
 </html>
