@@ -141,7 +141,15 @@
   async function init() {
     const { session, user } = await sb.auth.getSession();
     if (!session || !user) {
-      window.location.replace('login.html');
+      // No session yet — listen for magic link redirect to complete
+      sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          // Reload now that session is available
+          window.location.reload();
+        } else if (event === 'SIGNED_OUT') {
+          window.location.replace('login.html');
+        }
+      });
       return;
     }
 
