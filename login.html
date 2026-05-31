@@ -59,10 +59,10 @@
     // If already logged in, go straight to viewer
     if (window.supabase) {
       const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
-      const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
-      const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+      const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+      const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-      supabase.auth.getSession().then(({ session }) => {
+      sb.auth.getSession().then(({ session }) => {
         if (session) window.location.replace('index.html');
       });
 
@@ -90,7 +90,7 @@
         btn.disabled = true;
         btn.textContent = 'Sending...';
 
-        const result = await supabase.auth.signInWithOtp({
+        const result = await sb.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: 'https://livefishedge.github.io/ocean-mvp/index.html' }
         });
