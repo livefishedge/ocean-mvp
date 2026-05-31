@@ -41,8 +41,15 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_event ON public.activity_log(event);
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (user_id, email)
-  VALUES (NEW.id, NEW.email);
+  INSERT INTO public.profiles (user_id, email, name, full_name, phone, selected_region)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    NEW.raw_user_meta_data->>'name',
+    NEW.raw_user_meta_data->>'name',
+    NEW.raw_user_meta_data->>'phone',
+    NEW.raw_user_meta_data->>'selected_region'
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

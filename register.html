@@ -41,7 +41,7 @@
 <body>
 <div id="reg-card">
   <h1>Create Account</h1>
-  <p class="subtitle">Enter your info to access the dashboard. We'll send a verification email — confirm within 24 hours or the account is removed.</p>
+  <p class="subtitle">Enter your info to create an account. We'll send a verification email — confirm it before signing in.</p>
 
   <form id="reg-form" novalidate>
     <div class="field">
@@ -89,7 +89,6 @@
   var SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  var EMAIL_VERIFY_GRACE_MS = 24 * 60 * 60 * 1000;
 
   function showMsg(msg, type) {
     var el = document.getElementById('form-msg');
@@ -139,19 +138,6 @@
     return valid;
   }
 
-  function isEmailVerificationExpired(user) {
-    if (!user || user.email_confirmed_at) return false;
-    var createdAt = new Date(user.created_at).getTime();
-    return Number.isFinite(createdAt) && Date.now() - createdAt > EMAIL_VERIFY_GRACE_MS;
-  }
-
-  async function saveProfile(userId, name, phone, region) {
-    if (!userId) return;
-    await sb.from('profiles')
-      .update({ name: name, phone: phone, selected_region: region })
-      .eq('user_id', userId);
-  }
-
   document.getElementById('reg-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     if (!validateForm()) return;
@@ -172,7 +158,7 @@
       password: password,
       options: {
         data: { name: name, phone: phone, selected_region: region },
-        emailRedirectTo: window.location.origin + '/index.html'
+        emailRedirectTo: window.location.origin + '/account.html'
       }
     });
 
@@ -183,39 +169,14 @@
       return;
     }
 
-    // Keep a local copy so login can finish the profile update if Supabase
-    // does not return a session from signUp.
-    try {
-      sessionStorage.setItem('pending_profile', JSON.stringify({
-        user_id: result.data.user.id,
-        name: name,
-        phone: phone,
-        selected_region: region
-      }));
-    } catch(e) {}
-
-    var session = result.data.session;
-    var user = result.data.user;
-    if (!session) {
-      var signin = await sb.auth.signInWithPassword({ email: email, password: password });
-      if (!signin.error) {
-        session = signin.data.session;
-        user = signin.data.user;
-      }
+    if (result.data && result.data.session) {
+      await sb.auth.signOut();
     }
 
-    if (session && user && !isEmailVerificationExpired(user)) {
-      await saveProfile(user.id, name, phone, region);
-      try { sessionStorage.removeItem('pending_profile'); } catch(e) {}
-      showMsg('Account created! Loading dashboard…', 'success');
-      btn.textContent = 'Loading dashboard...';
-      setTimeout(function() { window.location.replace('index.html'); }, 600);
-      return;
-    }
-
-    showMsg('Account created, but Supabase is still blocking sign-in until email verification. Disable that hard block in Supabase Auth so the 24-hour grace period can work.', 'error');
+    showMsg('Account created. Check your email and verify it before signing in.', 'success');
     btn.disabled = false;
     btn.textContent = 'Create Account';
+    document.getElementById('reg-form').reset();
   });
 
   // Password visibility toggle

@@ -51,8 +51,6 @@
     'https://wfdpfeptmyiqifgwqpzu.supabase.co',
     'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR'
   );
-  var EMAIL_VERIFY_GRACE_MS = 24 * 60 * 60 * 1000;
-
   var card = document.getElementById('account-card');
 
   function renderConfirm(state, message) {
@@ -96,12 +94,6 @@
       '<div class="back-link"><a href="login.html">Sign in</a></div>';
   }
 
-  function isEmailVerificationExpired(user) {
-    if (!user || user.email_confirmed_at) return false;
-    var createdAt = new Date(user.created_at).getTime();
-    return Number.isFinite(createdAt) && Date.now() - createdAt > EMAIL_VERIFY_GRACE_MS;
-  }
-
   async function init() {
     // Check for returning from email confirmation link (session may be set in URL)
     var _ref = await sb.auth.getSession();
@@ -109,8 +101,8 @@
 
     if (session) {
       var user = session.user;
-      if (isEmailVerificationExpired(user)) {
-        try { sessionStorage.setItem('email_verification_expired', 'true'); } catch(e) {}
+      if (!user.email_confirmed_at) {
+        try { sessionStorage.setItem('email_verification_required', 'true'); } catch(e) {}
         await sb.auth.signOut();
         window.location.replace('login.html');
         return;

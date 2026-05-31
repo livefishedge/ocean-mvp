@@ -854,7 +854,6 @@ body.combined-mode #combined-menu-btn{
     const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const EMAIL_VERIFY_GRACE_MS = 24 * 60 * 60 * 1000;
 
     // PostHog (inline shim to prevent errors before PostHog script loads)
     window.posthog = window.posthog || {};
@@ -870,12 +869,6 @@ body.combined-mode #combined-menu-btn{
       autocapture: true,
     });
 
-    function isEmailVerificationExpired(user) {
-      if (!user || user.email_confirmed_at) return false;
-      const createdAt = new Date(user.created_at).getTime();
-      return Number.isFinite(createdAt) && Date.now() - createdAt > EMAIL_VERIFY_GRACE_MS;
-    }
-
     function setAccountLinkVisible(visible) {
       function apply() {
         const el = document.getElementById('account-link-wrap');
@@ -887,13 +880,13 @@ body.combined-mode #combined-menu-btn{
       }
     }
 
-    async function enforceEmailVerificationGrace(session) {
-      if (!session || !isEmailVerificationExpired(session.user)) return true;
+    async function enforceEmailVerification(session) {
+      if (!session || session.user.email_confirmed_at) return true;
       const msg = document.getElementById('login-gate-msg');
-      if (msg) msg.textContent = 'Please verify your email to continue. The 24-hour grace period has expired.';
+      if (msg) msg.textContent = 'Please verify your email before accessing the dashboard.';
       document.getElementById('login-gate').style.display = 'flex';
       setAccountLinkVisible(false);
-      try { sessionStorage.setItem('email_verification_expired', 'true'); } catch(e) {}
+      try { sessionStorage.setItem('email_verification_required', 'true'); } catch(e) {}
       await sb.auth.signOut();
       return false;
     }
@@ -902,7 +895,7 @@ body.combined-mode #combined-menu-btn{
       // Auth: check session first (handles page refresh with existing session),
       // then listen for changes (handles magic link redirect with new session).
       const { data: { session } } = await sb.auth.getSession();
-      if (session && await enforceEmailVerificationGrace(session)) {
+      if (session && await enforceEmailVerification(session)) {
         document.getElementById('login-gate').style.display = 'none';
         setAccountLinkVisible(true);
         posthog.identify(session.user.email, { email: session.user.email });
@@ -930,7 +923,7 @@ body.combined-mode #combined-menu-btn{
       }
       sb.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
-          if (!await enforceEmailVerificationGrace(session)) return;
+          if (!await enforceEmailVerification(session)) return;
           posthog.identify(session.user.email, { email: session.user.email });
           if (document.getElementById('login-gate').style.display !== 'none') {
             document.getElementById('login-gate').style.display = 'none';

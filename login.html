@@ -94,8 +94,6 @@
       const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
       const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      const EMAIL_VERIFY_GRACE_MS = 24 * 60 * 60 * 1000;
-
       function showMsg(msg, type) {
         const el = document.getElementById('msg');
         el.textContent = msg;
@@ -115,29 +113,23 @@
         document.getElementById(inputId).style.borderColor = 'var(--err)';
       }
 
-      function isEmailVerificationExpired(user) {
-        if (!user || user.email_confirmed_at) return false;
-        const createdAt = new Date(user.created_at).getTime();
-        return Number.isFinite(createdAt) && Date.now() - createdAt > EMAIL_VERIFY_GRACE_MS;
-      }
-
-      async function enforceEmailVerificationGrace(session) {
-        if (!session || !isEmailVerificationExpired(session.user)) return true;
+      async function enforceEmailVerification(session) {
+        if (!session || session.user.email_confirmed_at) return true;
         await sb.auth.signOut();
-        showMsg('Please verify your email to continue. The 24-hour grace period has expired.', 'error');
+        showMsg('Please verify your email before signing in.', 'error');
         return false;
       }
 
       // Redirect if already logged in
       try {
-        if (sessionStorage.getItem('email_verification_expired') === 'true') {
-          sessionStorage.removeItem('email_verification_expired');
-          showMsg('Please verify your email to continue. The 24-hour grace period has expired.', 'error');
+        if (sessionStorage.getItem('email_verification_required') === 'true') {
+          sessionStorage.removeItem('email_verification_required');
+          showMsg('Please verify your email before signing in.', 'error');
         }
       } catch(e) {}
 
       sb.auth.getSession().then(async ({ data: { session } }) => {
-        if (session && await enforceEmailVerificationGrace(session)) window.location.replace('index.html');
+        if (session && await enforceEmailVerification(session)) window.location.replace('index.html');
       });
 
       // PostHog
@@ -198,7 +190,7 @@
           return;
         }
 
-        if (!await enforceEmailVerificationGrace(data.session)) {
+        if (!await enforceEmailVerification(data.session)) {
           btn.disabled = false;
           btn.textContent = 'Sign in';
           return;
