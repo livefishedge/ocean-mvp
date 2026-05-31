@@ -139,15 +139,26 @@
   }
 
   async function init() {
-    const { data: { session } } = await sb.auth.getSession();
-    if (!session) {
-      sb.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session) window.location.reload();
-        else if (event === 'SIGNED_OUT') window.location.replace('login.html');
+    // Wait for Supabase to finish processing the magic link URL before checking session.
+    // This prevents the getSession() → null → profile-skip race that skips the form for
+    // returning users who arrive via a magic link before the session token is established.
+    const { data: { session } } = await new Promise(resolve => {
+      const unsubscribe = sb.auth.onAuthStateChange((event, session) => {
+        if (event === 'SIGNED_IN' && session) {
+          unsubscribe();
+          resolve({ data: { session } });
+        } else if (event === 'SIGNED_OUT') {
+          unsubscribe();
+          window.location.replace('login.html');
+        }
       });
-      return;
-    }
-
+      sb.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          unsubscribe();
+          resolve({ data: { session } });
+        }
+      });
+    });
     const user = session.user;
     document.getElementById('email-display').textContent = user.email;
     document.getElementById('email-badge').style.display = 'flex';
