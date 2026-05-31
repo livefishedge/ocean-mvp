@@ -856,12 +856,20 @@ body.combined-mode #combined-menu-btn{
       autocapture: true,
     });
 
-    // Auth: use onAuthStateChange to handle magic link redirects with #access_token
+    // Auth: check session synchronously first (handles page refresh with existing session),
+    // then listen for changes (handles magic link redirect with new session)
+    const { session } = await sb.auth.getSession();
+    if (session) {
+      document.getElementById('login-gate').style.display = 'none';
+      posthog.identify(session.user.email, { email: session.user.email });
+    }
     sb.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session) {
         posthog.identify(session.user.email, { email: session.user.email });
-        document.getElementById('login-gate').style.display = 'none';
-      } else if (event === 'SIGNED_OUT' || !session) {
+        if (document.getElementById('login-gate').style.display !== 'none') {
+          document.getElementById('login-gate').style.display = 'none';
+        }
+      } else if (event === 'SIGNED_OUT') {
         window.location.replace('login.html');
       }
     });
