@@ -3,101 +3,85 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Ocean MVP — My Account</title>
+  <title>Ocean MVP — Register</title>
   <link rel="icon" href="data:,">
   <style>
     :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.97); --border: #1b2836; --err: #ff6b6b; --success: #2dd4bf; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { height: 100vh; background: var(--bg); color: var(--fg); font-family: system-ui,-apple-system,"Segoe UI",sans-serif; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    #account-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 36px 32px; max-width: 460px; width: 100%; }
+    #register-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 36px 32px; max-width: 460px; width: 100%; }
     h1 { font-size: 1.4rem; margin-bottom: 4px; color: var(--accent2); }
     .subtitle { font-size: 0.85rem; opacity: 0.6; margin-bottom: 28px; }
-    .section { margin-bottom: 28px; }
-    .section-title { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.5; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
     label { display: block; font-size: 0.8rem; margin-bottom: 4px; opacity: 0.8; }
     input, select { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
     input:focus, select:focus { border-color: var(--accent); }
     .row { display: flex; gap: 10px; }
     .row > * { flex: 1; }
-    button { width: 100%; padding: 11px; background: var(--accent); border: none; border-radius: 8px; color: white; font-size: 0.95rem; cursor: pointer; transition: background 0.2s; margin-top: 6px; }
-    button:hover { background: #1a9f96; }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    button.secondary { background: transparent; border: 1px solid var(--border); color: var(--fg); opacity: 0.7; }
-    button.secondary:hover { opacity: 1; border-color: var(--accent); }
-    .msg { font-size: 0.82rem; margin-top: 8px; padding: 8px 12px; border-radius: 6px; display: none; }
+    #register-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background 0.15s; margin-top: 18px; }
+    #register-btn:hover { background: #1a9f96; }
+    #register-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .msg { font-size: 0.82rem; margin-top: 10px; padding: 8px 12px; border-radius: 6px; display: none; }
     .msg.error { background: rgba(255,107,107,0.15); color: var(--err); display: block; }
     .msg.success { background: rgba(45,212,191,0.15); color: var(--success); display: block; }
     .email-badge { background: rgba(255,255,255,0.07); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 0.9rem; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
     .email-badge span { opacity: 0.5; font-size: 0.75rem; }
+    .reqs { font-size: 0.72rem; opacity: 0.5; margin-top: 4px; line-height: 1.5; }
+    .field-error { font-size: 0.75rem; color: var(--err); margin-top: 3px; }
     .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
-    .signed-in-as { font-size: 0.78rem; opacity: 0.5; text-align: center; margin-top: 20px; }
-    a { color: var(--accent2); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .back-link { display: block; text-align: center; margin-top: 16px; font-size: 0.85rem; opacity: 0.6; }
   </style>
 </head>
 <body>
-<div id="account-card">
-  <h1>My Account</h1>
-  <p class="subtitle" id="subtitle">Loading...</p>
+<div id="register-card">
+  <h1>Create Account</h1>
+  <p class="subtitle" id="subtitle">Complete your registration to access the dashboard.</p>
 
-  <!-- Email display -->
+  <!-- Email display (confirmed from magic link) -->
   <div class="email-badge" id="email-badge" style="display:none">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
     <span id="email-display"></span>
   </div>
 
-  <!-- Account section -->
-  <div class="section">
-    <div class="section-title">Account Details</div>
+  <form id="register-form" novalidate>
+    <!-- Name row -->
     <div class="row">
       <div>
-        <label>Name</label>
-        <input id="name-input" type="text" placeholder="Your name" />
+        <label for="first-name">First Name *</label>
+        <input id="first-name" type="text" placeholder="First" required />
       </div>
       <div>
-        <label>Phone</label>
-        <input id="phone-input" type="tel" placeholder="Optional" />
+        <label for="last-name">Last Name *</label>
+        <input id="last-name" type="text" placeholder="Last" required />
       </div>
     </div>
-    <button id="save-profile-btn">Save Details</button>
-    <div class="msg" id="profile-msg"></div>
-  </div>
 
-  <hr class="divider" />
+    <!-- Phone -->
+    <div style="margin-top:14px">
+      <label for="phone">Phone *</label>
+      <input id="phone" type="tel" placeholder="(555) 555-5555" required />
+    </div>
 
-  <!-- Region selection -->
-  <div class="section">
-    <div class="section-title">Preferred Region</div>
-    <label>Show me data for</label>
-    <select id="region-select">
-      <option value="">Detecting regions...</option>
-    </select>
-    <button id="save-region-btn">Save Region</button>
-    <div class="msg" id="region-msg"></div>
-  </div>
+    <!-- Region -->
+    <div style="margin-top:14px">
+      <label for="region">Preferred Region *</label>
+      <select id="region" required>
+        <option value="">Select a region...</option>
+        <option value="usec_south">US East Coast — South-Atlantic</option>
+        <option value="usec_md">US East Coast — Mid-Atlantic</option>
+      </select>
+    </div>
 
-  <hr class="divider" />
+    <!-- Password -->
+    <div style="margin-top:14px">
+      <label for="password">Password *</label>
+      <input id="password" type="password" placeholder="Create a password" required />
+      <div class="reqs">Min 8 characters. At least one uppercase letter, one lowercase letter, and one number.</div>
+      <label for="password-confirm" style="margin-top:10px">Confirm Password *</label>
+      <input id="password-confirm" type="password" placeholder="Repeat password" required />
+    </div>
 
-  <!-- Password section -->
-  <div class="section">
-    <div class="section-title">Set Password</div>
-    <p style="font-size:0.8rem;opacity:0.6;margin-bottom:12px">Set a password so you can sign in without magic links. Your magic link access still works.</p>
-    <label>New Password</label>
-    <input id="password-input" type="password" placeholder="Min 8 characters" />
-    <label style="margin-top:8px">Confirm Password</label>
-    <input id="password-confirm-input" type="password" placeholder="Repeat password" />
-    <button id="set-password-btn">Set Password</button>
-    <div class="msg" id="password-msg"></div>
-  </div>
-
-  <hr class="divider" />
-
-  <!-- Sign out -->
-  <button class="secondary" id="signout-btn">Sign Out</button>
-
-  <a class="back-link" href="index.html">← Back to viewer</a>
-  <p class="signed-in-as" id="signed-in-as"></p>
+    <div class="msg" id="form-msg"></div>
+    <button type="submit" id="register-btn">Register</button>
+  </form>
 </div>
 
 <!-- Supabase Auth -->
@@ -108,202 +92,137 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // Fetch available regions from the REGIONS config in index.html via GitHub raw
-  async function loadRegions() {
-    try {
-      const r = await fetch('https://raw.githubusercontent.com/livefishedge/ocean-mvp/main/index.html?_=' + Date.now());
-      const text = await r.text();
-      const m = text.match(/const REGIONS = \{([^}]+)\}/);
-      if (!m) throw new Error('REGIONS not found');
-      const regions = {};
-      const re = /(\w+):\s*\{ label:\s*"([^"]+)"/gi;
-      let match;
-      while ((match = re.exec(m[0])) !== null) {
-        regions[match[1]] = { label: match[2] };
-      }
-      return regions;
-    } catch {
-      // Fallback
-      return {
-        usec_south: { label: 'US East Coast - South-Atlantic' },
-        usec_md: { label: 'US East Coast - Mid-Atlantic' }
-      };
-    }
-  }
-
-  function showMsg(id, msg, type) {
-    const el = document.getElementById(id);
+  function showMsg(msg, type) {
+    const el = document.getElementById('form-msg');
     el.textContent = msg;
     el.className = 'msg ' + type;
-    setTimeout(() => el.className = 'msg', 4000);
+  }
+
+  function clearFieldErrors() {
+    document.querySelectorAll('.field-error').forEach(el => el.remove());
+    document.querySelectorAll('input, select').forEach(el => el.style.borderColor = '');
+  }
+
+  function setFieldError(id, msg) {
+    const input = document.getElementById(id);
+    if (input) input.style.borderColor = 'var(--err)';
+    const existing = document.getElementById(id + '-error');
+    if (existing) return;
+    const err = document.createElement('div');
+    err.id = id + '-error';
+    err.className = 'field-error';
+    err.textContent = msg;
+    input.parentNode.appendChild(err);
+  }
+
+  function validateForm() {
+    clearFieldErrors();
+    let valid = true;
+    const firstName = document.getElementById('first-name').value.trim();
+    const lastName = document.getElementById('last-name').value.trim();
+    const phone = document.getElementById('phone').value.trim();
+    const region = document.getElementById('region').value;
+    const password = document.getElementById('password').value;
+    const pwConfirm = document.getElementById('password-confirm').value;
+
+    if (!firstName) { setFieldError('first-name', 'First name is required'); valid = false; }
+    if (!lastName) { setFieldError('last-name', 'Last name is required'); valid = false; }
+    if (!phone || phone.replace(/\D/g, '').length < 10) { setFieldError('phone', 'Valid phone number required'); valid = false; }
+    if (!region) { setFieldError('region', 'Please select a region'); valid = false; }
+    if (password.length < 8) { setFieldError('password', 'Must be at least 8 characters'); valid = false; }
+    if (!/[A-Z]/.test(password)) { setFieldError('password', 'Must include at least one uppercase letter'); valid = false; }
+    if (!/[a-z]/.test(password)) { setFieldError('password', 'Must include at least one lowercase letter'); valid = false; }
+    if (!/[0-9]/.test(password)) { setFieldError('password', 'Must include at least one number'); valid = false; }
+    if (password !== pwConfirm) { setFieldError('password-confirm', 'Passwords do not match'); valid = false; }
+
+    return valid;
   }
 
   async function init() {
     const { data: { session } } = await sb.auth.getSession();
-    const user = session && session.user;
-    if (!session || !user) {
-      // No session yet — listen for magic link redirect to complete
+    if (!session) {
       sb.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          // Reload now that session is available
-          window.location.reload();
-        } else if (event === 'SIGNED_OUT') {
-          window.location.replace('login.html');
-        }
+        if (event === 'SIGNED_IN' && session) window.location.reload();
+        else if (event === 'SIGNED_OUT') window.location.replace('login.html');
       });
       return;
     }
 
-    document.getElementById('subtitle').textContent = 'Manage your account and preferences';
+    const user = session.user;
     document.getElementById('email-display').textContent = user.email;
     document.getElementById('email-badge').style.display = 'flex';
-    document.getElementById('signed-in-as').textContent = 'Signed in as ' + user.email;
 
-    // Load profile from profiles table
-    async function loadProfile() {
+    // Check if already has a profile (returning user) — skip to viewer
+    try {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${user.id}&select=name,phone,selected_region`,
+        `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${user.id}&select=id`,
         { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + session.access_token } }
       );
       if (r.ok) {
         const profiles = await r.json();
         if (profiles.length > 0) {
-          const p = profiles[0];
-          if (p.name) document.getElementById('name-input').value = p.name;
-          if (p.phone) document.getElementById('phone-input').value = p.phone;
-          return p.selected_region || 'usec_south';
+          // Already registered — go to viewer
+          window.location.replace('index.html');
+          return;
         }
       }
-      return 'usec_south';
-    }
+    } catch(e) {}
 
-    // Load region options
-    const regions = await loadRegions();
-    const regionSelect = document.getElementById('region-select');
-    regionSelect.innerHTML = '';
-    Object.entries(regions).forEach(([id, meta]) => {
-      const opt = document.createElement('option');
-      opt.value = id;
-      opt.textContent = meta.label;
-      regionSelect.appendChild(opt);
-    });
+    document.getElementById('register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!validateForm()) return;
 
-    const selectedRegion = await loadProfile();
-    regionSelect.value = selectedRegion;
-
-    // Save profile (name + phone)
-    document.getElementById('save-profile-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('save-profile-btn');
+      const btn = document.getElementById('register-btn');
       btn.disabled = true;
-      btn.textContent = 'Saving...';
-      const name = document.getElementById('name-input').value.trim();
-      const phone = document.getElementById('phone-input').value.trim();
-      try {
-        const r = await fetch(
-          `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${user.id}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': 'Bearer ' + session.access_token,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=representation'
-            },
-            body: JSON.stringify({ name, phone })
-          }
-        );
-        if (r.ok) {
-          showMsg('profile-msg', 'Details saved!', 'success');
-          // PostHog identify update
-          if (window.posthog) {
-            posthog.identify(user.email, { name, phone, email: user.email });
-          }
-        } else {
-          const err = await r.json();
-          showMsg('profile-msg', err.message || 'Save failed', 'error');
-        }
-      } catch(e) {
-        showMsg('profile-msg', 'Network error', 'error');
-      }
-      btn.disabled = false;
-      btn.textContent = 'Save Details';
-    });
+      btn.textContent = 'Registering...';
+      showMsg('', '');
 
-    // Save region
-    document.getElementById('save-region-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('save-region-btn');
-      btn.disabled = true;
-      btn.textContent = 'Saving...';
-      const selected_region = regionSelect.value;
-      try {
-        const r = await fetch(
-          `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${user.id}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'apikey': SUPABASE_ANON_KEY,
-              'Authorization': 'Bearer ' + session.access_token,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=representation'
-            },
-            body: JSON.stringify({ selected_region })
-          }
-        );
-        if (r.ok) {
-          showMsg('region-msg', 'Region saved!', 'success');
-          // PostHog
-          if (window.posthog) {
-            posthog.capture('region_selected', { region: selected_region, email: user.email });
-          }
-        } else {
-          const err = await r.json();
-          showMsg('region-msg', err.message || 'Save failed', 'error');
-        }
-      } catch(e) {
-        showMsg('region-msg', 'Network error', 'error');
-      }
-      btn.disabled = false;
-      btn.textContent = 'Save Region';
-    });
+      const password = document.getElementById('password').value;
+      const firstName = document.getElementById('first-name').value.trim();
+      const lastName = document.getElementById('last-name').value.trim();
+      const phone = document.getElementById('phone').value.trim();
+      const region = document.getElementById('region').value;
 
-    // Set password
-    document.getElementById('set-password-btn').addEventListener('click', async () => {
-      const btn = document.getElementById('set-password-btn');
-      const pw = document.getElementById('password-input').value;
-      const pw2 = document.getElementById('password-confirm-input').value;
-      if (!pw || pw.length < 8) {
-        showMsg('password-msg', 'Password must be at least 8 characters', 'error');
+      // Set password first
+      const { error: pwError } = await sb.auth.updateUser({ password });
+      if (pwError) {
+        showMsg(pwError.message || 'Failed to set password', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Register';
         return;
       }
-      if (pw !== pw2) {
-        showMsg('password-msg', 'Passwords do not match', 'error');
+
+      // Save profile
+      const name = `${firstName} ${lastName}`;
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/profiles`,
+        {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + session.access_token,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            name,
+            phone,
+            selected_region: region
+          })
+        }
+      );
+
+      if (!r.ok) {
+        const err = await r.json();
+        showMsg(err.message || 'Registration failed. Try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Register';
         return;
       }
-      btn.disabled = true;
-      btn.textContent = 'Setting...';
-      try {
-        const r = await sb.auth.updateUser({ password: pw });
-        if (r.error) {
-          showMsg('password-msg', r.error.message, 'error');
-        } else {
-          showMsg('password-msg', 'Password set! You can now sign in with email + password.', 'success');
-          document.getElementById('password-input').value = '';
-          document.getElementById('password-confirm-input').value = '';
-          if (window.posthog) {
-            posthog.capture('password_set', { email: user.email });
-          }
-        }
-      } catch(e) {
-        showMsg('password-msg', 'Network error', 'error');
-      }
-      btn.disabled = false;
-      btn.textContent = 'Set Password';
-    });
 
-    // Sign out
-    document.getElementById('signout-btn').addEventListener('click', async () => {
-      await sb.auth.signOut();
-      window.location.replace('login.html');
+      showMsg('Account created! Loading dashboard…', 'success');
+      setTimeout(() => window.location.replace('index.html'), 800);
     });
   }
 
