@@ -842,7 +842,7 @@ body.combined-mode #combined-menu-btn{
     display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;
   ">
     <h1 style="color:#2dd4bf;font-size:1.5rem;margin-bottom:4px;">Ocean MVP</h1>
-    <p style="color:#7a8fa6;font-size:0.9rem;">Sign in to access the dashboard.</p>
+    <p id="login-gate-msg" style="color:#7a8fa6;font-size:0.9rem;">Sign in to access the dashboard.</p>
     <a href="login.html" style="
       display:inline-block;padding:11px 28px;background:#1a7f7a;color:#fff;
       border-radius:8px;text-decoration:none;font-weight:700;font-size:0.95rem;
@@ -854,6 +854,7 @@ body.combined-mode #combined-menu-btn{
     const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const EMAIL_VERIFY_GRACE_MS = 24 * 60 * 60 * 1000;
 
     // PostHog (inline shim to prevent errors before PostHog script loads)
     window.posthog = window.posthog || {};
@@ -869,13 +870,41 @@ body.combined-mode #combined-menu-btn{
       autocapture: true,
     });
 
+    function isEmailVerificationExpired(user) {
+      if (!user || user.email_confirmed_at) return false;
+      const createdAt = new Date(user.created_at).getTime();
+      return Number.isFinite(createdAt) && Date.now() - createdAt > EMAIL_VERIFY_GRACE_MS;
+    }
+
+    function setAccountLinkVisible(visible) {
+      function apply() {
+        const el = document.getElementById('account-link-wrap');
+        if (el) el.hidden = !visible;
+      }
+      apply();
+      if (!document.getElementById('account-link-wrap')) {
+        document.addEventListener('DOMContentLoaded', apply, { once: true });
+      }
+    }
+
+    async function enforceEmailVerificationGrace(session) {
+      if (!session || !isEmailVerificationExpired(session.user)) return true;
+      const msg = document.getElementById('login-gate-msg');
+      if (msg) msg.textContent = 'Please verify your email to continue. The 24-hour grace period has expired.';
+      document.getElementById('login-gate').style.display = 'flex';
+      setAccountLinkVisible(false);
+      try { sessionStorage.setItem('email_verification_expired', 'true'); } catch(e) {}
+      await sb.auth.signOut();
+      return false;
+    }
+
     (async function initAuth() {
       // Auth: check session first (handles page refresh with existing session),
       // then listen for changes (handles magic link redirect with new session).
       const { data: { session } } = await sb.auth.getSession();
-      if (session) {
+      if (session && await enforceEmailVerificationGrace(session)) {
         document.getElementById('login-gate').style.display = 'none';
-        document.getElementById('account-link-wrap').hidden = false;
+        setAccountLinkVisible(true);
         posthog.identify(session.user.email, { email: session.user.email });
         // Load user's selected region from profiles table and override REGION_ID if URL has no region param
         fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${session.user.id}&select=selected_region,name,phone`,
@@ -899,13 +928,14 @@ body.combined-mode #combined-menu-btn{
           }
         }).catch(() => {});
       }
-      sb.auth.onAuthStateChange((event, session) => {
+      sb.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
+          if (!await enforceEmailVerificationGrace(session)) return;
           posthog.identify(session.user.email, { email: session.user.email });
           if (document.getElementById('login-gate').style.display !== 'none') {
             document.getElementById('login-gate').style.display = 'none';
           }
-          document.getElementById('account-link-wrap').hidden = false;
+          setAccountLinkVisible(true);
         } else if (event === 'SIGNED_OUT') {
           window.location.replace('login.html');
         }

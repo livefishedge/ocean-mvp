@@ -6,8 +6,10 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
+  name TEXT,
   full_name TEXT,
   phone TEXT,
+  selected_region TEXT,
   signup_source TEXT DEFAULT 'magic_link',
   tier TEXT DEFAULT 'free' CHECK (tier IN ('free', 'trial', 'paid')),
   converted_at TIMESTAMPTZ,
@@ -15,6 +17,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS selected_region TEXT;
 
 -- Activity log (every user interaction)
 CREATE TABLE IF NOT EXISTS public.activity_log (

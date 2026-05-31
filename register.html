@@ -89,6 +89,7 @@
   var SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var EMAIL_VERIFY_GRACE_MS = 24 * 60 * 60 * 1000;
 
   function showMsg(msg, type) {
     var el = document.getElementById('form-msg');
@@ -138,6 +139,19 @@
     return valid;
   }
 
+  function isEmailVerificationExpired(user) {
+    if (!user || user.email_confirmed_at) return false;
+    var createdAt = new Date(user.created_at).getTime();
+    return Number.isFinite(createdAt) && Date.now() - createdAt > EMAIL_VERIFY_GRACE_MS;
+  }
+
+  async function saveProfile(userId, name, phone, region) {
+    if (!userId) return;
+    await sb.from('profiles')
+      .update({ name: name, phone: phone, selected_region: region })
+      .eq('user_id', userId);
+  }
+
   document.getElementById('reg-form').addEventListener('submit', async function(e) {
     e.preventDefault();
     if (!validateForm()) return;
@@ -169,8 +183,8 @@
       return;
     }
 
-    // With email confirmation enabled, session is null until user clicks the email link.
-    // Store profile data in sessionStorage; login page will pick it up and create the profile.
+    // Keep a local copy so login can finish the profile update if Supabase
+    // does not return a session from signUp.
     try {
       sessionStorage.setItem('pending_profile', JSON.stringify({
         user_id: result.data.user.id,
@@ -180,9 +194,28 @@
       }));
     } catch(e) {}
 
-    showMsg('Account created! Check your email and click the link to verify — then sign in.', 'success');
-    btn.textContent = 'Redirecting to sign in...';
-    setTimeout(function() { window.location.replace('login.html'); }, 3500);
+    var session = result.data.session;
+    var user = result.data.user;
+    if (!session) {
+      var signin = await sb.auth.signInWithPassword({ email: email, password: password });
+      if (!signin.error) {
+        session = signin.data.session;
+        user = signin.data.user;
+      }
+    }
+
+    if (session && user && !isEmailVerificationExpired(user)) {
+      await saveProfile(user.id, name, phone, region);
+      try { sessionStorage.removeItem('pending_profile'); } catch(e) {}
+      showMsg('Account created! Loading dashboard…', 'success');
+      btn.textContent = 'Loading dashboard...';
+      setTimeout(function() { window.location.replace('index.html'); }, 600);
+      return;
+    }
+
+    showMsg('Account created, but Supabase is still blocking sign-in until email verification. Disable that hard block in Supabase Auth so the 24-hour grace period can work.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Create Account';
   });
 
   // Password visibility toggle

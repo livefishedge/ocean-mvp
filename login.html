@@ -94,6 +94,7 @@
       const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
       const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const EMAIL_VERIFY_GRACE_MS = 24 * 60 * 60 * 1000;
 
       function showMsg(msg, type) {
         const el = document.getElementById('msg');
@@ -110,12 +111,33 @@
         const el = document.getElementById(id);
         el.textContent = msg;
         el.style.display = 'block';
-        document.getElementById(id.replace('-error', '')).style.borderColor = 'var(--err)';
+        const inputId = id === 'pw-error' ? 'password' : id.replace('-error', '');
+        document.getElementById(inputId).style.borderColor = 'var(--err)';
+      }
+
+      function isEmailVerificationExpired(user) {
+        if (!user || user.email_confirmed_at) return false;
+        const createdAt = new Date(user.created_at).getTime();
+        return Number.isFinite(createdAt) && Date.now() - createdAt > EMAIL_VERIFY_GRACE_MS;
+      }
+
+      async function enforceEmailVerificationGrace(session) {
+        if (!session || !isEmailVerificationExpired(session.user)) return true;
+        await sb.auth.signOut();
+        showMsg('Please verify your email to continue. The 24-hour grace period has expired.', 'error');
+        return false;
       }
 
       // Redirect if already logged in
-      sb.auth.getSession().then(({ data: { session } }) => {
-        if (session) window.location.replace('index.html');
+      try {
+        if (sessionStorage.getItem('email_verification_expired') === 'true') {
+          sessionStorage.removeItem('email_verification_expired');
+          showMsg('Please verify your email to continue. The 24-hour grace period has expired.', 'error');
+        }
+      } catch(e) {}
+
+      sb.auth.getSession().then(async ({ data: { session } }) => {
+        if (session && await enforceEmailVerificationGrace(session)) window.location.replace('index.html');
       });
 
       // PostHog
@@ -176,19 +198,22 @@
           return;
         }
 
+        if (!await enforceEmailVerificationGrace(data.session)) {
+          btn.disabled = false;
+          btn.textContent = 'Sign in';
+          return;
+        }
+
         // If there's a pending profile from registration, create it now
         try {
           var pending = sessionStorage.getItem('pending_profile');
           if (pending) {
             var profile = JSON.parse(pending);
             sessionStorage.removeItem('pending_profile');
-            // Only insert if we don't already have one for this user
-            sb.from('profiles').select('id').eq('user_id', data.user.id).then(function(_ref) {
-              var arr = _ref.data;
-              if (!arr || arr.length === 0) {
-                sb.from('profiles').insert(profile).then(function() {});
-              }
-            });
+            sb.from('profiles')
+              .update({ name: profile.name, phone: profile.phone, selected_region: profile.selected_region })
+              .eq('user_id', data.user.id)
+              .then(function() {});
           }
         } catch(e) {}
 
