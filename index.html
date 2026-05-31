@@ -836,6 +836,19 @@ body.combined-mode #combined-menu-btn{
   </style>
 </head>
 <body>
+  <!-- Full-screen auth gate -->
+  <div id="login-gate" style="
+    position:fixed;inset:0;z-index:9999;background:var(--bg,#050b10);
+    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;
+  ">
+    <h1 style="color:#2dd4bf;font-size:1.5rem;margin-bottom:4px;">Ocean MVP</h1>
+    <p style="color:#7a8fa6;font-size:0.9rem;">Sign in to access the dashboard.</p>
+    <a href="login.html" style="
+      display:inline-block;padding:11px 28px;background:#1a7f7a;color:#fff;
+      border-radius:8px;text-decoration:none;font-weight:700;font-size:0.95rem;
+    ">Sign in</a>
+  </div>
+
   <!-- Auth + PostHog init -->
   <script>
     const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
