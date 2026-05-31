@@ -840,7 +840,7 @@ body.combined-mode #combined-menu-btn{
   <script>
     const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // PostHog (inline shim to prevent errors before PostHog script loads)
     window.posthog = window.posthog || {};
@@ -857,7 +857,7 @@ body.combined-mode #combined-menu-btn{
     });
 
     // Auth: redirect to login if no session
-    supabase.auth.getSession().then(({ session }) => {
+    sb.auth.getSession().then(({ session }) => {
       if (!session) {
         window.location.replace('login.html');
       } else {
