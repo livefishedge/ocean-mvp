@@ -145,6 +145,22 @@
           return;
         }
 
+        // If there's a pending profile from registration, create it now
+        try {
+          var pending = sessionStorage.getItem('pending_profile');
+          if (pending) {
+            var profile = JSON.parse(pending);
+            sessionStorage.removeItem('pending_profile');
+            // Only insert if we don't already have one for this user
+            sb.from('profiles').select('id').eq('user_id', data.user.id).then(function(_ref) {
+              var arr = _ref.data;
+              if (!arr || arr.length === 0) {
+                sb.from('profiles').insert(profile).then(function() {});
+              }
+            });
+          }
+        } catch(e) {}
+
         showMsg('Signed in! Loading dashboard…', 'success');
         btn.textContent = 'Done';
         setTimeout(() => window.location.replace('index.html'), 600);

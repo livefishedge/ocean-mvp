@@ -154,29 +154,20 @@
       return;
     }
 
-    // Create profile record (supabase inserts auth.users automatically; we add the profile)
-    if (result.data && result.data.user) {
-      var r = await fetch(SUPABASE_URL + '/rest/v1/profiles', {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY,
-          'Authorization': 'Bearer ' + result.data.session.access_token,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify({
-          user_id: result.data.user.id,
-          name: name,
-          phone: phone,
-          selected_region: region
-        })
-      });
-      if (!r.ok) console.warn('Profile creation warning:', await r.text());
-    }
+    // With email confirmation enabled, session is null until user clicks the email link.
+    // Store profile data in sessionStorage; login page will pick it up and create the profile.
+    try {
+      sessionStorage.setItem('pending_profile', JSON.stringify({
+        user_id: result.data.user.id,
+        name: name,
+        phone: phone,
+        selected_region: region
+      }));
+    } catch(e) {}
 
-    showMsg('Account created! Check your email to verify — then sign in.', 'success');
+    showMsg('Account created! Check your email and click the link to verify — then sign in.', 'success');
     btn.textContent = 'Redirecting to sign in...';
-    setTimeout(function() { window.location.replace('login.html'); }, 2500);
+    setTimeout(function() { window.location.replace('login.html'); }, 3500);
   });
 })();
 </script>
