@@ -45,10 +45,10 @@ BEGIN
   VALUES (
     NEW.id,
     NEW.email,
-    NEW.raw_user_meta_data->>'name',
-    NEW.raw_user_meta_data->>'name',
-    NEW.raw_user_meta_data->>'phone',
-    NEW.raw_user_meta_data->>'selected_region'
+    COALESCE(NEW.raw_user_meta_data->>'name', NEW.user_metadata->>'name'),
+    COALESCE(NEW.raw_user_meta_data->>'name', NEW.user_metadata->>'name'),
+    COALESCE(NEW.raw_user_meta_data->>'phone', NEW.user_metadata->>'phone'),
+    COALESCE(NEW.raw_user_meta_data->>'selected_region', NEW.user_metadata->>'selected_region')
   );
   RETURN NEW;
 END;

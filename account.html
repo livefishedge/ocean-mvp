@@ -120,9 +120,9 @@
         }
       } catch(e) {}
 
-      // If this is a fresh confirmation (no profile data yet), redirect to viewer
-      // Otherwise show the account page
-      if (!profile || !profile.name) {
+      // If this is a fresh confirmation (no profile at all yet), redirect to viewer
+      // Otherwise show the account page (phone/region may be null but we show the page)
+      if (!profile) {
         renderConfirm('ok', 'Email confirmed! Loading your dashboard…');
         setTimeout(function() { window.location.replace('index.html'); }, 1000);
         return;
