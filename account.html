@@ -9,59 +9,54 @@
     :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.97); --border: #1b2836; --err: #ff6b6b; --success: #2dd4bf; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { height: 100vh; background: var(--bg); color: var(--fg); font-family: system-ui,-apple-system,"Segoe UI",sans-serif; display: flex; align-items: center; justify-content: center; padding: 20px; }
-    #register-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 36px 32px; max-width: 460px; width: 100%; }
+    #register-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 36px 32px; max-width: 420px; width: 100%; }
     h1 { font-size: 1.4rem; margin-bottom: 4px; color: var(--accent2); }
-    .subtitle { font-size: 0.85rem; opacity: 0.6; margin-bottom: 28px; }
+    .subtitle { font-size: 0.85rem; opacity: 0.6; margin-bottom: 28px; line-height: 1.5; }
     label { display: block; font-size: 0.8rem; margin-bottom: 4px; opacity: 0.8; }
-    input, select { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
-    input:focus, select:focus { border-color: var(--accent); }
-    .row { display: flex; gap: 10px; }
-    .row > * { flex: 1; }
+    input { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    input:focus { border-color: var(--accent); }
+    .field { margin-top: 14px; }
     #register-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background 0.15s; margin-top: 18px; }
     #register-btn:hover { background: #1a9f96; }
     #register-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .msg { font-size: 0.82rem; margin-top: 10px; padding: 8px 12px; border-radius: 6px; display: none; }
     .msg.error { background: rgba(255,107,107,0.15); color: var(--err); display: block; }
     .msg.success { background: rgba(45,212,191,0.15); color: var(--success); display: block; }
+    .field-error { font-size: 0.75rem; color: var(--err); margin-top: 3px; }
+    .login-link { font-size: 0.85rem; text-align: center; margin-top: 16px; opacity: 0.6; }
+    .login-link a { color: var(--accent2); text-decoration: none; }
+    .login-link a:hover { text-decoration: underline; }
+    .reqs { font-size: 0.72rem; opacity: 0.5; margin-top: 4px; line-height: 1.5; }
     .email-badge { background: rgba(255,255,255,0.07); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 0.9rem; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
     .email-badge span { opacity: 0.5; font-size: 0.75rem; }
-    .reqs { font-size: 0.72rem; opacity: 0.5; margin-top: 4px; line-height: 1.5; }
-    .field-error { font-size: 0.75rem; color: var(--err); margin-top: 3px; }
-    .divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
   </style>
 </head>
 <body>
 <div id="register-card">
-  <h1>Create Account</h1>
-  <p class="subtitle" id="subtitle">Complete your registration to access the dashboard.</p>
+  <h1 id="heading">Create Account</h1>
+  <p class="subtitle" id="subtitle">Register with email and password to access the dashboard.</p>
 
-  <!-- Email display (confirmed from magic link) -->
+  <!-- Pre-filled email badge for magic link flow -->
   <div class="email-badge" id="email-badge" style="display:none">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
     <span id="email-display"></span>
   </div>
 
   <form id="register-form" novalidate>
-    <!-- Name row -->
-    <div class="row">
-      <div>
-        <label for="first-name">First Name *</label>
-        <input id="first-name" type="text" placeholder="First" required />
-      </div>
-      <div>
-        <label for="last-name">Last Name *</label>
-        <input id="last-name" type="text" placeholder="Last" required />
-      </div>
+    <div class="field" id="email-field">
+      <label for="email">Email address *</label>
+      <input id="email" type="email" placeholder="captain@example.com" required />
     </div>
-
-    <!-- Phone -->
-    <div style="margin-top:14px">
-      <label for="phone">Phone *</label>
-      <input id="phone" type="tel" placeholder="(555) 555-5555" required />
+    <div class="field">
+      <label for="password">Password *</label>
+      <input id="password" type="password" placeholder="Create a password" required />
+      <div class="reqs">Min 8 characters. At least one uppercase letter, one lowercase letter, and one number.</div>
     </div>
-
-    <!-- Region -->
-    <div style="margin-top:14px">
+    <div class="field">
+      <label for="name">Name *</label>
+      <input id="name" type="text" placeholder="Your name" required />
+    </div>
+    <div class="field">
       <label for="region">Preferred Region *</label>
       <select id="region" required>
         <option value="">Select a region...</option>
@@ -70,18 +65,11 @@
       </select>
     </div>
 
-    <!-- Password -->
-    <div style="margin-top:14px">
-      <label for="password">Password *</label>
-      <input id="password" type="password" placeholder="Create a password" required />
-      <div class="reqs">Min 8 characters. At least one uppercase letter, one lowercase letter, and one number.</div>
-      <label for="password-confirm" style="margin-top:10px">Confirm Password *</label>
-      <input id="password-confirm" type="password" placeholder="Repeat password" required />
-    </div>
-
     <div class="msg" id="form-msg"></div>
-    <button type="submit" id="register-btn">Register</button>
+    <button type="submit" id="register-btn">Create Account</button>
   </form>
+
+  <div class="login-link">Already have an account? <a href="login.html">Sign in</a></div>
 </div>
 
 <!-- Supabase Auth -->
@@ -89,13 +77,13 @@
 <script>
 (function() {
   const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+  const SUPABASE_ANON_KEY = 'sb_pubKNFt2V3xzcR';
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
   function showMsg(msg, type) {
     const el = document.getElementById('form-msg');
     el.textContent = msg;
-    el.className = 'msg ' + type;
+    el.className = 'msg ' + (type || '');
   }
 
   function clearFieldErrors() {
@@ -105,7 +93,8 @@
 
   function setFieldError(id, msg) {
     const input = document.getElementById(id);
-    if (input) input.style.borderColor = 'var(--err)';
+    if (!input) return;
+    input.style.borderColor = 'var(--err)';
     const existing = document.getElementById(id + '-error');
     if (existing) return;
     const err = document.createElement('div');
@@ -118,124 +107,106 @@
   function validateForm() {
     clearFieldErrors();
     let valid = true;
-    const firstName = document.getElementById('first-name').value.trim();
-    const lastName = document.getElementById('last-name').value.trim();
-    const phone = document.getElementById('phone').value.trim();
-    const region = document.getElementById('region').value;
+    const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
-    const pwConfirm = document.getElementById('password-confirm').value;
+    const name = document.getElementById('name').value.trim();
+    const region = document.getElementById('region').value;
 
-    if (!firstName) { setFieldError('first-name', 'First name is required'); valid = false; }
-    if (!lastName) { setFieldError('last-name', 'Last name is required'); valid = false; }
-    if (!phone || phone.replace(/\D/g, '').length < 10) { setFieldError('phone', 'Valid phone number required'); valid = false; }
-    if (!region) { setFieldError('region', 'Please select a region'); valid = false; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldError('email', 'Valid email address required'); valid = false;
+    }
     if (password.length < 8) { setFieldError('password', 'Must be at least 8 characters'); valid = false; }
     if (!/[A-Z]/.test(password)) { setFieldError('password', 'Must include at least one uppercase letter'); valid = false; }
     if (!/[a-z]/.test(password)) { setFieldError('password', 'Must include at least one lowercase letter'); valid = false; }
     if (!/[0-9]/.test(password)) { setFieldError('password', 'Must include at least one number'); valid = false; }
-    if (password !== pwConfirm) { setFieldError('password-confirm', 'Passwords do not match'); valid = false; }
+    if (!name) { setFieldError('name', 'Name is required'); valid = false; }
+    if (!region) { setFieldError('region', 'Please select a region'); valid = false; }
 
     return valid;
   }
 
   async function init() {
-    // Wait for Supabase to finish processing the magic link URL before checking session.
-    // This prevents the getSession() → null → profile-skip race that skips the form for
-    // returning users who arrive via a magic link before the session token is established.
-    const { data: { session } } = await new Promise(resolve => {
-      const unsubscribe = sb.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          unsubscribe();
-          resolve({ data: { session } });
-        } else if (event === 'SIGNED_OUT') {
-          unsubscribe();
-          window.location.replace('login.html');
-        }
-      });
-      sb.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-          unsubscribe();
-          resolve({ data: { session } });
-        }
-      });
-    });
-    const user = session.user;
-    document.getElementById('email-display').textContent = user.email;
-    document.getElementById('email-badge').style.display = 'flex';
+    // Check for existing session (magic link flow)
+    const { data: { session } } = await sb.auth.getSession();
 
-    // Check if already has a profile (returning user) — skip to viewer
-    try {
-      const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${user.id}&select=id`,
-        { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + session.access_token } }
-      );
-      if (r.ok) {
-        const profiles = await r.json();
-        if (profiles.length > 0) {
-          // Already registered — go to viewer
-          window.location.replace('index.html');
-          return;
-        }
-      }
-    } catch(e) {}
+    if (session) {
+      // Pre-fill email from session (magic link user)
+      const user = session.user;
+      document.getElementById('email').value = user.email;
+      document.getElementById('email-field').style.display = 'none';
+      document.getElementById('email-display').textContent = user.email;
+      document.getElementById('email-badge').style.display = 'flex';
+      document.getElementById('heading').textContent = 'Complete Registration';
+      document.getElementById('subtitle').textContent = 'Set your password to activate your account.';
+    }
+  }
 
-    document.getElementById('register-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      if (!validateForm()) return;
+  document.getElementById('register-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-      const btn = document.getElementById('register-btn');
-      btn.disabled = true;
-      btn.textContent = 'Registering...';
-      showMsg('', '');
+    const btn = document.getElementById('register-btn');
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+    showMsg('', '');
 
-      const password = document.getElementById('password').value;
-      const firstName = document.getElementById('first-name').value.trim();
-      const lastName = document.getElementById('last-name').value.trim();
-      const phone = document.getElementById('phone').value.trim();
-      const region = document.getElementById('region').value;
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const name = document.getElementById('name').value.trim();
+    const region = document.getElementById('region').value;
 
-      // Set password first
+    // Check if already logged in (magic link flow)
+    const { data: { session } } = await sb.auth.getSession();
+
+    if (session) {
+      // Magic link user — set password via updateUser
       const { error: pwError } = await sb.auth.updateUser({ password });
       if (pwError) {
-        showMsg(pwError.message || 'Failed to set password', 'error');
+        showMsg(pwError.message || 'Failed to set password.', 'error');
         btn.disabled = false;
-        btn.textContent = 'Register';
+        btn.textContent = 'Create Account';
         return;
       }
+      // Upsert profile
+      await sb.from('profiles').upsert({
+        user_id: session.user.id,
+        name,
+        selected_region: region,
+        phone: ''
+      }, { onConflict: 'user_id' });
 
-      // Save profile
-      const name = `${firstName} ${lastName}`;
-      const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/profiles`,
-        {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': 'Bearer ' + session.access_token,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-          },
-          body: JSON.stringify({
-            user_id: user.id,
-            name,
-            phone,
-            selected_region: region
-          })
-        }
-      );
-
-      if (!r.ok) {
-        const err = await r.json();
-        showMsg(err.message || 'Registration failed. Try again.', 'error');
-        btn.disabled = false;
-        btn.textContent = 'Register';
-        return;
-      }
-
-      showMsg('Account created! Loading dashboard…', 'success');
+      showMsg('Account activated! Loading dashboard…', 'success');
+      btn.textContent = 'Done';
       setTimeout(() => window.location.replace('index.html'), 800);
-    });
-  }
+    } else {
+      // New user — sign up directly
+      const { data, error: signUpError } = await sb.auth.signUp({
+        email,
+        password,
+        options: { data: { name, selected_region: region } }
+      });
+
+      if (signUpError) {
+        showMsg(signUpError.message || 'Registration failed. Try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+        return;
+      }
+
+      if (data.user) {
+        await sb.from('profiles').insert({
+          user_id: data.user.id,
+          name,
+          selected_region: region,
+          phone: ''
+        });
+      }
+
+      showMsg('Account created! You can now sign in.', 'success');
+      btn.textContent = 'Redirecting…';
+      setTimeout(() => window.location.replace('login.html'), 1500);
+    }
+  });
 
   init();
 })();
