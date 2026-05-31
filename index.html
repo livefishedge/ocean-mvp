@@ -875,6 +875,7 @@ body.combined-mode #combined-menu-btn{
       const { data: { session } } = await sb.auth.getSession();
       if (session) {
         document.getElementById('login-gate').style.display = 'none';
+        document.getElementById('account-link-wrap').hidden = false;
         posthog.identify(session.user.email, { email: session.user.email });
         // Load user's selected region from profiles table and override REGION_ID if URL has no region param
         fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${session.user.id}&select=selected_region,name,phone`,
@@ -904,6 +905,7 @@ body.combined-mode #combined-menu-btn{
           if (document.getElementById('login-gate').style.display !== 'none') {
             document.getElementById('login-gate').style.display = 'none';
           }
+          document.getElementById('account-link-wrap').hidden = false;
         } else if (event === 'SIGNED_OUT') {
           window.location.replace('login.html');
         }
@@ -1147,7 +1149,7 @@ body.combined-mode #combined-menu-btn{
         </div>
       </div>
       <div id="hamburger-cbar"></div>
-      <div style="text-align:center;margin-top:14px;">
+      <div style="text-align:center;margin-top:14px;" id="account-link-wrap" hidden>
         <a href="account.html" style="color:var(--accent2);font-size:12px;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a>
       </div>
     </div>
@@ -6926,8 +6928,8 @@ async function loadCaptainBriefing() {
 
 /* ================= LOGIN GATE (DISABLED - always show map) ================= */
 (function() {
-  const gate = document.getElementById('login-gate');
-  if (gate) gate.style.display = 'none';
+  // Auth gate now handled by initAuth() in <head> — do not override it here
+  // (The unconditional hide below was bypassing authentication)
 
   // === Original gate logic disabled. To re-enable: set display above to 'block'
   // and restore the original initGate/sendNotification code. ===
