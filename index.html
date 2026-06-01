@@ -4039,8 +4039,8 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
 
   // ImageStatic maps canvas row 0 to the north edge of the extent.
   // Bathymetry JSON is south-up, so flip it in the active OL raster path.
-  const isNorthUp = gridInfo.sensor === "SGLI";
-  const yFlip = (varKey === "uv" || varKey === "bathy") ? yAscending : (yAscending && !isNorthUp ? false : yAscending);
+  // CHL: south-up JSON (row 0 = latMin = south) → yAscending=true → flip needed.
+  const yFlip = (varKey === "uv" || varKey === "bathy") ? yAscending : yAscending;
 
   for (let row = 0; row < ny; row++) {
     const srcJ = yFlip ? (ny - 1 - row) : row;
@@ -6443,7 +6443,7 @@ function inferGridFromFrame(v, dataObj) {
   // Therefore inferred CHL axes must be ascending to keep z[row] aligned with latitude.
   // SST keeps its existing north-up convention; UV remains south-up.
   const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny);
-  return { xAxis, yAxis, nx, ny, sensor: "SGLI" };
+  return { xAxis, yAxis, nx, ny, sensor: "CHL" };
 }
 
 async function loadGridForVar(v, dataObj = null) {
