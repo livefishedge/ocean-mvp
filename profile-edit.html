@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ocean MVP — Edit Profile</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { --bg: #050b10; --fg: #e0e6ee; --accent: #1a7f7a; --accent2: #2dd4bf; --panel: rgba(5,11,16,0.97); --border: #1b2836; --err: #ff6b6b; --success: #2dd4bf; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { height: 100vh; background: var(--bg); color: var(--fg); font-family: system-ui,-apple-system,"Segoe UI",sans-serif; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    #card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 36px 32px; max-width: 420px; width: 100%; }
+    h1 { font-size: 1.4rem; margin-bottom: 4px; color: var(--accent2); }
+    .subtitle { font-size: 0.85rem; opacity: 0.6; margin-bottom: 28px; line-height: 1.5; }
+    label { display: block; font-size: 0.8rem; margin-bottom: 4px; opacity: 0.8; }
+    input, select { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    input:focus, select:focus { border-color: var(--accent); }
+    .field { margin-top: 14px; }
+    #save-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background 0.15s; margin-top: 18px; }
+    #save-btn:hover { background: #1a9f96; }
+    #save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .msg { font-size: 0.82rem; margin-top: 10px; padding: 8px 12px; border-radius: 6px; display: none; }
+    .msg.error { background: rgba(255,107,107,0.15); color: var(--err); display: block; }
+    .msg.success { background: rgba(45,212,191,0.15); color: var(--success); display: block; }
+    .field-error { font-size: 0.75rem; color: var(--err); margin-top: 3px; }
+    .back-link { font-size: 0.85rem; text-align: center; margin-top: 16px; opacity: 0.6; }
+    .back-link a { color: var(--accent2); text-decoration: none; }
+    .back-link a:hover { text-decoration: underline; }
+    .loading { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 0; }
+    .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent2); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 0.9rem; opacity: 0.6; }
+    .not-auth { text-align: center; padding: 40px 0; }
+    .not-auth h1 { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+<div id="card">
+  <!-- Dynamic content injected -->
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260531"></script>
+<script>
+(function() {
+  var sb = window.supabase.createClient(
+    'https://wfdpfeptmyiqifgwqpzu.supabase.co',
+    'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR'
+  );
+  var card = document.getElementById('card');
+
+  function showMsg(msg, type) {
+    var el = document.getElementById('form-msg');
+    if (!el) return;
+    el.textContent = msg;
+    el.className = 'msg ' + (type || '');
+  }
+
+  function clearFieldErrors() {
+    var errs = document.querySelectorAll('.field-error');
+    for (var i = 0; i < errs.length; i++) errs[i].remove();
+    var inputs = document.querySelectorAll('input, select');
+    for (var j = 0; j < inputs.length; j++) inputs[j].style.borderColor = '';
+  }
+
+  function setFieldError(id, msg) {
+    var input = document.getElementById(id);
+    if (!input) return;
+    input.style.borderColor = 'var(--err)';
+    var existing = document.getElementById(id + '-error');
+    if (existing) return;
+    var err = document.createElement('div');
+    err.id = id + '-error';
+    err.className = 'field-error';
+    err.textContent = msg;
+    input.parentNode.appendChild(err);
+  }
+
+  function renderForm(user, profile) {
+    var name = profile && profile.name ? profile.name : '';
+    var phone = profile && profile.phone ? profile.phone : '';
+    var region = profile && profile.selected_region ? profile.selected_region : '';
+
+    card.innerHTML =
+      '<h1>Edit Profile</h1>' +
+      '<p class="subtitle">Update your name, phone number, or preferred region.</p>' +
+      '<form id="edit-form" novalidate>' +
+        '<div class="field">' +
+          '<label for="name">Name *</label>' +
+          '<input id="name" type="text" placeholder="Your name" value="' + escAttr(name) + '" required />' +
+        '</div>' +
+        '<div class="field">' +
+          '<label for="phone">Phone *</label>' +
+          '<input id="phone" type="tel" placeholder="(555) 555-5555" value="' + escAttr(phone) + '" required />' +
+        '</div>' +
+        '<div class="field">' +
+          '<label for="region">Preferred Region *</label>' +
+          '<select id="region" required>' +
+            '<option value="">Select a region...</option>' +
+            '<option value="usec_south">US East Coast — South-Atlantic</option>' +
+            '<option value="usec_md">US East Coast — Mid-Atlantic</option>' +
+          '</select>' +
+        '</div>' +
+        '<div class="msg" id="form-msg"></div>' +
+        '<button type="submit" id="save-btn">Save Changes</button>' +
+      '</form>' +
+      '<div class="back-link"><a href="account.html">← Back to My Account</a></div>';
+
+    if (region) {
+      document.getElementById('region').value = region;
+    }
+
+    document.getElementById('edit-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      var valid = true;
+      clearFieldErrors();
+      var nameVal = document.getElementById('name').value.trim();
+      var phoneVal = document.getElementById('phone').value.trim();
+      var regionVal = document.getElementById('region').value;
+
+      if (!nameVal) { setFieldError('name', 'Name required'); valid = false; }
+      if (!phoneVal || phoneVal.replace(/\D/g, '').length < 10) { setFieldError('phone', 'Valid phone number required'); valid = false; }
+      if (!regionVal) { setFieldError('region', 'Please select a region'); valid = false; }
+      if (!valid) return;
+
+      var btn = document.getElementById('save-btn');
+      btn.disabled = true;
+      btn.textContent = 'Saving...';
+      showMsg('', '');
+
+      sb.auth.getSession().then(function(_ref) {
+        var session = _ref.data.session;
+        if (!session) throw new Error('Not authenticated');
+
+        return fetch(
+          'https://wfdpfeptmyiqifgwqpzu.supabase.co/rest/v1/profiles?user_id=eq.' + user.id,
+          {
+            method: 'PATCH',
+            headers: {
+              'apikey': 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR',
+              'Authorization': 'Bearer ' + session.access_token,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify({
+              name: nameVal,
+              phone: phoneVal,
+              selected_region: regionVal
+            })
+          }
+        );
+      }).then(function(r) {
+        if (!r.ok) {
+          return r.text().then(function(t) { throw new Error('Save failed: ' + (t || r.status)); });
+        }
+        showMsg('Profile saved successfully!', 'success');
+        document.getElementById('save-btn').textContent = 'Saved!';
+        setTimeout(function() {
+          window.location.href = 'account.html';
+        }, 1200);
+      }).catch(function(err) {
+        showMsg(err.message || 'Could not save. Try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Save Changes';
+      });
+    });
+  }
+
+  function renderNotAuth() {
+    card.innerHTML =
+      '<div class="not-auth">' +
+        '<h1>Not signed in</h1>' +
+        '<p class="subtitle">You need to sign in to edit your profile.</p>' +
+        '<div class="back-link"><a href="login.html">Sign in</a></div>' +
+      '</div>';
+  }
+
+  function renderLoading() {
+    card.innerHTML =
+      '<div class="loading">' +
+        '<div class="spinner"></div>' +
+        '<div class="loading-text">Loading profile…</div>' +
+      '</div>';
+  }
+
+  function escAttr(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  (async function init() {
+    renderLoading();
+    var _ref = await sb.auth.getSession();
+    var session = _ref.data.session;
+    if (!session) {
+      renderNotAuth();
+      return;
+    }
+    var user = session.user;
+
+    // Fetch current profile
+    var r = await fetch(
+      'https://wfdpfeptmyiqifgwqpzu.supabase.co/rest/v1/profiles?user_id=eq.' + user.id + '&select=name,phone,selected_region',
+      {
+        headers: {
+          'apikey': 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR',
+          'Authorization': 'Bearer ' + session.access_token
+        }
+      }
+    );
+    var profiles = r.ok ? await r.json() : [];
+    var profile = profiles && profiles.length > 0 ? profiles[0] : null;
+    renderForm(user, profile);
+  })();
+})();
+</script>
+</body>
+</html>

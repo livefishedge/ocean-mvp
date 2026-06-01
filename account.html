@@ -84,6 +84,7 @@
           : '<span id="unverified-badge">✗ Unverified</span>') +
       '</div></div></div>' +
       '<button id="logout-btn" type="button">Sign out</button>' +
+      '<button id="edit-profile-btn" type="button" style="width:100%;padding:12px;background:transparent;border:1px solid var(--accent2);color:var(--accent2);border-radius:8px;font-size:0.95rem;font-weight:700;cursor:pointer;transition:background 0.15s;margin-top:10px;">Edit Profile</button>' +
       '<div class="back-link"><a href="index.html">← Back to dashboard</a></div>';
   }
 
@@ -130,6 +131,7 @@
 
       renderAccount(user, profile);
       attachLogout();
+      attachEditProfile();
     } else {
       window.location.replace('login.html');
     }
@@ -143,6 +145,14 @@
       btn.textContent = 'Signing out…';
       await sb.auth.signOut();
       window.location.replace('login.html');
+    });
+  }
+
+  function attachEditProfile() {
+    var btn = document.getElementById('edit-profile-btn');
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      window.location.href = 'profile-edit.html';
     });
   }
 
