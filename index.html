@@ -6503,7 +6503,7 @@ async function loadGridForVar(v, dataObj = null) {
 async function fetchFrameData(varKey, frameMeta) {
   const p = framePathOf(frameMeta);
   if (!p) throw new Error("Frame has no json path");
-  const res = await fetch(p);
+  const res = await fetch(p + (p.includes('?') ? '&' : '?') + 't=' + Date.now());
   if (!res.ok) throw new Error(`Frame load failed: ${p}`);
   return await res.json();
 }
