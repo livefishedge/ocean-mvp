@@ -904,13 +904,13 @@ body.combined-mode #combined-menu-btn{
         document.getElementById('login-gate').style.display = 'none';
         setAccountLinkVisible(true);
         posthog.identify(session.user.email, { email: session.user.email });
-        // Load user's selected region from profiles table and override REGION_ID if URL has no region param
+        // Load user's selected region from profiles table and lock the dashboard to it.
         fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${session.user.id}&select=selected_region,name,phone`,
           { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${session.access_token}` } }
         ).then(r => r.json()).then(profiles => {
           if (profiles && profiles.length > 0 && profiles[0].selected_region) {
             const savedRegion = profiles[0].selected_region;
-            if (!QUERY_PARAMS.get('region') && REGIONS[savedRegion]) {
+            if (REGIONS[savedRegion] && REGION_ID !== savedRegion) {
               REGION_ID = savedRegion;
               BBOX = REGION_ID === 'usec_md' ? [-81, 35, -71, 42] : [-81, 31, -71, 40];
               initializeData();
@@ -1105,8 +1105,8 @@ body.combined-mode #combined-menu-btn{
       </label>
       <div id="combined-bathy-legend" class="combined-inline-legend"></div>
     </div>
-    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
-      <a href="account.html" style="display:block;text-align:center;padding:10px 14px;background:rgba(45,212,191,0.12);border:1px solid var(--accent2);border-radius:8px;color:var(--accent2);font-size:0.85rem;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a>
+    <div style="text-align:center;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);">
+      <a href="account.html" style="color:var(--accent2);font-size:12px;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a>
     </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:8px;right:8px;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-left:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
@@ -1125,12 +1125,6 @@ body.combined-mode #combined-menu-btn{
   </div>
 
   <div id="menu-panel">
-      <label>Region
-        <select id="hamburger-region-select">
-          <option value="usec_md">US East Coast - Mid-Atlantic</option>
-          <option value="usec_south">US East Coast - South-Atlantic</option>
-        </select>
-      </label>
       <label>Product
         <select id="hamburger-product-select">
           <option value="combined">Captain's Dashboard</option>
@@ -1175,6 +1169,7 @@ body.combined-mode #combined-menu-btn{
       <div style="text-align:center;margin-top:14px;" id="account-link-wrap" hidden>
         <a href="account.html" style="color:var(--accent2);font-size:12px;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a>
       </div>
+    </div>
 
 
 <script>
@@ -3396,14 +3391,11 @@ async function loadBathymetryJson(url) {
 function buildBathy(bathy) {
   const vmin = userRanges.bathy.vmin;
   const vmax = userRanges.bathy.vmax;
-  // yAxis is south-up (yAxis[0]=31 = south) but Plotly renders row 0 at top.
-  // Reverse z so data orientation matches the displayed latitude axis.
-  const zReversed = [...bathy.depth].reverse().map(row => [...row].reverse());
   return {
     data: [{
       type:"heatmap",
       x:bathy.xAxis, y:bathy.yAxis,
-      z: zReversed,
+      z:bathy.depth,
       customdata:bathy.customdata,
       hoverinfo:"none",
       showscale:false,
@@ -4045,12 +4037,10 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   const cfg = mobileValueConfig(varKey);
   const denom = cfg.hi === cfg.lo ? 1 : (cfg.hi - cfg.lo);
 
-  // yFlip: south-up data needs no flip; north-up data (SGLI, VIIRS L2) needs flip.
-  // SGLI H5 is north-up; pipeline stores JSON row 0 = north = latMax (36N), row 742 = south (31N).
-  // With yAscending=true, the yFlip=true inverts SGLI data incorrectly.
-  // Fix: skip yFlip when the frame is SGLI (north-up H5, stored north-up in JSON).
+  // ImageStatic maps canvas row 0 to the north edge of the extent.
+  // Bathymetry JSON is south-up, so flip it in the active OL raster path.
   const isNorthUp = gridInfo.sensor === "SGLI";
-  const yFlip = (varKey === "uv") ? yAscending : (yAscending && !isNorthUp ? false : yAscending);
+  const yFlip = (varKey === "uv" || varKey === "bathy") ? yAscending : (yAscending && !isNorthUp ? false : yAscending);
 
   for (let row = 0; row < ny; row++) {
     const srcJ = yFlip ? (ny - 1 - row) : row;
