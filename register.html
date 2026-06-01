@@ -13,7 +13,16 @@
     h1 { font-size: 1.4rem; margin-bottom: 4px; color: var(--accent2); }
     .subtitle { font-size: 0.85rem; opacity: 0.6; margin-bottom: 28px; line-height: 1.5; }
     label { display: block; font-size: 0.8rem; margin-bottom: 4px; opacity: 0.8; }
-    input, select { width: 100%; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    input, select {
+      width: 100%; padding: 10px 12px;
+      background: rgba(5, 11, 16, 0.8); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--fg); font-size: 0.95rem; outline: none; transition: border-color 0.2s;
+      -webkit-appearance: none; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%237a8fa6' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center;
+      padding-right: 30px;
+    }
+    input option, select option { background: var(--panel); color: var(--fg); }
     input:focus, select:focus { border-color: var(--accent); }
     .field { margin-top: 14px; }
     #reg-btn { width: 100%; padding: 12px; background: var(--accent); border: none; border-radius: 8px; color: white; font-size: 1rem; font-weight: 700; cursor: pointer; transition: background 0.15s; margin-top: 18px; }

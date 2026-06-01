@@ -40,16 +40,26 @@ CREATE INDEX IF NOT EXISTS idx_activity_log_event ON public.activity_log(event);
 -- Profiles: auto-create on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  _meta jsonb;
 BEGIN
+  -- raw_user_meta_data sometimes arrives as the string 'null' instead of SQL NULL;
+  -- NULLIF text comparison handles this. Merge with user_metadata as fallback.
+  _meta := COALESCE(
+    NULLIF(NEW.raw_user_meta_data::text, 'null'),
+    NEW.user_metadata::text
+  )::jsonb;
+
   INSERT INTO public.profiles (user_id, email, name, full_name, phone, selected_region)
   VALUES (
     NEW.id,
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', NEW.user_metadata->>'name'),
-    COALESCE(NEW.raw_user_meta_data->>'name', NEW.user_metadata->>'name'),
-    COALESCE(NEW.raw_user_meta_data->>'phone', NEW.user_metadata->>'phone'),
-    COALESCE(NEW.raw_user_meta_data->>'selected_region', NEW.user_metadata->>'selected_region')
-  );
+    _meta->>'name',
+    _meta->>'name',
+    _meta->>'phone',
+    _meta->>'selected_region'
+  )
+  ON CONFLICT (user_id) DO NOTHING;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
