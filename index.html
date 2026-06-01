@@ -1001,14 +1001,6 @@ body.combined-mode #combined-menu-btn{
   </div>
   <div id="combined-controls">
     <div class="combined-section">
-      <label>Region
-        <select id="combined-region-select">
-          <option value="usec_south">US East Coast - South-Atlantic</option>
-          <option value="usec_md">US East Coast - Mid-Atlantic</option>
-        </select>
-      </label>
-    </div>
-    <div class="combined-section">
       <div class="combined-section-title">Product</div>
       <select id="combined-product-select">
         <option value="combined">Captain's Dashboard</option>
@@ -1113,6 +1105,9 @@ body.combined-mode #combined-menu-btn{
       </label>
       <div id="combined-bathy-legend" class="combined-inline-legend"></div>
     </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+      <a href="account.html" style="display:block;text-align:center;padding:10px 14px;background:rgba(45,212,191,0.12);border:1px solid var(--accent2);border-radius:8px;color:var(--accent2);font-size:0.85rem;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a>
+    </div>
   </div>
   <button id="combined-menu-btn" aria-label="Toggle sidebar" style="display:none;position:fixed;top:8px;right:8px;z-index:40;width:44px;height:44px;background:var(--panel);border:none;border-left:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding:0;">
     <span style="display:block;width:18px;height:2px;background:var(--fg);border-radius:2px;"></span>
@@ -1130,7 +1125,6 @@ body.combined-mode #combined-menu-btn{
   </div>
 
   <div id="menu-panel">
-      <div style="margin-bottom:14px;"><a href="account.html" style="display:block;text-align:center;padding:10px 14px;background:rgba(45,212,191,0.12);border:1px solid var(--accent2);border-radius:8px;color:var(--accent2);font-size:0.85rem;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a></div>
       <label>Region
         <select id="hamburger-region-select">
           <option value="usec_md">US East Coast - Mid-Atlantic</option>
@@ -1181,11 +1175,6 @@ body.combined-mode #combined-menu-btn{
       <div style="text-align:center;margin-top:14px;" id="account-link-wrap" hidden>
         <a href="account.html" style="color:var(--accent2);font-size:12px;font-weight:700;text-decoration:none;letter-spacing:0.05em;">MY ACCOUNT</a>
       </div>
-    </div>
-
-  <div id="ranges">
-    <div id="cbar"></div>
-  </div>
 
 
 <script>
@@ -3407,12 +3396,14 @@ async function loadBathymetryJson(url) {
 function buildBathy(bathy) {
   const vmin = userRanges.bathy.vmin;
   const vmax = userRanges.bathy.vmax;
-
+  // yAxis is south-up (yAxis[0]=31 = south) but Plotly renders row 0 at top.
+  // Reverse z so data orientation matches the displayed latitude axis.
+  const zReversed = [...bathy.depth].reverse().map(row => [...row].reverse());
   return {
     data: [{
       type:"heatmap",
       x:bathy.xAxis, y:bathy.yAxis,
-      z:bathy.depth,
+      z: zReversed,
       customdata:bathy.customdata,
       hoverinfo:"none",
       showscale:false,
