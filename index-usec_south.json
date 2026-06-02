@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-06-02T17:13:16.340907Z",
+  "last_updated": "2026-06-02T17:48:57.736981Z",
   "vars": [
     "chl",
     "sst",
@@ -10,22 +10,6 @@
   ],
   "frames": {
     "chl": [
-      {
-        "var": "chl",
-        "id": "usec_south_20260502_2026122.1727_chl_PACE-OCI",
-        "label": "2026-05-02 17:27 UTC | PACE-OCI",
-        "time_iso": "2026-05-02T17:27:00Z",
-        "json_path": "data/usec_south/chl/usec_south_20260502_2026122.1727_chl_PACE-OCI.json",
-        "grid_file": "frame_bbox"
-      },
-      {
-        "var": "chl",
-        "id": "usec_south_2026122.1748_chl_VNP",
-        "label": "2026-05-02 17:48 UTC | VNP",
-        "time_iso": "2026-05-02T17:48:00Z",
-        "json_path": "data/usec_south/chl/usec_south_2026122.1748_chl_VNP.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "chl",
         "id": "usec_south_2026122.1806_chl_VJ1",
@@ -1384,6 +1368,14 @@
         "label": "2026-06-01 18:42 UTC | VJ1",
         "time_iso": "2026-06-01T18:42:00Z",
         "json_path": "data/usec_south/chl/usec_south_2026152.1842_chl_VJ1.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260602_2026153.1448_chl_S3B",
+        "label": "2026-06-02 14:48 UTC | S3B",
+        "time_iso": "2026-06-02T14:48:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260602_2026153.1448_chl_S3B.json",
         "grid_file": "frame_bbox"
       }
     ],
@@ -4872,14 +4864,6 @@
       }
     ],
     "chl_front": [
-      {
-        "var": "chl_front",
-        "id": "chlfront_usec_south_2026122.1748_VNP",
-        "label": "2026-05-02 17:48 UTC | VNP",
-        "time_iso": "2026-05-02T17:48:00Z",
-        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026122.1748_VNP.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "chl_front",
         "id": "chlfront_usec_south_2026122.1806_VJ1",
