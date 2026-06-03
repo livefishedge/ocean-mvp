@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-06-03T15:01:35.278004+00:00",
+  "last_updated": "2026-06-03T15:17:38.561170Z",
   "vars": [
     "chl",
     "sst",
@@ -1072,6 +1072,14 @@
         "label": "2026-05-26 18:06 UTC | VJ2",
         "time_iso": "2026-05-26T18:06:00Z",
         "json_path": "data/usec_south/chl/usec_south_2026146.1806_chl_VJ2.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260526_2026146.1817_chl_S3X",
+        "label": "2026-05-26 18:17 UTC",
+        "time_iso": "2026-05-26T18:17:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260526_2026146.1817_chl_S3X.json",
         "grid_file": "frame_bbox"
       },
       {
@@ -4890,6 +4898,14 @@
         "label": "2026-06-03 12:00 UTC",
         "time_iso": "2026-06-03T12:00:00Z",
         "json_path": "data/usec_south/sst/sst_usec_south_2026154_20260603_12_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_south_2026154_20260603_13_g19",
+        "label": "2026-06-03 13:00 UTC",
+        "time_iso": "2026-06-03T13:00:00Z",
+        "json_path": "data/usec_south/sst/sst_usec_south_2026154_20260603_13_g19.json",
         "grid_file": "goes_sst_1000_grid.json"
       }
     ],
@@ -9761,6 +9777,14 @@
         "time_iso": "2026-06-03T12:00:00Z",
         "json_path": "data/usec_south/sst_front/sstfront_usec_south_2026154_20260603_12_g19.json",
         "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_south_2026154_20260603_13_g19",
+        "label": "2026-06-03 13:00 UTC",
+        "time_iso": "2026-06-03T13:00:00Z",
+        "json_path": "data/usec_south/sst_front/sstfront_usec_south_2026154_20260603_13_g19.json",
+        "grid_file": "frame_bbox"
       }
     ]
   },
@@ -9773,25 +9797,6 @@
       "-73",
       "36"
     ],
-    "polygon": [
-      [
-        -81,
-        32
-      ],
-      [
-        -76,
-        36
-      ],
-      [
-        -73,
-        35
-      ],
-      [
-        -79,
-        31
-      ]
-    ],
-    "bathy_path": "gebco_bath_latest/gebco_bathy.json",
     "online_retention_days": 31
   }
 }
