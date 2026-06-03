@@ -1670,18 +1670,30 @@ async function renderDesktopFrame(frameMeta) {
 
   // Build raster canvas
   const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
-  const url = canvas.toDataURL("image/png");
-  console.log("[OL] canvas encoded, url starts:", url ? url.slice(0,30) : "empty");
+  let url;
+  try {
+    url = canvas.toDataURL("image/png");
+  } catch (e) {
+    console.error("[OL] toDataURL failed for", currentVar, frameMeta?.id || frameMeta?.json_path, e);
+    throw e;
+  }
+  console.log("[OL] canvas encoded, url starts:", url ? url.slice(0,30) : "empty", "len:", url?.length);
   if (!url || !url.startsWith("data:image/png")) throw new Error("Could not encode desktop raster");
 
   const extent = frameExtentFromGrid(gridInfo);
   console.log("[OL] extent:", extent);
-  const source = new ol.source.ImageStatic({
-    url,
-    imageExtent: extent,
-    projection: "EPSG:4326",
-    interpolate: false
-  });
+  let source;
+  try {
+    source = new ol.source.ImageStatic({
+      url,
+      imageExtent: extent,
+      projection: "EPSG:4326",
+      interpolate: false
+    });
+  } catch (e) {
+    console.error("[OL] new ol.source.ImageStatic failed for", currentVar, frameMeta?.id || frameMeta?.json_path, "url_len:", url?.length, e);
+    throw e;
+  }
   source.on("imageloaderror", () => {
     console.error("[OL] imageloaderror fired!");
     throw new Error("Desktop OL image load failed");
@@ -4230,10 +4242,22 @@ async function renderCombinedMode() {
     window._combinedChlData = data;
     window._combinedChlGrid = grid;
     const canvas = makeMobileRasterCanvas("chl", grid, data);
-    const url = canvas.toDataURL("image/png");
+    let url;
+    try {
+      url = canvas.toDataURL("image/png");
+    } catch (e) {
+      console.error("[OL chl] toDataURL failed", frame?.id || frame?.json_path, e);
+      return;
+    }
     if (url && url.startsWith("data:image/png")) {
       const extent = frameExtentFromGrid(grid);
-      const src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+      let src;
+      try {
+        src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
+      } catch (e) {
+        console.error("[OL chl] ImageStatic source failed, url_len:", url?.length, frame?.id || frame?.json_path, e);
+        return;
+      }
       const layer = new ol.layer.Image({ source: src, zIndex: 10 });
       map.addLayer(layer);
       window._combinedChlLayer = layer;
@@ -4797,17 +4821,29 @@ async function buildChlCompositeLayer(map, hours) {
   }
 
   const canvas = makeMobileRasterCanvas("chl", base.grid, renderData);
-  const url = canvas.toDataURL("image/png");
+  let url;
+  try {
+    url = canvas.toDataURL("image/png");
+  } catch (e) {
+    console.error("[OL composite] toDataURL failed", e);
+    return {};
+  }
   if (!url || !url.startsWith("data:image/png")) return {};
-  const layer = new ol.layer.Image({
-    source: new ol.source.ImageStatic({
-      url,
-      imageExtent: frameExtentFromGrid(base.grid),
-      projection: "EPSG:4326",
-      interpolate: false
-    }),
-    zIndex: 10
-  });
+  let layer;
+  try {
+    layer = new ol.layer.Image({
+      source: new ol.source.ImageStatic({
+        url,
+        imageExtent: frameExtentFromGrid(base.grid),
+        projection: "EPSG:4326",
+        interpolate: false
+      }),
+      zIndex: 10
+    });
+  } catch (e) {
+    console.error("[OL composite] ImageStatic source failed, url_len:", url?.length, e);
+    return {};
+  }
   const epochTimes = selected.map(item => epochMsForFrame("chl", item.frame)).filter(t => t);
   let scanTime = "";
   if (epochTimes.length > 0) {
