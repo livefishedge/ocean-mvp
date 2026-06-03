@@ -5297,12 +5297,21 @@ async function renderMobileFrame(frameMeta) {
   }
   if (!url) throw new Error("Could not encode mobile raster (empty url)");
   const extent = frameExtentFromGrid(gridInfo);
-  const source = new ol.source.ImageStatic({
-    url,
-    imageExtent: extent,
-    projection: "EPSG:4326",
-    interpolate: false
-  });
+  let source;
+  try {
+    source = new ol.source.ImageStatic({
+      url,
+      imageExtent: extent,
+      projection: "EPSG:4326",
+      interpolate: false
+    });
+  } catch (e) {
+    console.error("[OL mobile] new ol.source.ImageStatic failed, url:", url?.slice(0, 40), "len:", url?.length, "extent:", extent, e);
+    if (url && url.startsWith("blob:")) {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+    }
+    throw e;
+  }
   source.on("imageloaderror", () => {
     console.error("Mobile map image layer failed to load; falling back to Plotly.");
     mobileMapState.disabled = true;
