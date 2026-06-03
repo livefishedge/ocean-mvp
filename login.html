@@ -68,6 +68,10 @@
     <h1>Ocean MVP</h1>
     <p class="subtitle">Sign in to access your marine intelligence dashboard.</p>
 
+    <div id="verify-banner" style="display:none;margin-bottom:14px;padding:10px 12px;border:1px solid #f59e0b;background:rgba(245,158,11,0.08);color:#fbbf24;border-radius:8px;font-size:12.5px;line-height:1.4;">
+      Please verify your email before accessing the dashboard. Check your inbox for the confirmation link, then sign in.
+    </div>
+
     <form id="login-form" novalidate>
       <label for="email">Email address</label>
       <input type="email" id="email" placeholder="captain@example.com" required />
@@ -98,6 +102,16 @@
       const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
       const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
       const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      // If we were bounced here from the dashboard because the user's email
+      // isn't verified, show the verify banner above the form.
+      try {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('reason') === 'verify') {
+          const banner = document.getElementById('verify-banner');
+          if (banner) banner.style.display = 'block';
+        }
+      } catch (e) {}
       function showMsg(msg, type) {
         const el = document.getElementById('msg');
         el.textContent = msg;

@@ -836,23 +836,10 @@ body.combined-mode #combined-menu-btn{
   </style>
 </head>
 <body>
-  <!-- Full-screen auth gate -->
-  <div id="login-gate" style="
-    position:fixed;inset:0;z-index:9999;background:var(--bg,#050b10);
-    display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;
-  ">
-    <h1 style="color:#2dd4bf;font-size:1.5rem;margin-bottom:4px;">Ocean MVP</h1>
-    <p id="login-gate-msg" style="color:#7a8fa6;font-size:0.9rem;">Sign in to access the dashboard.</p>
-    <a href="login.html" style="
-      display:inline-block;padding:11px 28px;background:#1a7f7a;color:#fff;
-      border-radius:8px;text-decoration:none;font-weight:700;font-size:0.95rem;
-    ">Sign in</a>
-    <a href="account.html" style="
-      display:inline-block;padding:11px 28px;background:transparent;color:#2dd4bf;
-      border-radius:8px;text-decoration:none;font-weight:700;font-size:0.95rem;
-      border:1px solid #2dd4bf;margin-top:4px;
-    ">My Account</a>
-  </div>
+  <!-- No full-screen gate: unauthenticated users are auto-redirected to
+       login.html by the auth init script (see initAuth below). The user
+       requested removing the redundant intermediate page so the first
+       thing a new visitor sees is the actual login or signup form. -->
 
   <!-- Auth + PostHog init -->
   <script>
@@ -887,12 +874,12 @@ body.combined-mode #combined-menu-btn{
 
     async function enforceEmailVerification(session) {
       if (!session || session.user.email_confirmed_at) return true;
-      const msg = document.getElementById('login-gate-msg');
-      if (msg) msg.textContent = 'Please verify your email before accessing the dashboard.';
-      document.getElementById('login-gate').style.display = 'flex';
+      // The legacy full-screen gate has been removed; unverified users are
+      // sent to the login page with a banner explaining what to do.
       setAccountLinkVisible(false);
       try { sessionStorage.setItem('email_verification_required', 'true'); } catch(e) {}
       await sb.auth.signOut();
+      window.location.replace('login.html?reason=verify');
       return false;
     }
 
@@ -900,8 +887,15 @@ body.combined-mode #combined-menu-btn{
       // Auth: check session first (handles page refresh with existing session),
       // then listen for changes (handles magic link redirect with new session).
       const { data: { session } } = await sb.auth.getSession();
+      // No session -> redirect to the actual login form on first visit. This
+      // replaces the legacy full-screen "Sign in / My Account" gate so the
+      // first page a visitor sees is the real login/signup form, not an
+      // intermediate click-through.
+      if (!session) {
+        window.location.replace('login.html');
+        return;
+      }
       if (session && await enforceEmailVerification(session)) {
-        document.getElementById('login-gate').style.display = 'none';
         setAccountLinkVisible(true);
         posthog.identify(session.user.email, { email: session.user.email });
         // Load user's selected region from profiles table and lock the dashboard to it.
@@ -930,9 +924,6 @@ body.combined-mode #combined-menu-btn{
         if (event === 'SIGNED_IN' && session) {
           if (!await enforceEmailVerification(session)) return;
           posthog.identify(session.user.email, { email: session.user.email });
-          if (document.getElementById('login-gate').style.display !== 'none') {
-            document.getElementById('login-gate').style.display = 'none';
-          }
           setAccountLinkVisible(true);
         } else if (event === 'SIGNED_OUT') {
           window.location.replace('login.html');
