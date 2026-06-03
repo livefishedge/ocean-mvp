@@ -1014,16 +1014,13 @@ body.combined-mode #combined-menu-btn{
         <span>Chlorophyll</span>
       </label>
       <select id="combined-chl-composite" style="margin:6px 0 4px 28px;font-size:13px;">
-        <option value="1">Latest CHL</option>
-        <option value="2">Last 2 scans</option>
-        <option value="3">Last 3 scans</option>
-        <option value="4">Last 4 scans</option>
-        <option value="5">Last 5 scans</option>
-        <option value="6">Last 6 scans</option>
-        <option value="7">Last 7 scans</option>
-        <option value="8">Last 8 scans</option>
-        <option value="12">Last 12 scans</option>
-        <option value="24">Last 24 scans</option>
+        <option value="1">Latest</option>
+        <option value="3">Last 3 hours</option>
+        <option value="6">Last 6 hours</option>
+        <option value="12">Last 12 hours</option>
+        <option value="24" selected>Last 24 hours</option>
+        <option value="48">Last 48 hours</option>
+        <option value="72">Last 72 hours</option>
       </select>
       <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
       <label class="combined-toggle">
@@ -2015,9 +2012,9 @@ if (chkChl) chkChl.addEventListener("change", async e => {
   const checked = e.target.checked;
   if (window._combinedChlLayer) window._combinedChlLayer.setVisible(checked);
   if (checked && window._combinedMap) {
-    const count = parseInt((document.getElementById("combined-chl-composite") || {value:"1"}).value, 10);
+    const hours = parseInt((document.getElementById("combined-chl-composite") || {value:"1"}).value, 10);
     if (window._combinedChlLayer) { window._combinedMap.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
-    const result = await buildChlCompositeLayer(window._combinedMap, count);
+    const result = await buildChlCompositeLayer(window._combinedMap, hours);
     if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
     if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
@@ -2162,16 +2159,16 @@ if (thermalHoursSelect) {
   });
 }
 
-/* Combined dropdown: CHL composite count */
+/* Combined dropdown: CHL hours composite */
 const chlCompositeSelect = document.getElementById("combined-chl-composite");
 const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
 if (chlCompositeSelect) {
   chlCompositeSelect.addEventListener("change", async () => {
-    const count = parseInt(chlCompositeSelect.value, 10);
+    const hours = parseInt(chlCompositeSelect.value, 10);
     // Remove existing CHL layer
     if (window._combinedChlLayer) { window._combinedMap?.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
     if (!window._combinedMap) return;
-    const result = await buildChlCompositeLayer(window._combinedMap, count);
+    const result = await buildChlCompositeLayer(window._combinedMap, hours);
     if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
     if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
@@ -4706,7 +4703,7 @@ function speedColor(speed, min, max) {
   return `rgb(${r},50,${b})`;
 }
 
-async function buildChlCompositeLayer(map, count) {
+async function buildChlCompositeLayer(map, hours) {
   const chlFrames = framesByVar.chl || [];
   if (!chlFrames.length) return {};
   const sorted = [...chlFrames].sort((a, b) => {
@@ -4714,7 +4711,21 @@ async function buildChlCompositeLayer(map, count) {
     const tb = epochMsForFrame("chl", b) || 0;
     return tb - ta;
   });
-  const selected = sorted.slice(0, Math.max(1, Math.min(count || 1, sorted.length)));
+  // Filter by time window relative to the newest frame, not wall-clock time.
+  // Same logic as the SST hours select (sstHoursSelect handler) so the
+  // CHL and SST composites span the same observation window.
+  const latestT = epochMsForFrame("chl", sorted[0]) || Date.now();
+  const cutoff = latestT - (hours || 1) * 3600000;
+  let selected = sorted.filter(f => {
+    const t = epochMsForFrame("chl", f);
+    return t && t >= cutoff;
+  });
+  if (!selected.length) {
+    // Fall back to the latest single frame if the time window has no hits
+    // (e.g. data older than the requested window). Keep the dashboard
+    // showing something rather than going blank.
+    selected = [sorted[0]];
+  }
   const loaded = (await Promise.all(selected.map(async frame => {
     try {
       const data = await fetchFrameData("chl", frame);
