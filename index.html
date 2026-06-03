@@ -4890,7 +4890,8 @@ function buildThermalHoursComposite(map, hours) {
       if (!c) continue;
       nonzero++;
       const alpha = Math.min(95, c * 14);
-      ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+      const aStr = Number.isFinite(alpha) ? (alpha / 255).toFixed(3) : "0.373";
+      ctx.fillStyle = `rgba(255,30,30,${aStr})`;
       ctx.beginPath();
       ctx.arc(x + 0.5, row + 0.5, 1.08, 0, Math.PI * 2);
       ctx.fill();
@@ -5090,9 +5091,10 @@ function buildThermalFrontDensityCanvas(frontData, grid) {
       const c = counts[row * nx + x];
       if (c > 0) {
         const alpha = Math.min(95, (c / maxC) * 110);
+        const aStr = Number.isFinite(alpha) ? (alpha / 255).toFixed(3) : "0.373";
         ctx.beginPath();
         ctx.arc(x + 0.5, row + 0.5, radiusPx, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+        ctx.fillStyle = `rgba(255,30,30,${aStr})`;
         ctx.fill();
       }
     }
@@ -5131,9 +5133,10 @@ async function buildThermalFrontDensityCanvas(frontData, grid) {
       const c = counts[row * nx + x];
       if (c > 0) {
         const alpha = Math.min(95, c * 12);
+        const aStr = Number.isFinite(alpha) ? (alpha / 255).toFixed(3) : "0.373";
         ctx.beginPath();
         ctx.arc(x + 0.5, row + 0.5, radiusPx, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
+        ctx.fillStyle = `rgba(255,30,30,${aStr})`;
         ctx.fill();
       }
     }
@@ -5683,16 +5686,25 @@ function thermalDensityCanvas(field) {
   const max = Math.max(field.max || 1, 1);
   const cutoff = Math.max(field.cutoff || 2, Math.round(max * 0.15));
   const span = Math.max(1, max - cutoff);
-  const color = field.color || [19, 74, 136];
+  // Sanitize color: every channel must be a finite integer 0..255, otherwise
+  // a malformed rgba string (e.g. rgba(undefined,...) or rgba(NaN,...)) makes
+  // Safari throw 'The string did not match the expected pattern' on the
+  // canvas2D fillStyle assignment.
+  const c = field.color || [19, 74, 136];
+  const cr = Number.isFinite(c[0]) ? Math.max(0, Math.min(255, c[0] | 0)) : 19;
+  const cg = Number.isFinite(c[1]) ? Math.max(0, Math.min(255, c[1] | 0)) : 74;
+  const cb = Number.isFinite(c[2]) ? Math.max(0, Math.min(255, c[2] | 0)) : 136;
   for (let row = 0; row < field.ny; row++) {
     const y = field.ny - 1 - row;
     for (let x = 0; x < field.nx; x++) {
       const v = field.counts[row * field.nx + x];
       if (v < cutoff) continue;
       const norm = Math.min(1, (v - cutoff) / span);
+      const a = Number.isFinite(norm) ? (0.10 + 0.55 * norm) : 0.373;
+      const aStr = a.toFixed(3);
       ctx.beginPath();
       ctx.arc(x + 0.5, y + 0.5, 2.52, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(0.10 + 0.55 * norm).toFixed(3)})`;
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${aStr})`;
       ctx.fill();
     }
   }

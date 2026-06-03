@@ -2,6 +2,7 @@
 // native canvas 2D strokes (no per-pixel manipulation, no getImageData/putImageData).
 // This avoids the Safari freezing issue while still showing current direction.
 function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscending, yFlip) {
+  try {
   const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
   const u = d?.u || dataObj?.meta?.grid?.u;
   const v = d?.v || dataObj?.meta?.grid?.v;
@@ -70,4 +71,11 @@ function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAsce
     }
   }
   ctx.restore();
+  } catch (err) {
+    // Never let the arrow renderer take down the whole dashboard. If a
+    // canvas2D call rejects a string (Safari 'The string did not match
+    // the expected pattern'), bail silently and let the ADT/UV field
+    // render normally.
+    try { ctx && ctx.restore && ctx.restore(); } catch (e) {}
+  }
 }
