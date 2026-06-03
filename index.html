@@ -1672,13 +1672,22 @@ async function renderDesktopFrame(frameMeta) {
   const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
   let url;
   try {
-    url = canvas.toDataURL("image/png");
+    // toBlob + createObjectURL avoids the iOS Safari 'The string did not
+    // match the expected pattern' error that toDataURL throws for some
+    // large/sparse-canvas combinations. Affects S3 OLCI sparse frames
+    // and any other large frame on iOS mobile Safari.
+    url = await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(URL.createObjectURL(blob));
+        else reject(new Error("canvas.toBlob returned null"));
+      }, "image/png");
+    });
   } catch (e) {
-    console.error("[OL] toDataURL failed for", currentVar, frameMeta?.id || frameMeta?.json_path, e);
+    console.error("[OL] canvas.toBlob failed for", currentVar, frameMeta?.id || frameMeta?.json_path, e);
     throw e;
   }
-  console.log("[OL] canvas encoded, url starts:", url ? url.slice(0,30) : "empty", "len:", url?.length);
-  if (!url || !url.startsWith("data:image/png")) throw new Error("Could not encode desktop raster");
+  console.log("[OL] canvas encoded via toBlob, url:", url?.slice(0, 30));
+  if (!url) throw new Error("Could not encode desktop raster");
 
   const extent = frameExtentFromGrid(gridInfo);
   console.log("[OL] extent:", extent);
@@ -1691,7 +1700,7 @@ async function renderDesktopFrame(frameMeta) {
       interpolate: false
     });
   } catch (e) {
-    console.error("[OL] new ol.source.ImageStatic failed for", currentVar, frameMeta?.id || frameMeta?.json_path, "url_len:", url?.length, e);
+    console.error("[OL] new ol.source.ImageStatic failed for", currentVar, frameMeta?.id || frameMeta?.json_path, "url:", url?.slice(0, 30), e);
     throw e;
   }
   source.on("imageloaderror", () => {
@@ -4244,18 +4253,28 @@ async function renderCombinedMode() {
     const canvas = makeMobileRasterCanvas("chl", grid, data);
     let url;
     try {
-      url = canvas.toDataURL("image/png");
+      // toBlob + createObjectURL avoids the iOS Safari 'The string did not
+      // match the expected pattern' error that toDataURL throws for some
+      // large/sparse-canvas combinations (specifically S3 OLCI sparse
+      // frames on the captain's mobile dashboard).
+      url = await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => {
+          if (blob) resolve(URL.createObjectURL(blob));
+          else reject(new Error("canvas.toBlob returned null"));
+        }, "image/png");
+      });
     } catch (e) {
-      console.error("[OL chl] toDataURL failed", frame?.id || frame?.json_path, e);
+      console.error("[OL chl] canvas.toBlob failed", frame?.id || frame?.json_path, e);
       return;
     }
-    if (url && url.startsWith("data:image/png")) {
+    if (url) {
       const extent = frameExtentFromGrid(grid);
       let src;
       try {
         src = new ol.source.ImageStatic({ url, imageExtent: extent, projection: "EPSG:4326", interpolate: false });
       } catch (e) {
-        console.error("[OL chl] ImageStatic source failed, url_len:", url?.length, frame?.id || frame?.json_path, e);
+        console.error("[OL chl] ImageStatic source failed, url:", url?.slice(0, 30), frame?.id || frame?.json_path, e);
+        try { URL.revokeObjectURL(url); } catch (_) {}
         return;
       }
       const layer = new ol.layer.Image({ source: src, zIndex: 10 });
@@ -4823,12 +4842,21 @@ async function buildChlCompositeLayer(map, hours) {
   const canvas = makeMobileRasterCanvas("chl", base.grid, renderData);
   let url;
   try {
-    url = canvas.toDataURL("image/png");
+    // toBlob + createObjectURL avoids the iOS Safari 'The string did not
+    // match the expected pattern' error that toDataURL throws for some
+    // large/sparse-canvas combinations. Return a Promise<{layer, ...}>
+    // wrapping the blob URL.
+    url = await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(URL.createObjectURL(blob));
+        else reject(new Error("canvas.toBlob returned null"));
+      }, "image/png");
+    });
   } catch (e) {
-    console.error("[OL composite] toDataURL failed", e);
+    console.error("[OL composite] canvas.toBlob failed", e);
     return {};
   }
-  if (!url || !url.startsWith("data:image/png")) return {};
+  if (!url) return {};
   let layer;
   try {
     layer = new ol.layer.Image({
@@ -4841,7 +4869,8 @@ async function buildChlCompositeLayer(map, hours) {
       zIndex: 10
     });
   } catch (e) {
-    console.error("[OL composite] ImageStatic source failed, url_len:", url?.length, e);
+    console.error("[OL composite] ImageStatic source failed, url:", url?.slice(0, 30), e);
+    try { URL.revokeObjectURL(url); } catch (_) {}
     return {};
   }
   const epochTimes = selected.map(item => epochMsForFrame("chl", item.frame)).filter(t => t);
