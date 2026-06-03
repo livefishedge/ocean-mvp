@@ -4878,10 +4878,10 @@ function buildThermalHoursComposite(map, hours) {
       const c = counts[row * nx + x];
       if (!c) continue;
       nonzero++;
-      const alpha = Math.min(180, c * 25);
+      const alpha = Math.min(95, c * 14);
       ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
       ctx.beginPath();
-      ctx.arc(x, row, 2.5, 0, Math.PI * 2);
+      ctx.arc(x + 0.5, row + 0.5, 0.6, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -5061,7 +5061,7 @@ function buildThermalFrontDensityCanvas(frontData, grid) {
   canvas.height = ny;
   const ctx = canvas.getContext("2d");
   const counts = new Float32Array(nx * ny);
-  const radiusPx = 1;
+  const radiusPx = 0.5;
   for (const feat of features) {
     const coords = feat.geometry?.coordinates || [];
     for (const pt of coords) {
@@ -5078,9 +5078,9 @@ function buildThermalFrontDensityCanvas(frontData, grid) {
     for (let x = 0; x < nx; x++) {
       const c = counts[row * nx + x];
       if (c > 0) {
-        const alpha = Math.min(140, (c / maxC) * 160);
+        const alpha = Math.min(95, (c / maxC) * 110);
         ctx.beginPath();
-        ctx.arc(x, row, radiusPx, 0, Math.PI * 2);
+        ctx.arc(x + 0.5, row + 0.5, radiusPx, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
         ctx.fill();
       }
@@ -5101,7 +5101,7 @@ async function buildThermalFrontDensityCanvas(frontData, grid) {
   canvas.height = ny;
   const ctx = canvas.getContext("2d");
   const counts = new Uint8Array(nx * ny);
-  const radiusPx = 1;
+  const radiusPx = 0.5;
 
   for (const feat of features) {
     const coords = feat.geometry?.coordinates || [];
@@ -5119,9 +5119,9 @@ async function buildThermalFrontDensityCanvas(frontData, grid) {
     for (let x = 0; x < nx; x++) {
       const c = counts[row * nx + x];
       if (c > 0) {
-        const alpha = Math.min(140, c * 18);
+        const alpha = Math.min(95, c * 12);
         ctx.beginPath();
-        ctx.arc(x, row, radiusPx, 0, Math.PI * 2);
+        ctx.arc(x + 0.5, row + 0.5, radiusPx, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
         ctx.fill();
       }
@@ -5593,9 +5593,11 @@ function thermalHslToRgb(h, s, l) {
 }
 
 function thermalColorForDensityDate(date) {
-  const idx = Math.max(0, thermalFrontState.hourlyDays.indexOf(date));
-  const denom = Math.max(1, thermalFrontState.hourlyDays.length - 1);
-  return thermalHslToRgb(270 - (idx / denom) * 270, 0.85, 0.50);
+  // Captain's dashboard: keep all density markers red (RGB 255,30,30)
+  // regardless of date. The user feedback on Jun 3 was that the
+  // date-based hue gradient (violet->red) was visually confusing
+  // because some older days looked blue/purple instead of red.
+  return [255, 30, 30];
 }
 
 function thermalBuildDensityField(points, hourlyCount, label) {
@@ -5678,8 +5680,8 @@ function thermalDensityCanvas(field) {
       if (v < cutoff) continue;
       const norm = Math.min(1, (v - cutoff) / span);
       ctx.beginPath();
-      ctx.arc(x, y, 4, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(0.16 + 0.84 * norm).toFixed(3)})`;
+      ctx.arc(x + 0.5, y + 0.5, 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(0.10 + 0.55 * norm).toFixed(3)})`;
       ctx.fill();
     }
   }
