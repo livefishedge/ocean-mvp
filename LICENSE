@@ -1,0 +1,88 @@
+Ocean MVP — Dual License
+
+Copyright (c) 2026 Live Fish Edge / DataNinjaAI. All rights reserved.
+
+This repository contains two categories of material, each under different terms:
+
+================================================================================
+PART 1 — VIEWER CODE (HTML, CSS, JavaScript, front-end assets)
+================================================================================
+
+The viewer code in this repository (everything in /, including index.html,
+login.html, register.html, account.html, combined-viewer.html, thermal-fronts.html,
+and any .js / .css / .html at the repository root) is released under the MIT
+License:
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+================================================================================
+PART 2 — DATA, MODELS, AND OPERATIONAL ARTIFACTS (PROPRIETARY, ALL RIGHTS RESERVED)
+================================================================================
+
+The following material in this repository is PROPRIETARY and NOT covered by the
+MIT license above. All rights are reserved by Live Fish Edge / DataNinjaAI.
+
+A. DATA LAYER
+   - All .json, .nc, .png, and .bin files under /data/
+   - All rasterized oceanographic, atmospheric, and bathymetric products
+   - All derivative products (chlorophyll-a, sea surface temperature, currents,
+     thermal fronts, chlorophyll fronts, bathymetry, etc.)
+   - All grid metadata (bbox, ny/nx, axis definitions)
+   - All index files (index.json, index-usec_*.json, sync_manifest.json)
+
+   You may VIEW this data via the live website at https://livefishedge.github.io/
+   for personal, non-commercial evaluation. You may NOT:
+   - Scrape, bulk-download, mirror, or republish this data
+   - Use this data to train, validate, or fine-tune any machine-learning model
+   - Use this data in a commercial product or service
+   - Redistribute derived or transformed versions of this data
+
+B. ML MODELS AND MODEL OUTPUTS
+   - All model weights, checkpoints, and training artifacts
+   - All model-produced rasters, composites, and inferences
+   - All model-version identifiers, normalizers, feature contracts, and
+     inference logic
+
+C. OPERATIONAL ARTIFACTS
+   - Pipeline orchestration code (previously in /pipelines/, now in the
+     private operations repository)
+   - Publish / sanitize scripts
+   - Region definitions, retention policies, model-version whitelists
+   - Cron jobs, lock files, state files, log files
+   - Diagnostic screenshots and internal QA artifacts
+
+================================================================================
+ENFORCEMENT
+================================================================================
+
+Live Fish Edge / DataNinjaAI reserves the right to:
+- Revoke access to the live website at any time, with or without cause
+- Pursue legal remedies for any violation of the proprietary terms in Part 2
+- Add technical protections (rate limiting, bot detection, watermarking) to
+  prevent unauthorized scraping or model training
+
+For licensing inquiries (commercial data access, model licensing, partnerships):
+contact via the channels listed on the live website.
+
+================================================================================
+ATTRIBUTION
+================================================================================
+
+If you use the viewer code (Part 1) in your own project, please retain the
+copyright notice and link back to the original repository.
+
+If you fork this repository, the data and model layers (Part 2) MUST be removed
+or replaced before redistribution. A bare fork containing only viewer code is
+the only redistribution we permit.
