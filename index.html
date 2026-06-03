@@ -4892,7 +4892,7 @@ function buildThermalHoursComposite(map, hours) {
       const alpha = Math.min(95, c * 14);
       ctx.fillStyle = `rgba(255,30,30,${(alpha / 255).toFixed(3)})`;
       ctx.beginPath();
-      ctx.arc(x + 0.5, row + 0.5, 0.6, 0, Math.PI * 2);
+      ctx.arc(x + 0.5, row + 0.5, 0.9, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -5072,7 +5072,7 @@ function buildThermalFrontDensityCanvas(frontData, grid) {
   canvas.height = ny;
   const ctx = canvas.getContext("2d");
   const counts = new Float32Array(nx * ny);
-  const radiusPx = 0.5;
+  const radiusPx = 0.75;
   for (const feat of features) {
     const coords = feat.geometry?.coordinates || [];
     for (const pt of coords) {
@@ -5112,7 +5112,7 @@ async function buildThermalFrontDensityCanvas(frontData, grid) {
   canvas.height = ny;
   const ctx = canvas.getContext("2d");
   const counts = new Uint8Array(nx * ny);
-  const radiusPx = 0.5;
+  const radiusPx = 0.75;
 
   for (const feat of features) {
     const coords = feat.geometry?.coordinates || [];
@@ -5691,7 +5691,7 @@ function thermalDensityCanvas(field) {
       if (v < cutoff) continue;
       const norm = Math.min(1, (v - cutoff) / span);
       ctx.beginPath();
-      ctx.arc(x + 0.5, y + 0.5, 1.4, 0, Math.PI * 2);
+      ctx.arc(x + 0.5, y + 0.5, 2.1, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${(0.10 + 0.55 * norm).toFixed(3)})`;
       ctx.fill();
     }
