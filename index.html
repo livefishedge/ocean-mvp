@@ -836,6 +836,45 @@ body.combined-mode #combined-menu-btn{
   </style>
 </head>
 <body>
+  <!-- Global error overlay: catches 'The string did not match the expected
+       pattern' and any other uncaught errors on iOS Safari. Shows the
+       actual error message + stack in a fixed div at the top of the page
+       so the user can read what went wrong instead of just 'OL error'. -->
+  <div id="global-error-overlay" style="display:none;position:fixed;top:0;left:0;right:0;z-index:10000;background:rgba(180,30,30,0.95);color:#fff;padding:10px 14px;font:12px/1.4 monospace;max-height:50vh;overflow:auto;border-bottom:2px solid #ff6b6b;"></div>
+  <script>
+    (function() {
+      const ov = document.getElementById('global-error-overlay');
+      if (!ov) return;
+      function showErr(title, msg, stack) {
+        if (ov.dataset.closed === '1') return;
+        ov.style.display = 'block';
+        ov.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+          + '<strong style="font-size:14px;">⚠️ ' + title + '</strong>'
+          + '<button onclick="document.getElementById(\'global-error-overlay\').dataset.closed=\'1\';this.parentNode.parentNode.style.display=\'none\';" style="background:transparent;color:#fff;border:1px solid #fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;">dismiss</button>'
+          + '</div>'
+          + '<div>' + (msg || '').replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</div>'
+          + (stack ? '<details style="margin-top:6px;"><summary style="cursor:pointer;">stack</summary><pre style="margin:4px 0 0 0;white-space:pre-wrap;font-size:10px;">' + stack.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</pre></details>' : '');
+      }
+      window.addEventListener('error', (ev) => {
+        const m = ev.message || String(ev.error || ev);
+        if (/did not match the expected pattern/i.test(m) || /string did not match/i.test(m)) {
+          showErr('String did not match expected pattern', m, ev.error?.stack || '');
+        } else {
+          // Only show other errors if they're from OL/chl/sst to avoid noise
+          if (/ol|chl|sst|canvas|toBlob|toDataURL|ImageStatic/i.test(m)) {
+            showErr('JS Error', m + ' (at ' + (ev.filename || '?') + ':' + (ev.lineno || '?') + ')', ev.error?.stack || '');
+          }
+        }
+      });
+      window.addEventListener('unhandledrejection', (ev) => {
+        const m = ev.reason?.message || String(ev.reason || '');
+        if (/did not match the expected pattern/i.test(m) || /string did not match/i.test(m)) {
+          showErr('Promise rejected: String did not match', m, ev.reason?.stack || '');
+        }
+      });
+    })();
+  </script>
+
   <!-- No full-screen gate: unauthenticated users are auto-redirected to
        login.html by the auth init script (see initAuth below). The user
        requested removing the redundant intermediate page so the first
@@ -5238,10 +5277,25 @@ async function renderMobileFrame(frameMeta) {
   mobileMapState.currentDataObj = dataObj;
 
   const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
-  // iOS Safari is more reliable with data URLs than Blob image URLs for
-  // dynamically generated static image layers. The frames are small enough here.
-  const url = canvas.toDataURL("image/png");
-  if (!url || !url.startsWith("data:image/png")) throw new Error("Could not encode mobile raster");
+  // toBlob + createObjectURL: try first; fall back to toDataURL on iOS Safari
+  // (the 2026-05 note saying 'data URLs are more reliable' was for the
+  // static basemap raster; the dynamic chl/sst canvases are different).
+  let url;
+  try {
+    url = await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(URL.createObjectURL(blob));
+        else reject(new Error("canvas.toBlob returned null"));
+      }, "image/png");
+    });
+  } catch (e) {
+    console.error("[OL mobile] toBlob failed, falling back to toDataURL", e);
+    try { url = canvas.toDataURL("image/png"); } catch (e2) {
+      console.error("[OL mobile] toDataURL also failed", e2);
+      throw new Error("Could not encode mobile raster (both toBlob and toDataURL failed)");
+    }
+  }
+  if (!url) throw new Error("Could not encode mobile raster (empty url)");
   const extent = frameExtentFromGrid(gridInfo);
   const source = new ol.source.ImageStatic({
     url,
