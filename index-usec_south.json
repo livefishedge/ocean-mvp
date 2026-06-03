@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-06-03T03:34:45.689386Z",
+  "last_updated": "2026-06-03T03:55:55.098864Z",
   "vars": [
     "chl",
     "sst",
@@ -4738,6 +4738,14 @@
         "label": "2026-06-02 18:00 UTC",
         "time_iso": "2026-06-02T18:00:00Z",
         "json_path": "data/usec_south/sst/sst_usec_south_2026153_20260602_18_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_south_2026153_20260602_19_g19",
+        "label": "2026-06-02 19:00 UTC",
+        "time_iso": "2026-06-02T19:00:00Z",
+        "json_path": "data/usec_south/sst/sst_usec_south_2026153_20260602_19_g19.json",
         "grid_file": "goes_sst_1000_grid.json"
       },
       {
@@ -9484,6 +9492,14 @@
       },
       {
         "var": "sst_front",
+        "id": "sstfront_usec_south_2026153_20260602_19_g19",
+        "label": "2026-06-02 19:00 UTC",
+        "time_iso": "2026-06-02T19:00:00Z",
+        "json_path": "data/usec_south/sst_front/sstfront_usec_south_2026153_20260602_19_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
         "id": "sstfront_usec_south_2026153_20260602_23_g19",
         "label": "2026-06-02 23:00 UTC",
         "time_iso": "2026-06-02T23:00:00Z",
@@ -9512,10 +9528,28 @@
     "id": "usec_south",
     "label": "US East Coast \u2014 South-Atlantic",
     "bbox": [
-      -81,
-      31,
-      -73,
-      36
+      "-81",
+      "31",
+      "-73",
+      "36"
+    ],
+    "polygon": [
+      [
+        -81,
+        32
+      ],
+      [
+        -76,
+        36
+      ],
+      [
+        -73,
+        35
+      ],
+      [
+        -79,
+        31
+      ]
     ],
     "bathy_path": "gebco_bath_latest/gebco_bathy.json",
     "online_retention_days": 31
