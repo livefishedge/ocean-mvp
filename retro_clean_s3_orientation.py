@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
 """
-Retro-clean S3/OLCI chl viewer JSONs: flip upside-down frames.
+Retro-clean chl viewer JSONs: flip upside-down frames.
 
-Bug history (2026-06-04): s3_nrt_chl_pipeline.py had an inverted flipud
-condition. Roughly half of S3 chl JSONs since 2026-05-21 were written
-North-Up but the viewer assumes row 0 = latMin (South). When the upstream
-Copernicus S3 file arrived North-Up, the buggy producer skipped the
-flip and the JSON was rendered physically upside down (MAB productive
-waters appeared in the south, S-Florida oligotrophic waters in the north).
+Handles two producer bug classes that wrote upside-down chl frames:
 
-The producer bug is fixed in eumetsat_pipeline commit b8c8635. This
-script flips the historical backlog of inverted frames in the viewer
-repo. We use a physical test (top half mean chl < bottom half mean chl
-for usec_south's lat range) so we only flip the actually-inverted
-frames, never the ones that happen to render correctly via the
-buggy double-flip cancellation.
+1. S3 OLCI (eumetsat_pipeline, fixed in 84578f4): an inverted flipud
+   condition in _save_json that was effectively always-false after the
+   fix, so the flip stopped firing.
+
+2. PACE OCI (nasa_pipeline, fixed in a follow-up commit): an
+   unconditional flipud() in _save_json that turned south-up into
+   north-up, the opposite of what the viewer expects.
+
+We use a physical test (top half mean chl < bottom half mean chl for
+usec_south's lat range) so we only flip the actually-inverted frames,
+never the ones that happen to render correctly via buggy double-flip
+cancellation or non-monotonic gradients.
 
 Usage:
-    python3 retro_clean_s3_orientation.py [--dry-run] [--regions usec_south,usec_md]
+    python3 retro_clean_s3_orientation.py [--dry-run] [--regions usec_south,usec_md] [--sensors S3,PACE]
 """
 from __future__ import annotations
 
@@ -62,6 +63,9 @@ def main():
                     help="Path to the viewer GitHub Pages repo checkout")
     ap.add_argument("--regions", default="usec_south",
                     help="Comma-separated region ids to process")
+    ap.add_argument("--sensors", default="S3,PACE",
+                    help="Comma-separated sensor suffixes to process "
+                         "(S3 matches S3A, S3B, S3A-S3B, S3X; PACE matches PACE-OCI)")
     ap.add_argument("--dry-run", action="store_true",
                     help="Compute stats but do not write back")
     ap.add_argument("--summary-only", action="store_true",
@@ -70,15 +74,23 @@ def main():
 
     viewer_repo = Path(args.viewer_repo)
     regions = [r.strip() for r in args.regions.split(",") if r.strip()]
+    sensors = [s.strip() for s in args.sensors.split(",") if s.strip()]
     files = []
     for region in regions:
         for f in sorted(glob.glob(str(viewer_repo / "data" / region / "chl" / "*.json"))):
-            # Only S3/OLCI chl JSONs are affected by the inverted-flip bug.
             base = os.path.basename(f)
-            if "S3" not in base and "OLCI" not in base:
+            matched = False
+            for sensor in sensors:
+                if sensor == "S3" and ("S3" in base or "OLCI" in base):
+                    matched = True
+                    break
+                if sensor in base:
+                    matched = True
+                    break
+            if not matched:
                 continue
             files.append(f)
-    print(f"Found {len(files)} S3/OLCI chl JSONs across regions {regions}")
+    print(f"Found {len(files)} chl JSONs across regions {regions} sensors {sensors}")
 
     n_flipped = 0
     n_correct = 0
@@ -119,7 +131,7 @@ def main():
             new_z = np.where(np.isnan(arr), None, arr).tolist()
             d["z"] = new_z
             # Bump the retro-clean tag so consumers can see the file was reprocessed.
-            d["_retro_clean"] = "2026-06-04_s3_orientation"
+            d["_retro_clean"] = "2026-06-04_chl_orientation"
             with open(f, "w") as fh:
                 json.dump(d, fh)
         n_flipped += 1
