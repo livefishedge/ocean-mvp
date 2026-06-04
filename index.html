@@ -6794,6 +6794,17 @@ async function showFrame() {
       errDiv.textContent = "Mobile OL error: " + ((e && e.message) ? e.message.slice(0,80) : String(e).slice(0,80));
       errDiv.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(200,50,0,0.9);padding:8px 14px;border-radius:4px;font-size:14px;max-width:80vw;";
       document.body.appendChild(errDiv);
+      // Also surface in the global error overlay.
+      const ov = document.getElementById("global-error-overlay");
+      if (ov && ov.dataset.closed !== '1') {
+        ov.style.display = 'block';
+        const safeMsg = ((e && e.message) ? e.message : String(e)).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+        ov.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+          + '<strong style="font-size:14px;">⚠️ Mobile OL error</strong>'
+          + '<button onclick="this.parentNode.parentNode.dataset.closed=\'1\';this.parentNode.parentNode.style.display=\'none\';" style="background:transparent;color:#fff;border:1px solid #fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;">dismiss</button>'
+          + '</div><div style="white-space:pre-wrap;word-break:break-all;">' + safeMsg + '</div>'
+          + (e && e.stack ? '<details style="margin-top:6px;"><summary style="cursor:pointer;">stack</summary><pre style="margin:4px 0 0 0;white-space:pre-wrap;font-size:10px;">' + e.stack.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</pre></details>' : '');
+      }
     }
   }
 
@@ -6814,6 +6825,18 @@ async function showFrame() {
       errDiv.textContent = "Desktop OL error: " + ((e && e.message) ? e.message.slice(0,80) : String(e).slice(0,80));
       errDiv.style.cssText = "position:fixed;top:40px;left:10px;z-index:999;color:#fff;background:rgba(200,50,0,0.9);padding:8px 14px;border-radius:4px;font-size:14px;max-width:80vw;";
       document.body.appendChild(errDiv);
+      // Also surface in the global error overlay so the user can see the
+      // full message and stack instead of just a truncated 80-char toast.
+      const ov = document.getElementById("global-error-overlay");
+      if (ov && ov.dataset.closed !== '1') {
+        ov.style.display = 'block';
+        const safeMsg = ((e && e.message) ? e.message : String(e)).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
+        ov.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+          + '<strong style="font-size:14px;">⚠️ Desktop OL error</strong>'
+          + '<button onclick="this.parentNode.parentNode.dataset.closed=\'1\';this.parentNode.parentNode.style.display=\'none\';" style="background:transparent;color:#fff;border:1px solid #fff;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:11px;">dismiss</button>'
+          + '</div><div style="white-space:pre-wrap;word-break:break-all;">' + safeMsg + '</div>'
+          + (e && e.stack ? '<details style="margin-top:6px;"><summary style="cursor:pointer;">stack</summary><pre style="margin:4px 0 0 0;white-space:pre-wrap;font-size:10px;">' + e.stack.replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</pre></details>' : '');
+      }
     }
   }
 
