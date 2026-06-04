@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-06-04T14:34:45.454890+00:00",
+  "last_updated": "2026-06-04T14:41:30.257053Z",
   "vars": [
     "chl",
     "sst",
@@ -5091,6 +5091,14 @@
         "time_iso": "2026-06-04T11:00:00Z",
         "json_path": "data/usec_south/sst/sst_usec_south_2026155_20260604_11_g19.json",
         "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_south_2026155_20260604_12_g19",
+        "label": "2026-06-04 12:00 UTC",
+        "time_iso": "2026-06-04T12:00:00Z",
+        "json_path": "data/usec_south/sst/sst_usec_south_2026155_20260604_12_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
       }
     ],
     "uv": [
@@ -10160,6 +10168,14 @@
         "label": "2026-06-04 11:00 UTC",
         "time_iso": "2026-06-04T11:00:00Z",
         "json_path": "data/usec_south/sst_front/sstfront_usec_south_2026155_20260604_11_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_south_2026155_20260604_12_g19",
+        "label": "2026-06-04 12:00 UTC",
+        "time_iso": "2026-06-04T12:00:00Z",
+        "json_path": "data/usec_south/sst_front/sstfront_usec_south_2026155_20260604_12_g19.json",
         "grid_file": "frame_bbox"
       }
     ]
