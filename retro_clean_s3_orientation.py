@@ -94,6 +94,10 @@ def main():
             continue
         z = d.get("z")
         if not z or not isinstance(z, list) or not z or not isinstance(z[0], list):
+            # S3 producer writes under "data" (newer frames) or "z" (older
+            # frames). Try the producer's native key as a fallback.
+            z = d.get("data")
+        if not z or not isinstance(z, list) or not z or not isinstance(z[0], list):
             n_empty += 1
             continue
         try:
