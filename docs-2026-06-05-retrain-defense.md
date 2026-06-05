@@ -2,8 +2,31 @@
 
 ## Background
 
-The 6/4 daily retrain of `cross_sensor/usec_south` produced a degraded
-detector-aware model that inverted CHL output on the 6/4 VIIRS swaths:
+## Actual 6/4 retrain results (2026-06-05 holdout validation)
+
+The 6/4 retrain completed and passed the saved-checkpoint gate for all
+3 sensors (VNP, VJ1, VJ2). Post-publish holdout validation against
+individual VIIRS swaths gave the following:
+
+| Swath | New ratio | Flag | Prior ratio | Gate |
+|---|---|---|---|---|
+| 6/4 VJ2 (1654) | 0.23 | **inverted** | 7.65 | **REJECTED** |
+| 6/4 VNP (1730) | 1.41 | no signal | 8.24 | ✅ PASS |
+| 6/4 VJ1 (1748) | 1.40 | no signal | 10.05 | ✅ PASS |
+| 6/4 VJ2 (1836) | 1.37 | no signal | 5.76 | ✅ PASS |
+| 6/4 VNP (1909) | 1.31 | no signal | 11.51 | ✅ PASS |
+
+**VJ2 (1654) was correctly rejected** by the holdout gate (coastal/offshore
+ratio 0.23x = inverted gradient). All other swaths passed with "no signal"
+(coastal/offshore too similar to call — not a regression, just low signal).
+The prior model (May 13 `multi_day_120_132_det41`) remains in production.
+The 6/4 retrain models are quarantined in `_quarantine_20260605_usec_south_broken_retrain/`.
+
+## Original 6/4 incident (before defense layers)
+
+Before the three-layer defense was added, the 6/4 daily retrain of
+`cross_sensor/usec_south` produced a degraded detector-aware model that
+inverted CHL output on the 6/4 VIIRS swaths:
 
 - Healthy 6/3 (working): coastal/offshore ratio 0.06 - 0.09x
 - Broken 6/4: ratio 12.2x (VNP), 0.82x (VJ1), 1.86x (VJ2)
