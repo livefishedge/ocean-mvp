@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-06-08T19:49:14.016500+00:00",
+  "last_updated": "2026-06-08T19:56:50.221947Z",
   "vars": [
     "chl",
     "sst",
@@ -10,14 +10,6 @@
   ],
   "frames": {
     "chl": [
-      {
-        "var": "chl",
-        "id": "usec_south_2026128.1842_chl_VJ2",
-        "label": "2026-05-08 18:42 UTC | VJ2",
-        "time_iso": "2026-05-08T18:42:00Z",
-        "json_path": "data/usec_south/chl/usec_south_2026128.1842_chl_VJ2.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "chl",
         "id": "usec_south_20260509_2026129.1511_chl_S3B",
@@ -1496,6 +1488,14 @@
         "label": "2026-06-08 14:30 UTC | S3A",
         "time_iso": "2026-06-08T14:30:00Z",
         "json_path": "data/usec_south/chl/usec_south_20260608_2026159.1430_chl_S3A.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_2026159.1718_chl_VJ2",
+        "label": "2026-06-08 17:18 UTC | VJ2",
+        "time_iso": "2026-06-08T17:18:00Z",
+        "json_path": "data/usec_south/chl/usec_south_2026159.1718_chl_VJ2.json",
         "grid_file": "frame_bbox"
       }
     ],
@@ -6186,22 +6186,6 @@
     "chl_front": [
       {
         "var": "chl_front",
-        "id": "chlfront_usec_south_2026128.1842_VJ2",
-        "label": "2026-05-08 18:42 UTC | VJ2",
-        "time_iso": "2026-05-08T18:42:00Z",
-        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026128.1842_VJ2.json",
-        "grid_file": "frame_bbox"
-      },
-      {
-        "var": "chl_front",
-        "id": "chlfront_usec_south_2026128.1915_VNP",
-        "label": "2026-05-08 19:15 UTC | VNP",
-        "time_iso": "2026-05-08T19:15:00Z",
-        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026128.1915_VNP.json",
-        "grid_file": "frame_bbox"
-      },
-      {
-        "var": "chl_front",
         "id": "chlfront_usec_south_2026129.1715_VNP",
         "label": "2026-05-09 17:15 UTC | VNP",
         "time_iso": "2026-05-09T17:15:00Z",
@@ -7414,6 +7398,14 @@
         "label": "2026-06-07 19:18 UTC | VJ2",
         "time_iso": "2026-06-07T19:18:00Z",
         "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026158.1918_VJ2.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl_front",
+        "id": "chlfront_usec_south_2026159.1718_VJ2",
+        "label": "2026-06-08 17:18 UTC | VJ2",
+        "time_iso": "2026-06-08T17:18:00Z",
+        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026159.1718_VJ2.json",
         "grid_file": "frame_bbox"
       }
     ],
