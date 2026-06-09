@@ -1,5 +1,4 @@
 region,frame_id,sensor,time_iso,ny,nx,bbox_W,bbox_S,bbox_E,bbox_N,finite_pct,min,median,max,top10_median,bot10_median,orientation_class,row_order_present,row_order_value,producer_git_sha_present,model_version,qa_gate
-usec_md,usec_md_20260509_2026129.1636_chl_PACE-OCI.json,PACE-OCI,20260509,594,891,-77.0,35.0,-71.0,39.0,0.04,0.0761,0.1101,0.8201,,,?,NO,,NO,,REJECT
 usec_md,usec_md_20260510_2026130.1445_chl_S3B.json,S3B,20260510,743,743,-77.0,35.0,-71.0,39.0,42.98,0.0566,0.6036,19.9838,0.842,0.5883,flat,NO,,NO,,WARN
 usec_md,usec_md_20260510_2026130.1711_chl_PACE-OCI.json,PACE-OCI,20260510,594,891,-77.0,35.0,-71.0,39.0,5.86,0.0493,0.3738,1.0319,0.2229,0.4577,north_up,NO,,NO,,PASS
 usec_md,usec_md_20260511_2026131.1432_chl_S3A-S3B.json,S3A-S3B,20260511,743,743,-77.0,35.0,-71.0,39.0,7.66,0.0194,0.1316,0.8457,0.1175,,?,NO,,NO,,PASS
@@ -64,8 +63,6 @@ usec_md,usec_md_20260607_2026158.1506_chl_S3A-S3B.json,S3A-S3B,20260607,742,742,
 usec_md,usec_md_20260607_2026158.1703_chl_PACE-OCI.json,PACE-OCI,20260607,742,742,-77.0,35.0,-71.0,39.0,0.96,0.3151,0.5028,1.0048,0.8918,,?,NO,,NO,,REJECT
 usec_md,usec_md_20260608_2026159.1604_chl_S3A.json,S3A,20260608,742,742,-77.0,35.0,-71.0,39.0,65.86,0.01,0.3875,19.9453,0.0728,0.6331,north_up,NO,,NO,,PASS
 usec_md,usec_md_20260608_2026159.1737_chl_PACE-OCI.json,PACE-OCI,20260608,742,742,-77.0,35.0,-71.0,39.0,20.45,0.0376,0.314,1.0281,0.647,0.0524,south_up,NO,,NO,,WARN
-usec_md,usec_md_2026129.1718_chl_VNP.json,VNP,,742,742,-76.5,35.5,-71.5,40.5,14.11,0.0267,0.4528,16.4305,0.1174,0.9709,north_up,NO,,NO,008,PASS
-usec_md,usec_md_2026129.1736_chl_VJ1.json,VJ1,,742,742,-76.5,35.5,-71.5,40.5,19.08,0.0226,0.1698,17.5386,0.1472,0.4783,north_up,NO,,NO,008,PASS
 usec_md,usec_md_2026129.1824_chl_VJ2.json,VJ2,,742,742,-76.5,35.5,-71.5,40.5,16.94,0.0356,0.409,19.9541,0.3085,0.9618,north_up,NO,,NO,008,PASS
 usec_md,usec_md_2026130.1718_chl_VJ1.json,VJ1,,742,742,-76.5,35.5,-71.5,40.5,70.68,0.01,0.2099,19.9992,0.1436,0.4307,north_up,NO,,NO,008,PASS
 usec_md,usec_md_2026130.1806_chl_VJ2.json,VJ2,,742,742,-76.5,35.5,-71.5,40.5,74.37,0.01,0.2119,19.9977,0.0655,2.1915,north_up,NO,,NO,008,PASS
