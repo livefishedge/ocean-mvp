@@ -3150,8 +3150,13 @@ function buildChl(grid, data) {
   let plotY = grid.yAxis;
 
   // 3. Preserve producer row order.
-  // CHL JSON is written south-up: row 0 maps to latMin, last row maps to latMax.
-  // Reversing only the axis (without flipping z/customdata) mirrors the map north/south.
+  // CHL row_order comes from grid metadata (set by inferGridFromFrame). For Plotly
+  // heatmap, y[0] is plotted at the BOTTOM of the visible y range. With yAxis
+  // ascending (S->N) row0 (south) sits at the bottom = correct. With yAxis
+  // descending (N->S) row0 (north) sits at the bottom = wrong; we need
+  // autorange='reversed' to flip the y axis display so row0 paints at the top.
+  const rowOrder = grid.row_order || "south_up";
+  const yAutorange = (rowOrder === "north_up") ? "reversed" : true;
 
   // 4. LOG-SCALE COLORS
   // We map the data to Log10 so it matches the footer's Log scale.
@@ -3184,6 +3189,8 @@ function buildChl(grid, data) {
 
   // 6. USE STABLE LAYOUT (Critical for consistent margins)
   const layout = stableLayout();
+  layout.yaxis = layout.yaxis || {};
+  layout.yaxis.autorange = yAutorange;
 
   return { data: [trace], layout };
 }
@@ -4086,9 +4093,22 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   const denom = cfg.hi === cfg.lo ? 1 : (cfg.hi - cfg.lo);
 
   // ImageStatic maps canvas row 0 to the north edge of the extent.
-  // Bathymetry JSON is south-up, so flip it in the active OL raster path.
-  // CHL: south-up JSON (row 0 = latMin = south) → yAscending=true → flip needed.
-  const yFlip = (varKey === "uv" || varKey === "bathy") ? yAscending : yAscending;
+  // south_up JSON: row 0 = latMin = south, but canvas row 0 = top = north → flip needed.
+  // north_up JSON: row 0 = latMax = north, canvas row 0 = top = north → no flip.
+  // When ?useMetadata=1 is on, honor dataObj.row_order for CHL; otherwise keep legacy.
+  const useMetaMob = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("useMetadata") === "1";
+  let chlRowOrder = "south_up";
+  if (useMetaMob && varKey === "chl" && dataObj && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up")) {
+    chlRowOrder = dataObj.row_order;
+  }
+  let yFlip;
+  if (varKey === "uv" || varKey === "bathy") {
+    yFlip = yAscending;
+  } else if (varKey === "chl") {
+    yFlip = (chlRowOrder === "south_up") ? yAscending : !yAscending;
+  } else {
+    yFlip = yAscending;
+  }
 
   for (let row = 0; row < ny; row++) {
     const srcJ = yFlip ? (ny - 1 - row) : row;
@@ -6583,11 +6603,25 @@ function inferGridFromFrame(v, dataObj) {
   const [lonMin, latMin, lonMax, latMax] = bbox;
   const linspace = (a, b, n) => Array.from({length:n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
   const xAxis = linspace(lonMin, lonMax, nx);
-  // CHL producer writes frames south-up: row 0 = latMin, last row = latMax.
-  // Therefore inferred CHL axes must be ascending to keep z[row] aligned with latitude.
-  // SST keeps its existing north-up convention; UV remains south-up.
-  const yAxis = v === "sst" ? linspace(latMax, latMin, ny) : linspace(latMin, latMax, ny);
-  return { xAxis, yAxis, nx, ny, sensor: "CHL" };
+  // CHL orientation contract (2026-06-09 cleanup plan, Step 1+5+6):
+  //   south_up  -> row 0 = latMin (default, legacy frames missing row_order)
+  //   north_up  -> row 0 = latMax
+  //   When ?useMetadata=1 is on, honor the JSON's row_order field; otherwise keep legacy south_up.
+  const useMeta = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("useMetadata") === "1";
+  let rowOrder;
+  if (v === "sst") {
+    rowOrder = "north_up";
+  } else if (v === "uv") {
+    rowOrder = "south_up";
+  } else {
+    rowOrder = (useMeta && dataObj && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up"))
+      ? dataObj.row_order
+      : "south_up";
+  }
+  const yAxis = (rowOrder === "north_up")
+    ? linspace(latMax, latMin, ny)
+    : linspace(latMin, latMax, ny);
+  return { xAxis, yAxis, nx, ny, sensor: (v === "chl" ? "CHL" : v.toUpperCase()), row_order: rowOrder };
 }
 
 async function loadGridForVar(v, dataObj = null) {
