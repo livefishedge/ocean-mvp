@@ -4095,6 +4095,11 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   // ImageStatic maps canvas row 0 to the north edge of the extent.
   // south_up JSON: row 0 = latMin = south, but canvas row 0 = top = north → flip needed.
   // north_up JSON: row 0 = latMax = north, canvas row 0 = top = north → no flip.
+  // yAscending describes the yAxis array order from grid (true = S→N ascending).
+  // For south_up frames the array is ascending and the data is "upside down"
+  // relative to the canvas, so we flip exactly once.
+  // For north_up frames the array is descending and the data already matches
+  // the canvas orientation, so we do NOT flip.
   // When ?useMetadata=1 is on, honor dataObj.row_order for CHL; otherwise keep legacy.
   const useMetaMob = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("useMetadata") === "1";
   let chlRowOrder = "south_up";
@@ -4103,10 +4108,16 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   }
   let yFlip;
   if (varKey === "uv" || varKey === "bathy") {
+    // UV and bathy JSON are south-up; yAxis is ascending → flip once for canvas.
     yFlip = yAscending;
-  } else if (varKey === "chl") {
+  } else if (varKey === "chl" && (chlRowOrder === "north_up" || chlRowOrder === "south_up")) {
+    // south_up JSON with ascending yAxis → flip once to align row0 with the
+    // north edge of the canvas (ImageStatic maps canvas row 0 to north).
+    // north_up JSON with descending yAxis → no flip needed; row0 already
+    // represents the north edge of the data.
     yFlip = (chlRowOrder === "south_up") ? yAscending : !yAscending;
   } else {
+    // Legacy / non-CHL fallback: keep historical behavior.
     yFlip = yAscending;
   }
 
