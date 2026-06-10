@@ -97,11 +97,10 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260531"></script>
+  <script src="supabase-init.js?v=20260610"></script>
   <script>
     (function() {
-      const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
-      const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
-      const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const sb = window.sb;
 
       // If we were bounced here from the dashboard because the user's email
       // isn't verified, show the verify banner above the form.

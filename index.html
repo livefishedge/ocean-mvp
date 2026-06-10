@@ -12,6 +12,7 @@
   <script src="drawMobileUvArrowsLite.js?v=20260517-arrows2"></script>
   <!-- Auth + Analytics -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-init.js?v=20260610"></script>
   <script src="https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js"></script>
 
 
@@ -882,9 +883,9 @@ body.combined-mode #combined-menu-btn{
 
   <!-- Auth + PostHog init -->
   <script>
+    const sb = window.sb;
     const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     // PostHog (inline shim to prevent errors before PostHog script loads)
     window.posthog = window.posthog || {};
