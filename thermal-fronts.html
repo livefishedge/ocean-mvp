@@ -261,6 +261,13 @@ function colorForAge(ms, latestMs, oldestMs) {
   const light = 46 + 4 * t;
   return `hsl(${hue}, 92%, ${light}%)`;
 }
+function colorForHourOfDay(item) {
+  const hour = new Date(item.t).getUTCHours();
+  return colorForAge(hour * 3600000, 23 * 3600000, 0);
+}
+function colorForDayInPeriod(day, periodOldestMs, periodLatestMs) {
+  return colorForAge(day.t, periodLatestMs, periodOldestMs);
+}
 function dateKey(ms) {
   const d = new Date(ms);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
@@ -764,7 +771,9 @@ function renderFrontLayer() {
   const oldestMs = items[0]?.t ?? latestMs;
   const features = [];
   for (const item of items) {
-    const color = colorForAge(item.t, latestMs, oldestMs);
+    const color = items.length === 1
+      ? colorForHourOfDay(item)
+      : colorForAge(item.t, latestMs, oldestMs);
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sourceFeature of sourceFeatures) {
       const coords = sourceFeature?.geometry?.coordinates || [];
@@ -942,13 +951,15 @@ function updateLegend() {
   if (mode === "daily") {
     legendEl.style.display = "";
     legendEl.textContent = allDayCb.checked
-      ? "Front lines: cool (oldest) → warm (newest); shade = hourly front-point density"
-      : "Front lines: current day; shade = hourly front-point density";
+      ? "Front lines: cool (oldest day) → warm (newest day); shade = hourly front-point density"
+      : "Front lines: current day (cool=earlier in period, warm=newer); shade = hourly front-point density";
     return;
   }
   const displayedCount = displayedFrontItems().length;
-  legendEl.style.display = displayedCount > 1 ? "" : "none";
-  legendEl.textContent = displayedCount > 1 ? "Color = time: purple (oldest) -> red (newest)" : "";
+  legendEl.style.display = displayedCount > 1 ? "" : "";
+  legendEl.textContent = displayedCount > 1
+    ? "Color = time across the day: purple (oldest hour) → red (newest hour)"
+    : "Color = hour of day: purple (00 UTC) → red (23 UTC)";
 }
 function updateProgress() {
   const list = activeFrameList();
