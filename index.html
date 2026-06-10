@@ -3141,6 +3141,11 @@ function stableLayout() {
 /* ========================= FIGURES ========================= */
 /* ================= BUILD CHL (Matches SST Layout + Custom Colors) ================= */
 function buildChl(grid, data) {
+  // NOTE: this is the legacy Plotly-based CHL renderer. As of 2026-06-10 it is
+  // dead code — makeMobileRasterCanvas is the only live CHL path (desktop OL
+  // and mobile canvas both use it). Per the recovery plan, this Plotly path
+  // is kept separate and must be verified with a synthetic 2x2 colored
+  // matrix test before being enabled. Do not remove this comment.
   // 1. DATA FINDER
   const rawZ = data.z || data.chl || data.data;
   if (!rawZ) return { data: [], layout: {} };
@@ -3156,7 +3161,13 @@ function buildChl(grid, data) {
   // descending (N->S) row0 (north) sits at the bottom = wrong; we need
   // autorange='reversed' to flip the y axis display so row0 paints at the top.
   const rowOrder = grid.row_order || "south_up";
+  const colOrder = grid.col_order || "west_to_east";
   const yAutorange = (rowOrder === "north_up") ? "reversed" : true;
+  // For col_order, Plotly heatmap x[0] is plotted at the LEFT. With xAxis
+  // ascending (W->E) col0 (west) sits at the left = correct. With xAxis
+  // descending (E->W) col0 (east) sits at the left = wrong; we reverse the
+  // x axis display so col0 paints at the west edge.
+  const xAutorange = (colOrder === "east_to_west") ? "reversed" : true;
 
   // 4. LOG-SCALE COLORS
   // We map the data to Log10 so it matches the footer's Log scale.
@@ -3191,6 +3202,8 @@ function buildChl(grid, data) {
   const layout = stableLayout();
   layout.yaxis = layout.yaxis || {};
   layout.yaxis.autorange = yAutorange;
+  layout.xaxis = layout.xaxis || {};
+  layout.xaxis.autorange = xAutorange;
 
   return { data: [trace], layout };
 }
@@ -4092,48 +4105,48 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   const cfg = mobileValueConfig(varKey);
   const denom = cfg.hi === cfg.lo ? 1 : (cfg.hi - cfg.lo);
 
-  // ImageStatic maps canvas row 0 to the north edge of the extent.
-  // south_up JSON: row 0 = latMin = south, but canvas row 0 = top = north → flip needed.
-  // north_up JSON: row 0 = latMax = north, canvas row 0 = top = north → no flip.
-  // yAscending describes the yAxis array order from grid (true = S→N ascending).
-  // For south_up frames the array is ascending and the data is "upside down"
-  // relative to the canvas, so we flip exactly once.
-  // For north_up frames the array is descending and the data already matches
-  // the canvas orientation, so we do NOT flip.
-  // ORIENTATION CONTRACT (2026-06-09 rollback):
-  //   - Default: legacy south_up behavior (NOT metadata). The earlier
-  //     "trust row_order by default" change broke frames because row_order
-  //     had been inferred from CHL pixel gradients rather than from real
-  //     lat/lon geolocation.
-  //   - ?useMetadata=1: honor dataObj.row_order when present.
-  //   - ?legacyOrientation=1: explicit escape hatch; force legacy.
-  //   - Metadata wins only if BOTH useMetadata=1 AND !legacyOrientation=1.
+  // PHASE 4 RASTER CONTRACT (2026-06-10):
+  //   - ImageStatic maps canvas row 0 to the NORTH edge of the extent and
+  //     canvas col 0 to the WEST edge.
+  //   - For CHL: the row/col flip is driven by rowOrder/colOrder from the
+  //     orientation contract (which came from authoritative producer
+  //     metadata when ?useMetadata=1 and orientation_status === "authoritative",
+  //     otherwise the legacy default).
+  //   - For UV / bathy (south_up + west_to_east by construction): the legacy
+  //     axis-direction flip is preserved (uv: yAxis ascending → flip; bathy
+  //     treated like uv). xFlip is !xAscending for these (same as legacy).
+  //   - We do NOT infer source-array orientation from xAxis/yAxis direction
+  //     for CHL. This closes the contract boundary called out in the
+  //     recovery plan: orientation comes from row/col order, not axis order.
   const _qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams("");
   const useMetadata = _qs.get("useMetadata") === "1";
   const useLegacy = _qs.get("legacyOrientation") === "1";
-  let chlRowOrder = "south_up";
-  if (useMetadata && !useLegacy && varKey === "chl" && dataObj && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up")) {
-    chlRowOrder = dataObj.row_order;
+  let rowOrder = "south_up";
+  let colOrder = "west_to_east";
+  if (useMetadata && !useLegacy && varKey === "chl" && dataObj && dataObj.orientation_status === "authoritative") {
+    if (dataObj.row_order === "north_up" || dataObj.row_order === "south_up") rowOrder = dataObj.row_order;
+    if (dataObj.col_order === "west_to_east" || dataObj.col_order === "east_to_west") colOrder = dataObj.col_order;
+  } else if (varKey === "sst") {
+    rowOrder = "north_up";
+    colOrder = "west_to_east";
+  } else if (varKey === "uv" || varKey === "bathy") {
+    rowOrder = "south_up";
+    colOrder = "west_to_east";
   }
-  let yFlip;
-  if (varKey === "uv" || varKey === "bathy") {
-    // UV and bathy JSON are south-up; yAxis is ascending → flip once for canvas.
-    yFlip = yAscending;
-  } else if (varKey === "chl" && (chlRowOrder === "north_up" || chlRowOrder === "south_up")) {
-    // south_up JSON with ascending yAxis → flip once to align row0 with the
-    // north edge of the canvas (ImageStatic maps canvas row 0 to north).
-    // north_up JSON with descending yAxis → no flip needed; row0 already
-    // represents the north edge of the data.
-    yFlip = (chlRowOrder === "south_up");
+  let yFlip, xFlip;
+  if (varKey === "chl") {
+    yFlip = (rowOrder === "south_up");
+    xFlip = (colOrder === "east_to_west");
   } else {
-    // Legacy / non-CHL fallback: keep historical behavior.
+    // UV / bathy: legacy axis-direction semantics preserved.
     yFlip = yAscending;
+    xFlip = !xAscending;
   }
 
   for (let row = 0; row < ny; row++) {
     const srcJ = yFlip ? (ny - 1 - row) : row;
     for (let col = 0; col < nx; col++) {
-      const srcI = xAscending ? col : (nx - 1 - col);
+      const srcI = xFlip ? (nx - 1 - col) : col;
       const value = z[srcJ]?.[srcI];
       const k = (row * nx + col) * 4;
       const numericValue = Number(value);
@@ -6623,33 +6636,49 @@ function inferGridFromFrame(v, dataObj) {
   const [lonMin, latMin, lonMax, latMax] = bbox;
   const linspace = (a, b, n) => Array.from({length:n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
   const xAxis = linspace(lonMin, lonMax, nx);
-  // CHL orientation contract (2026-06-09 rollback):
-  //   - Default: legacy south_up behavior (NOT metadata). Earlier
-  //     "trust row_order by default" change broke frames because row_order
-  //     had been inferred from CHL pixel gradients rather than from real
-  //     lat/lon geolocation.
-  //   - ?useMetadata=1: honor dataObj.row_order when present.
+  // CHL ORIENTATION CONTRACT (Phase 4, 2026-06-10):
+  //   - Both row_order and col_order come from authoritative producer metadata.
+  //     row_order from real latitude geolocation; col_order from real longitude
+  //     geolocation. See chl_contract.derive_orientation_from_axes/nc.
+  //   - Default: legacy south_up + west_to_east behavior (NOT metadata). The
+  //     earlier "trust row_order by default" change broke frames because
+  //     row_order had been inferred from CHL pixel gradients rather than
+  //     from real lat/lon geolocation.
+  //   - ?useMetadata=1: honor dataObj.row_order AND dataObj.col_order when
+  //     present AND orientation_status === "authoritative".
   //   - ?legacyOrientation=1: explicit escape hatch; force legacy.
   //   - Metadata wins only if BOTH useMetadata=1 AND !legacyOrientation=1.
+  //   - Render-side x/y flips MUST come from rowOrder/colOrder directly; the
+  //     raster loop no longer infers them from xAxis/yAxis direction. This
+  //     closes the contract boundary called out in the recovery plan.
   const _qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams("");
   const useMetadata = _qs.get("useMetadata") === "1";
   const useLegacy = _qs.get("legacyOrientation") === "1";
   let rowOrder;
+  let colOrder;
   if (v === "sst") {
     rowOrder = "north_up";
+    colOrder = "west_to_east";
   } else if (v === "uv") {
     rowOrder = "south_up";
+    colOrder = "west_to_east";
   } else if (useLegacy || !useMetadata) {
     rowOrder = "south_up";
+    colOrder = "west_to_east";
   } else {
-    rowOrder = (dataObj && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up"))
+    rowOrder = (dataObj && dataObj.orientation_status === "authoritative" && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up"))
       ? dataObj.row_order
       : "south_up";
+    colOrder = (dataObj && dataObj.orientation_status === "authoritative" && (dataObj.col_order === "west_to_east" || dataObj.col_order === "east_to_west"))
+      ? dataObj.col_order
+      : "west_to_east";
   }
-  const yAxis = (rowOrder === "north_up")
-    ? linspace(latMax, latMin, ny)
-    : linspace(latMin, latMax, ny);
-  return { xAxis, yAxis, nx, ny, sensor: (v === "chl" ? "CHL" : v.toUpperCase()), row_order: rowOrder };
+  // yAxis is the CANVAS-anchored linspace (south-to-north ascending) used
+  // for extent/sample math. The raster loop's yFlip is driven by rowOrder,
+  // not by yAxis direction, so we always emit the same yAxis shape and
+  // move the orientation contract into the flip logic.
+  const yAxis = linspace(latMin, latMax, ny);
+  return { xAxis, yAxis, nx, ny, sensor: (v === "chl" ? "CHL" : v.toUpperCase()), row_order: rowOrder, col_order: colOrder };
 }
 
 async function loadGridForVar(v, dataObj = null) {
