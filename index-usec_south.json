@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-06-10T18:39:20.532363+00:00",
+  "last_updated": "2026-06-10T18:49:18.245678Z",
   "vars": [
     "chl",
     "sst",
@@ -1452,10 +1452,10 @@
       },
       {
         "var": "chl",
-        "id": "usec_south_20260609_2026160.1639_chl_S3B",
-        "label": "2026-06-09 16:39 UTC | S3B",
-        "time_iso": "2026-06-09T16:39:00Z",
-        "json_path": "data/usec_south/chl/usec_south_20260609_2026160.1639_chl_S3B.json",
+        "id": "usec_south_20260609_2026160.1608_chl_S3B",
+        "label": "2026-06-09 16:08 UTC | S3B",
+        "time_iso": "2026-06-09T16:08:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260609_2026160.1608_chl_S3B.json",
         "grid_file": "frame_bbox"
       },
       {
@@ -1492,10 +1492,10 @@
       },
       {
         "var": "chl",
-        "id": "usec_south_20260610_2026161.1440_chl_S3B",
-        "label": "2026-06-10 14:40 UTC | S3B",
-        "time_iso": "2026-06-10T14:40:00Z",
-        "json_path": "data/usec_south/chl/usec_south_20260610_2026161.1440_chl_S3B.json",
+        "id": "usec_south_20260610_2026161.1459_chl_S3A-S3B",
+        "label": "2026-06-10 14:59 UTC | S3A-S3B",
+        "time_iso": "2026-06-10T14:59:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260610_2026161.1459_chl_S3A-S3B.json",
         "grid_file": "frame_bbox"
       }
     ],
@@ -6408,22 +6408,6 @@
       }
     ],
     "chl_front": [
-      {
-        "var": "chl_front",
-        "id": "chlfront_usec_south_2026130.1806_VJ2",
-        "label": "2026-05-10 18:06 UTC | VJ2",
-        "time_iso": "2026-05-10T18:06:00Z",
-        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026130.1806_VJ2.json",
-        "grid_file": "frame_bbox"
-      },
-      {
-        "var": "chl_front",
-        "id": "chlfront_usec_south_2026130.1836_VNP",
-        "label": "2026-05-10 18:36 UTC | VNP",
-        "time_iso": "2026-05-10T18:36:00Z",
-        "json_path": "data/usec_south/chl_front/chlfront_usec_south_2026130.1836_VNP.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "chl_front",
         "id": "chlfront_usec_south_2026130.1854_VJ1",
