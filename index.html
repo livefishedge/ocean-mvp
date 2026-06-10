@@ -4105,13 +4105,12 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   const cfg = mobileValueConfig(varKey);
   const denom = cfg.hi === cfg.lo ? 1 : (cfg.hi - cfg.lo);
 
-  // PHASE 4 RASTER CONTRACT (2026-06-10):
+  // PHASE 4 + PHASE 8 RASTER CONTRACT (2026-06-10):
   //   - ImageStatic maps canvas row 0 to the NORTH edge of the extent and
   //     canvas col 0 to the WEST edge.
   //   - For CHL: the row/col flip is driven by rowOrder/colOrder from the
-  //     orientation contract (which came from authoritative producer
-  //     metadata when ?useMetadata=1 and orientation_status === "authoritative",
-  //     otherwise the legacy default).
+  //     orientation contract (which comes from authoritative producer
+  //     metadata by default in Phase 8; legacy is the escape hatch).
   //   - For UV / bathy (south_up + west_to_east by construction): the legacy
   //     axis-direction flip is preserved (uv: yAxis ascending → flip; bathy
   //     treated like uv). xFlip is !xAscending for these (same as legacy).
@@ -4119,7 +4118,9 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   //     for CHL. This closes the contract boundary called out in the
   //     recovery plan: orientation comes from row/col order, not axis order.
   const _qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams("");
-  const useMetadata = _qs.get("useMetadata") === "1";
+  // Phase 8: default is now metadata-on. ?legacyOrientation=1 is the only
+  // way to force legacy behavior. ?useMetadata=0 also forces legacy.
+  const useMetadata = _qs.get("legacyOrientation") !== "1" && _qs.get("useMetadata") !== "0";
   const useLegacy = _qs.get("legacyOrientation") === "1";
   let rowOrder = "south_up";
   let colOrder = "west_to_east";
@@ -6636,23 +6637,25 @@ function inferGridFromFrame(v, dataObj) {
   const [lonMin, latMin, lonMax, latMax] = bbox;
   const linspace = (a, b, n) => Array.from({length:n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
   const xAxis = linspace(lonMin, lonMax, nx);
-  // CHL ORIENTATION CONTRACT (Phase 4, 2026-06-10):
+  // CHL ORIENTATION CONTRACT (Phase 4 + Phase 8, 2026-06-10):
   //   - Both row_order and col_order come from authoritative producer metadata.
   //     row_order from real latitude geolocation; col_order from real longitude
   //     geolocation. See chl_contract.derive_orientation_from_axes/nc.
-  //   - Default: legacy south_up + west_to_east behavior (NOT metadata). The
+  //   - Phase 8 default: metadata-on. The viewer honors dataObj.row_order AND
+  //     dataObj.col_order when orientation_status === "authoritative". The
   //     earlier "trust row_order by default" change broke frames because
   //     row_order had been inferred from CHL pixel gradients rather than
-  //     from real lat/lon geolocation.
-  //   - ?useMetadata=1: honor dataObj.row_order AND dataObj.col_order when
-  //     present AND orientation_status === "authoritative".
-  //   - ?legacyOrientation=1: explicit escape hatch; force legacy.
-  //   - Metadata wins only if BOTH useMetadata=1 AND !legacyOrientation=1.
+  //     from real lat/lon geolocation; Phase 7 fixed the producer side.
+  //   - ?legacyOrientation=1: explicit escape hatch; force legacy
+  //     south_up + west_to_east behavior.
+  //   - ?useMetadata=0: also forces legacy behavior (alias).
   //   - Render-side x/y flips MUST come from rowOrder/colOrder directly; the
   //     raster loop no longer infers them from xAxis/yAxis direction. This
   //     closes the contract boundary called out in the recovery plan.
   const _qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams("");
-  const useMetadata = _qs.get("useMetadata") === "1";
+  // Phase 8: default is now metadata-on. ?legacyOrientation=1 is the only
+  // way to force legacy behavior. ?useMetadata=0 also forces legacy.
+  const useMetadata = _qs.get("legacyOrientation") !== "1" && _qs.get("useMetadata") !== "0";
   const useLegacy = _qs.get("legacyOrientation") === "1";
   let rowOrder;
   let colOrder;
