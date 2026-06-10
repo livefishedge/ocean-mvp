@@ -172,7 +172,6 @@ let selectedDate = "";
 let map = null;
 let frontLayer = null;
 let densityLayer = null;
-let dailySymbolsLayer = null;
 let landLayer = null;
 let placeLayer = null;
 let cursorLayer = null;
@@ -718,7 +717,41 @@ function renderDensityLayer() {
 function renderFrontLayer() {
   if (!map) return;
   if (mode === "daily") {
-    const source = new ol.source.Vector({ features: [] });
+    // Daily mode: show actual front lines per day, time-colored (purple=oldest → red=newest)
+    const visibleDays = allDayCb.checked
+      ? dailyFrames
+      : (dailyFrames[frameIdx] ? [dailyFrames[frameIdx]] : []);
+    const oldestMs = dailyFrames[0]?.t;
+    const latestMs = dailyFrames.at(-1)?.t;
+    const totalDays = visibleDays.length;
+    const features = [];
+    for (const day of visibleDays) {
+      if (!day) continue;
+      const dayColor = colorForAge(day.t, latestMs, oldestMs);
+      const dayItems = framesForDate(day.date);
+      const dayLineWidth = allDayCb.checked
+        ? (totalDays > 10 ? 1.0 : totalDays > 5 ? 1.3 : 1.6)
+        : 2.4;
+      for (const item of dayItems) {
+        const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+        for (const sourceFeature of sourceFeatures) {
+          const coords = sourceFeature?.geometry?.coordinates || [];
+          const props = sourceFeature?.properties || {};
+          for (const segment of segmentedLineStrings(coords)) {
+            const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
+            feature.setProperties({
+              sourceProps: props,
+              sourceCoords: coords,
+              frameTime: item.t,
+              color: dayColor,
+              lineWidth: dayLineWidth
+            });
+            features.push(feature);
+          }
+        }
+      }
+    }
+    const source = new ol.source.Vector({ features });
     if (frontLayer) frontLayer.setSource(source);
     else {
       frontLayer = new ol.layer.Vector({ source, style: featureStyle, zIndex: 30, updateWhileAnimating: true, updateWhileInteracting: true });
@@ -731,9 +764,7 @@ function renderFrontLayer() {
   const oldestMs = items[0]?.t ?? latestMs;
   const features = [];
   for (const item of items) {
-    const color = mode === "daily"
-      ? colorForAge(item.t, dailyFrames.at(-1)?.t ?? item.t, dailyFrames[0]?.t ?? item.t)
-      : colorForAge(item.t, latestMs, oldestMs);
+    const color = colorForAge(item.t, latestMs, oldestMs);
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sourceFeature of sourceFeatures) {
       const coords = sourceFeature?.geometry?.coordinates || [];
@@ -757,69 +788,6 @@ function renderFrontLayer() {
     frontLayer = new ol.layer.Vector({ source, style: featureStyle, zIndex: 30, updateWhileAnimating: true, updateWhileInteracting: true });
     map.addLayer(frontLayer);
   }
-}
-function ensureDailySymbolsLayer() {
-  if (!map || dailySymbolsLayer) return;
-  dailySymbolsLayer = new ol.layer.Vector({
-    source: new ol.source.Vector({ features: [] }),
-    style: styleDailySymbol,
-    zIndex: 35,
-    updateWhileAnimating: true,
-    updateWhileInteracting: true
-  });
-  map.addLayer(dailySymbolsLayer);
-}
-function styleDailySymbol(feature) {
-  return new ol.style.Style({
-    image: new ol.style.Circle({
-      radius: 8,
-      fill: new ol.style.Fill({ color: feature.get("color") }),
-      stroke: new ol.style.Stroke({ color: "#050b10", width: 2 })
-    }),
-    text: new ol.style.Text({
-      text: feature.get("label"),
-      offsetY: -18,
-      font: "800 11px system-ui, -apple-system, Segoe UI, sans-serif",
-      fill: new ol.style.Fill({ color: "#fff" }),
-      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.85)", width: 3 }),
-      textAlign: "center"
-    })
-  });
-}
-function renderDailySymbols() {
-  if (!map) return;
-  ensureDailySymbolsLayer();
-  if (mode !== "daily" || !dailyFrames.length) {
-    dailySymbolsLayer.setSource(new ol.source.Vector({ features: [] }));
-    return;
-  }
-  const visibleDays = allDayCb.checked
-    ? dailyFrames
-    : (dailyFrames[frameIdx] ? [dailyFrames[frameIdx]] : []);
-  const oldestMs = dailyFrames[0]?.t;
-  const latestMs = dailyFrames.at(-1)?.t;
-  const features = [];
-  for (const day of visibleDays) {
-    if (!day) continue;
-    const items = framesForDate(day.date);
-    const points = collectFrontPoints(items);
-    if (!points.length) continue;
-    let sumLon = 0, sumLat = 0;
-    for (const pt of points) {
-      sumLon += pt.lon;
-      sumLat += pt.lat;
-    }
-    const centroid = [sumLon / points.length, sumLat / points.length];
-    const color = colorForAge(day.t, latestMs, oldestMs);
-    const feature = new ol.Feature({ geometry: new ol.geom.Point(centroid) });
-    feature.setProperties({
-      color,
-      label: day.date.slice(5),
-      day: day.date
-    });
-    features.push(feature);
-  }
-  dailySymbolsLayer.setSource(new ol.source.Vector({ features }));
 }
 function gradientForFeaturePoint(props, index) {
   const gradMap = Array.isArray(props?.gradient_map) ? props.gradient_map : null;
@@ -916,7 +884,6 @@ async function render() {
   frameIdx = Math.max(0, Math.min(frameIdx, Math.max(0, list.length - 1)));
   renderDensityLayer();
   renderFrontLayer();
-  renderDailySymbols();
   if (mode === "daily") {
     const dayItem = dailyFrames[frameIdx];
     const count = dayItem ? framesForDate(dayItem.date).length : 0;
@@ -975,8 +942,8 @@ function updateLegend() {
   if (mode === "daily") {
     legendEl.style.display = "";
     legendEl.textContent = allDayCb.checked
-      ? "Marker = day (purple=oldest, red=newest); shade = hourly front-point density"
-      : "Marker = current day (purple=oldest, red=newest); shade = hourly front-point density";
+      ? "Front lines: cool (oldest) → warm (newest); shade = hourly front-point density"
+      : "Front lines: current day; shade = hourly front-point density";
     return;
   }
   const displayedCount = displayedFrontItems().length;
