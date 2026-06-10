@@ -4100,11 +4100,19 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   // relative to the canvas, so we flip exactly once.
   // For north_up frames the array is descending and the data already matches
   // the canvas orientation, so we do NOT flip.
-  // When ?legacyOrientation=1 is on, keep legacy south_up behavior.
-  // Otherwise honor dataObj.row_order for CHL; fall back to south_up.
-  const useLegacy = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("legacyOrientation") === "1";
+  // ORIENTATION CONTRACT (2026-06-09 rollback):
+  //   - Default: legacy south_up behavior (NOT metadata). The earlier
+  //     "trust row_order by default" change broke frames because row_order
+  //     had been inferred from CHL pixel gradients rather than from real
+  //     lat/lon geolocation.
+  //   - ?useMetadata=1: honor dataObj.row_order when present.
+  //   - ?legacyOrientation=1: explicit escape hatch; force legacy.
+  //   - Metadata wins only if BOTH useMetadata=1 AND !legacyOrientation=1.
+  const _qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams("");
+  const useMetadata = _qs.get("useMetadata") === "1";
+  const useLegacy = _qs.get("legacyOrientation") === "1";
   let chlRowOrder = "south_up";
-  if (!useLegacy && varKey === "chl" && dataObj && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up")) {
+  if (useMetadata && !useLegacy && varKey === "chl" && dataObj && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up")) {
     chlRowOrder = dataObj.row_order;
   }
   let yFlip;
@@ -6615,17 +6623,23 @@ function inferGridFromFrame(v, dataObj) {
   const [lonMin, latMin, lonMax, latMax] = bbox;
   const linspace = (a, b, n) => Array.from({length:n}, (_, i) => n === 1 ? a : a + (b - a) * i / (n - 1));
   const xAxis = linspace(lonMin, lonMax, nx);
-  // CHL orientation contract (2026-06-09 cleanup plan, Step 12):
-  // When ?legacyOrientation=1 is set, use legacy south_up behavior.
-  // Otherwise honor the JSON's row_order field for CHL when present;
-  // fall back to south_up for older frames that predate the contract.
-  const useLegacy = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("legacyOrientation") === "1";
+  // CHL orientation contract (2026-06-09 rollback):
+  //   - Default: legacy south_up behavior (NOT metadata). Earlier
+  //     "trust row_order by default" change broke frames because row_order
+  //     had been inferred from CHL pixel gradients rather than from real
+  //     lat/lon geolocation.
+  //   - ?useMetadata=1: honor dataObj.row_order when present.
+  //   - ?legacyOrientation=1: explicit escape hatch; force legacy.
+  //   - Metadata wins only if BOTH useMetadata=1 AND !legacyOrientation=1.
+  const _qs = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams("");
+  const useMetadata = _qs.get("useMetadata") === "1";
+  const useLegacy = _qs.get("legacyOrientation") === "1";
   let rowOrder;
   if (v === "sst") {
     rowOrder = "north_up";
   } else if (v === "uv") {
     rowOrder = "south_up";
-  } else if (useLegacy) {
+  } else if (useLegacy || !useMetadata) {
     rowOrder = "south_up";
   } else {
     rowOrder = (dataObj && (dataObj.row_order === "north_up" || dataObj.row_order === "south_up"))
