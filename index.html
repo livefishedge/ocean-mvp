@@ -5047,10 +5047,10 @@ function buildThermalHoursComposite(map, hours) {
       const c = counts[row * nx + x];
       if (!c) continue;
       nonzero++;
-      // Captain's dashboard: single point in a cell = α ≈ 0.1; no cap so
+      // Captain's dashboard: single point in a cell = α ≈ 0.2; no cap so
       // dense cells scale up to fully opaque (capped at 1.0 by CSS).
-      const alpha = c * 25.5;
-      const aStr = Number.isFinite(alpha) ? (alpha / 255).toFixed(3) : "0.100";
+      const alpha = c * 51;
+      const aStr = Number.isFinite(alpha) ? (alpha / 255).toFixed(3) : "0.200";
       ctx.fillStyle = `rgba(255,30,30,${aStr})`;
       ctx.beginPath();
       ctx.arc(x + 0.5, row + 0.5, 1.08, 0, Math.PI * 2);
