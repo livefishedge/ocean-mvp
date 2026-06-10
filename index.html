@@ -4116,7 +4116,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     // north edge of the canvas (ImageStatic maps canvas row 0 to north).
     // north_up JSON with descending yAxis → no flip needed; row0 already
     // represents the north edge of the data.
-    yFlip = (chlRowOrder === "south_up") ? yAscending : !yAscending;
+    yFlip = (chlRowOrder === "south_up");
   } else {
     // Legacy / non-CHL fallback: keep historical behavior.
     yFlip = yAscending;
