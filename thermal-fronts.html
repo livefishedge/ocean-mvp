@@ -351,7 +351,9 @@ function appendViewportParams(url) {
   return url;
 }
 function requestedTimeFromParams(params = new URLSearchParams(location.search)) {
-  const t = Number(params.get("t"));
+  const raw = params.get("t");
+  if (raw === null || raw === "") return null;
+  const t = Number(raw);
   return Number.isFinite(t) ? t : null;
 }
 function currentFrameTime() {
@@ -991,17 +993,16 @@ function buildDailyFrames() {
   dailyFrames = [];
   const seen = new Set();
   const sorted = [...frameData].sort((a,b) => a.t - b.t);
-  // Keep only the past 14 days
-  const latest = sorted.at(-1)?.t ?? 0;
-  const cutoff = latest - 14 * 864e5;
   for (const item of sorted) {
-    if (item.t < cutoff) continue;
     const dateStr = dateKey(item.t);
     if (!seen.has(dateStr)) {
       seen.add(dateStr);
       dailyFrames.push({ date: dateStr, t: item.t, item });
     }
   }
+  // Keep the last 14 actual calendar days. A floating 14x24h cutoff can include
+  // part of a 15th date when the latest frame is midday.
+  dailyFrames = dailyFrames.slice(-14);
   hourlyDays = dailyFrames.map(item => item.date);
 }
 function syncDaySelect() {
