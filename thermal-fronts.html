@@ -254,11 +254,13 @@ function formatAge(ms, latestMs) {
   if (hours < 48) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
 }
-function colorForAge(ms, latestMs, oldestMs) {
-  const span = Math.max(1, latestMs - oldestMs);
-  const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
-  // 4-color gradient: purple → blue → green → red
-  // Anchors at t=0, 1/3, 2/3, 1.0 with HSL interpolation in between.
+// Generic 4-color gradient: purple → blue → green → red.
+// t is clamped to [0, 1] so callers can pass un-normalized inputs safely.
+// Anchors at t=0 (purple, hue 280), t=1/3 (blue, 220), t=2/3 (green, 140), t=1 (red, 0).
+// This is the single source of truth for the time-color mapping. All higher-level
+// color helpers (hour-in-day, day-in-period) reduce to this via a domain-derived t.
+function colorForTimeFraction(t) {
+  t = Math.max(0, Math.min(1, t));
   let h, s, l;
   if (t < 1/3) {
     const u = t * 3;
@@ -273,17 +275,30 @@ function colorForAge(ms, latestMs, oldestMs) {
   } else {
     const u = (t - 2/3) * 3;
     h = 140 + (0 - 140) * u;    // 140 → 0
-    s = 82 + 8 * u;              // 82 → 90
-    l = 48 + 4 * u;              // 48 → 52
+    s = 82 + 8 * u;             // 82 → 90
+    l = 48 + 4 * u;             // 48 → 52
   }
   return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
 }
-function colorForHourOfDay(item) {
-  const hour = new Date(item.t).getUTCHours();
-  return colorForAge(hour * 3600000, 23 * 3600000, 0);
+
+// Hour-in-day color. Domain is the full UTC day 00:00 → 23:59, NOT the visible subset.
+// This means: 00 UTC always = purple, 12 UTC = blue/green, 23 UTC = red,
+// regardless of whether the user has the "All hours this day" overlay checked or not.
+// Stepping through hours with the overlay OFF still produces a meaningful color
+// (the single frame's hour color) instead of collapsing to a flat color.
+function colorForHourInDay(frameTimeMs) {
+  const d = new Date(frameTimeMs);
+  const hourFrac = d.getUTCHours() + d.getUTCMinutes() / 60;
+  return colorForTimeFraction(hourFrac / 23);
 }
-function colorForDayInPeriod(day, periodOldestMs, periodLatestMs) {
-  return colorForAge(day.t, periodLatestMs, periodOldestMs);
+
+// Day-in-period color. Domain is the full 14-day period (oldest day → newest day),
+// NOT the visible subset. Same day's frontlines always get the same color.
+// Stepping through days with the overlay OFF still shows that day's period color
+// instead of collapsing to whatever the visible subset's t reduces to.
+function colorForDayInPeriod(dayMs, periodOldestMs, periodLatestMs) {
+  const span = Math.max(1, periodLatestMs - periodOldestMs);
+  return colorForTimeFraction((dayMs - periodOldestMs) / span);
 }
 function dateKey(ms) {
   const d = new Date(ms);
@@ -753,7 +768,7 @@ function renderFrontLayer() {
     const features = [];
     for (const day of visibleDays) {
       if (!day) continue;
-      const dayColor = colorForAge(day.t, latestMs, oldestMs);
+      const dayColor = colorForDayInPeriod(day.t, oldestMs, latestMs);
       const dayItems = framesForDate(day.date);
       const dayLineWidth = allDayCb.checked
         ? (totalDays > 10 ? 1.0 : totalDays > 5 ? 1.3 : 1.6)
@@ -786,13 +801,13 @@ function renderFrontLayer() {
     return;
   }
   const items = activeFrontItems();
-  const latestMs = items.at(-1)?.t ?? Date.now();
-  const oldestMs = items[0]?.t ?? latestMs;
   const features = [];
   for (const item of items) {
-    const color = items.length === 1
-      ? colorForHourOfDay(item)
-      : colorForAge(item.t, latestMs, oldestMs);
+    // Color is keyed to the frame's hour within the UTC day (00:00 = purple, 23:00 = red).
+    // This is computed from the absolute day domain, NOT from the visible subset, so a
+    // single selected hour (overlay off) still gets a meaningful time color instead of
+    // collapsing to a flat color.
+    const color = colorForHourInDay(item.t);
     const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const sourceFeature of sourceFeatures) {
       const coords = sourceFeature?.geometry?.coordinates || [];
@@ -962,7 +977,7 @@ function updateNavBar() {
     nextBtn.disabled = true;
   }
   playBtn.disabled = list.length <= 1;
-  allDayLabel.textContent = mode === "daily" ? "All days this period" : "All fronts this day";
+  allDayLabel.textContent = mode === "daily" ? "All days this period" : "All hours this day";
   updateProgress();
 }
 function updateLegend() {
