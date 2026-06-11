@@ -1215,7 +1215,6 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   buildTag: CTO_THERMAL_BUILD,
   builtAt: new Date().toISOString(),
   colorModel: "domain-based (hour-of-day | day-in-period)",
-  meanFrontPerDay: true,
   hasHourlyDomainHelper: typeof thermalColorForHourInDay === "function",
   hasDailyDomainHelper: typeof thermalColorForDayInPeriod === "function",
   densityIsDayColored: false, // updated by thermalRenderDensityLayer
@@ -5813,48 +5812,6 @@ function thermalClosestFrameIndex(items, targetMs) {
   return bestIdx;
 }
 
-function thermalSpatialBin(coords, cellDeg = 0.05) {
-  // Bin [lon, lat] points into a grid with cellDeg-degree cells.
-  // Returns { key: [meanLon, meanLat, count] } for each occupied cell,
-  // ordered by key (which sorts by lon then lat).
-  const bins = {};
-  for (const pt of coords) {
-    if (!Array.isArray(pt) || pt.length < 2) continue;
-    const lon = Number(pt[0]), lat = Number(pt[1]);
-    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-    const kx = Math.floor(lon / cellDeg), ky = Math.floor(lat / cellDeg);
-    const key = `${kx},${ky}`;
-    if (!bins[key]) bins[key] = [0, 0, 0];
-    bins[key][0] += lon;
-    bins[key][1] += lat;
-    bins[key][2]++;
-  }
-  const result = {};
-  for (const [key, vals] of Object.entries(bins)) {
-    result[key] = [vals[0] / vals[2], vals[1] / vals[2], vals[2]];
-  }
-  return result;
-}
-
-function thermalMeanFrontForDay(dayFrames, cellDeg = 0.05) {
-  // Collect every valid coordinate from every hourly detection for this day.
-  const allCoords = [];
-  for (const item of dayFrames) {
-    const sourceFeatures = Array.isArray(item?.data?.features) ? item.data.features : [];
-    for (const sf of sourceFeatures) {
-      for (const seg of thermalSegmentedLineStrings(sf?.geometry?.coordinates || [])) {
-        for (const pt of seg) allCoords.push(pt);
-      }
-    }
-  }
-  if (allCoords.length < 2) return null;
-  // Bin spatially, then sort by longitude to form a polyline.
-  const bins = thermalSpatialBin(allCoords, cellDeg);
-  const pts = Object.values(bins).map(([lon, lat, count]) => ({ lon, lat, count, key: `${lon.toFixed(4)},${lat.toFixed(4)}` }));
-  pts.sort((a, b) => a.lon - b.lon || a.lat - b.lat);
-  return pts.map(p => [p.lon, p.lat]);
-}
-
 function thermalSegmentedLineStrings(coords, maxJumpDeg = 0.08) {
   // Always break on NaN/Infinity — do not connect across missing data.
   // Also break when two valid points are too far apart (> maxJumpDeg).
@@ -6325,18 +6282,24 @@ function thermalRenderFrontLayer() {
     for (const dayItem of dayItems) {
       const color = thermalColorForDayInPeriod(dayItem.t, oldestMs, latestMs);
       const dayFrames = thermalFramesForDate(dayItem.date);
-      // Average all hourly detections into one consensus front per day.
-      const meanCoords = thermalMeanFrontForDay(dayFrames);
-      if (!meanCoords || meanCoords.length < 2) continue;
-      const feature = new ol.Feature({ geometry: new ol.geom.LineString(meanCoords) });
-      feature.setProperties({
-        sourceProps: {},
-        sourceCoords: meanCoords,
-        frameTime: dayItem.t,
-        color,
-        lineWidth: dayItems.length === 1 ? 2.4 : 1.6
-      });
-      features.push(feature);
+      for (const item of dayFrames) {
+        const sourceFeatures = Array.isArray(item.data?.features) ? item.data.features : [];
+        for (const sourceFeature of sourceFeatures) {
+          const coords = sourceFeature?.geometry?.coordinates || [];
+          const props = sourceFeature?.properties || {};
+          for (const segment of thermalSegmentedLineStrings(coords)) {
+            const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
+            feature.setProperties({
+              sourceProps: props,
+              sourceCoords: coords,
+              frameTime: item.t,
+              color,
+              lineWidth: dayItems.length === 1 ? 2.4 : 1.4
+            });
+            features.push(feature);
+          }
+        }
+      }
     }
     const source = new ol.source.Vector({ features });
     if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(source);
