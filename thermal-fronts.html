@@ -1057,8 +1057,10 @@ async function init() {
   syncDaySelect();
   frameIdx = closestFrameIndex(activeFrameList(), requestedMs);
   window.__thermalFrontsState = { frames, frameData, map };
+  // Default to overlay view (all hours/days visible) so the color gradient is the first thing the user sees
+  if (allDayCb.dataset.userSet !== "1") allDayCb.checked = true;
   if (new URLSearchParams(location.search).get("mode") === "daily") setMode("daily");
-  else await render();
+  else { render(); }
 }
 
 regionSelect.addEventListener("change", () => {
