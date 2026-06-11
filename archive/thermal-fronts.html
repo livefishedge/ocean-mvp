@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Thermal Fronts — Deprecated</title>
+  <!-- DEPRECATED 2026-06-11: This standalone page is no longer maintained.
+       The thermal-fronts renderer is now in index.html (the Captain's Dashboard).
+       All thermal-front color logic, daily mode, and density rendering have been
+       fixed there. Please use the main dashboard at /view/ instead.
+       This file is kept in /archive/ for reference only. -->
+  <meta http-equiv="refresh" content="3;url=/view/?region=usec_south&var=thermal_fronts">
+  <style>
+    body { background: #050b10; color: #e0e6ee; font-family: system-ui, sans-serif;
+           display:flex; align-items:center; justify-content:center; height:100vh; margin:0; }
+    .box { text-align:center; max-width:480px; padding:32px; }
+    .box h2 { color: #f0c040; font-size:20px; margin-bottom:12px; }
+    .box p { color: #9fb0c3; font-size:14px; line-height:1.6; }
+    .box a { color: #4d7dff; }
+    .box .note { background: rgba(240,192,64,0.12); border: 1px solid #f0c040;
+                 border-radius:6px; padding:12px; margin-top:16px; font-size:13px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>⚠️ Deprecated Page</h2>
+    <p>This standalone Thermal Fronts viewer has been replaced by the
+       Captain's Dashboard, which now has full thermal-front support
+       including domain-based coloring (hourly and daily), colored density
+       heatmaps, and the full 14-day history.</p>
+    <p>Redirecting to the dashboard in 3 seconds…<br>
+       If not redirected, <a href="/view/?region=usec_south&var=thermal_fronts">click here</a>.</p>
+    <div class="note">
+      <strong>Why this page exists:</strong> The dashboard now uses the same
+      thermal-front renderer as this page did, but with the 2026-06-11 color
+      fix applied. This file is kept in <code>/archive/</code> for reference.
+    </div>
+  </div>
+</body>
+</html>
