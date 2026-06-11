@@ -257,11 +257,26 @@ function formatAge(ms, latestMs) {
 function colorForAge(ms, latestMs, oldestMs) {
   const span = Math.max(1, latestMs - oldestMs);
   const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
-  // Wide hue sweep (purple→cyan→green→yellow→orange→red) PLUS strong lightness ramp
-  // so adjacent time steps stay clearly distinguishable even in the warm-hue range.
-  const hue = 280 - 280 * t;
-  const light = 38 + 22 * t;
-  return `hsl(${hue}, 92%, ${light}%)`;
+  // 4-color gradient: purple → blue → green → red
+  // Anchors at t=0, 1/3, 2/3, 1.0 with HSL interpolation in between.
+  let h, s, l;
+  if (t < 1/3) {
+    const u = t * 3;
+    h = 280 + (220 - 280) * u;  // 280 → 220
+    s = 82;
+    l = 50;
+  } else if (t < 2/3) {
+    const u = (t - 1/3) * 3;
+    h = 220 + (140 - 220) * u;  // 220 → 140
+    s = 82;
+    l = 48;
+  } else {
+    const u = (t - 2/3) * 3;
+    h = 140 + (0 - 140) * u;    // 140 → 0
+    s = 82 + 8 * u;              // 82 → 90
+    l = 48 + 4 * u;              // 48 → 52
+  }
+  return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
 }
 function colorForHourOfDay(item) {
   const hour = new Date(item.t).getUTCHours();
@@ -917,7 +932,8 @@ function setMode(next) {
   dailyBtn.classList.toggle("active", mode === "daily");
   dayRow.classList.toggle("hidden", mode !== "animation");
   allDayToggle.classList.toggle("hidden", false);
-  allDayCb.checked = false;
+  // Default to overlay view (all hours/days visible) so the color gradient is the first thing the user sees
+  if (allDayCb.dataset.userSet !== "1") allDayCb.checked = true;
   if (mode === "daily") {
     const previousDate = selectedDate || dateKey(activeFrameList()[frameIdx]?.t || Date.now());
     frameIdx = Math.max(0, dailyFrames.findIndex(item => item.date === previousDate));
@@ -975,7 +991,11 @@ function buildDailyFrames() {
   dailyFrames = [];
   const seen = new Set();
   const sorted = [...frameData].sort((a,b) => a.t - b.t);
+  // Keep only the past 14 days
+  const latest = sorted.at(-1)?.t ?? 0;
+  const cutoff = latest - 14 * 864e5;
   for (const item of sorted) {
+    if (item.t < cutoff) continue;
     const dateStr = dateKey(item.t);
     if (!seen.has(dateStr)) {
       seen.add(dateStr);
@@ -1023,7 +1043,7 @@ async function init() {
     .filter(f => Number.isFinite(f.t))
     .sort((a,b) => a.t - b.t);
   const latest = frames.at(-1)?.t;
-  if (latest) frames = frames.filter(f => latest - f.t <= 21 * 864e5);
+  if (latest) frames = frames.filter(f => latest - f.t <= 14 * 864e5);
   sourceFrameCount = frames.length;
   frameData = await Promise.all(frames.map(async f => {
     const res = await fetch(framePathOf(f) + "?t=" + Date.now());
@@ -1059,7 +1079,7 @@ productSelect.addEventListener("change", () => {
 });
 animationBtn.addEventListener("click", () => setMode("animation"));
 dailyBtn.addEventListener("click", () => setMode("daily"));
-allDayCb.addEventListener("change", () => render());
+allDayCb.addEventListener("change", () => { allDayCb.dataset.userSet = "1"; render(); });
 playBtn.addEventListener("click", () => setPlaying(!playing));
 if (prevBtn) prevBtn.addEventListener("click", () => { setPlaying(false); step(-1); });
 if (nextBtn) nextBtn.addEventListener("click", () => { setPlaying(false); step(+1); });
