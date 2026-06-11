@@ -257,8 +257,10 @@ function formatAge(ms, latestMs) {
 function colorForAge(ms, latestMs, oldestMs) {
   const span = Math.max(1, latestMs - oldestMs);
   const t = Math.max(0, Math.min(1, (ms - oldestMs) / span));
-  const hue = 282 - 282 * t;
-  const light = 46 + 4 * t;
+  // Wide hue sweep (purple→cyan→green→yellow→orange→red) PLUS strong lightness ramp
+  // so adjacent time steps stay clearly distinguishable even in the warm-hue range.
+  const hue = 280 - 280 * t;
+  const light = 38 + 22 * t;
   return `hsl(${hue}, 92%, ${light}%)`;
 }
 function colorForHourOfDay(item) {
