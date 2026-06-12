@@ -1203,7 +1203,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T10:00"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T10:35"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -6039,7 +6039,10 @@ function thermalCompositeDensityCanvas(field) {
     img.data[k] = Math.round(rSum / aSum);
     img.data[k + 1] = Math.round(gSum / aSum);
     img.data[k + 2] = Math.round(bSum / aSum);
-    img.data[k + 3] = Math.min(250, Math.round(180 + 70 * Math.min(1, aSum)));
+    // Per-pixel alpha 180-250 was still 30% transparent at the low end,
+    // letting the basemap bleed through. The "sharp colors" product
+    // requirement means zero transparency on any data cell.
+    img.data[k + 3] = 255;
   }
   ctx.putImageData(img, 0, 0);
   return canvas;
@@ -6252,7 +6255,12 @@ function thermalRenderDensityLayer() {
     url: canvas.toDataURL("image/png"),
     imageExtent: field.extent,
     projection: "EPSG:4326",
-    interpolate: true
+    // interpolate:false = nearest-neighbor scaling. Density heatmap is a
+    // coarse cell grid (~1000x900 px for usec_south); bilinear interpolation
+    // at display zoom levels blurs the cell edges and washes the colors.
+    // Every other ImageStatic in the file already uses false; this was the
+    // one outlier and the visible cause of the "blurry heatmap" report.
+    interpolate: false
   });
   if (thermalFrontState.densityLayer) {
     thermalFrontState.densityLayer.setSource(source);
