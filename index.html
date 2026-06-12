@@ -1203,7 +1203,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T10:35"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T13:55"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -1222,7 +1222,12 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   // v4: daily front layer is now cell-density points (no lines).
   v4FrontPoints: true,
   densityCellDeg: 0.01,
-  densityThreshold: 2
+  densityThreshold: 2,
+  // v4-refine: each cell's reported location is the unweighted mean of
+  // its top-K surviving neighbors in the 8-neighborhood (1-stride).
+  v4RefineMode: "topk_mean",
+  v4RefineTopK: 3,
+  v4RefineNeighbors: 8
 });
 const QUERY_PARAMS = new URLSearchParams(location.search);
 const REGIONS = {
@@ -5941,6 +5946,79 @@ function thermalBuildDensityField(points, hourlyCount, label) {
   };
 }
 
+// v4-refine: for each surviving cell in a density field, look at the
+// 8 immediate neighbors (1-stride away: up, up-right, right, down-right,
+// down, down-left, left, up-left). Among those neighbors that ALSO pass
+// the cutoff, keep the top-K (=3) by count and replace the cell's
+// reported front location with the unweighted mean of their cell
+// centers. The cell's own count is replaced by the mean of the top-K
+// counts so the radius/magnitude still encodes local density at the
+// new location.
+//
+// Why: the raw v4 scatter produces blocky 0.01 deg cells. Pulling each
+// point toward the densest part of its 8-neighborhood smooths the
+// front into the consensus core, drops single-cell noise outliers,
+// and gives a single representative location per local density mode
+// instead of "wherever the max-count cell happened to land."
+//
+// Edge handling:
+// - Boundary cells: only in-bounds neighbors are considered.
+// - < K surviving neighbors: average whatever is there (1 or 2).
+// - 0 surviving neighbors: keep the cell at its own center.
+function thermalRefineDensityField(field, k = 3) {
+  const { counts, nx, ny, cellDeg, extent, cutoff } = field;
+  const west = extent[0];
+  const south = extent[1];
+  const refined = new Map(); // idx -> { lon, lat, count }
+  for (let row = 0; row < ny; row++) {
+    for (let col = 0; col < nx; col++) {
+      const idx = row * nx + col;
+      const c = counts[idx];
+      if (c < cutoff) continue;
+      // Gather 8-neighbor cells that pass the cutoff.
+      const neighbors = [];
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          if (dr === 0 && dc === 0) continue; // exclude self
+          const nc = col + dc;
+          const nr = row + dr;
+          if (nc < 0 || nc >= nx || nr < 0 || nr >= ny) continue;
+          const ncCount = counts[nr * nx + nc];
+          if (ncCount < cutoff) continue;
+          neighbors.push({
+            lon: west + nc * cellDeg,
+            lat: south + nr * cellDeg,
+            count: ncCount
+          });
+        }
+      }
+      let outLon, outLat, outCount;
+      if (neighbors.length === 0) {
+        // Isolated surviving cell: keep self so it's still rendered.
+        outLon = west + col * cellDeg;
+        outLat = south + row * cellDeg;
+        outCount = c;
+      } else {
+        // Top-K by count. Stable sort means ties resolve by row-major
+        // scan order, which is deterministic across runs.
+        neighbors.sort((a, b) => b.count - a.count);
+        const top = neighbors.slice(0, k);
+        let sumLon = 0, sumLat = 0, sumCount = 0;
+        for (const n of top) {
+          sumLon += n.lon;
+          sumLat += n.lat;
+          sumCount += n.count;
+        }
+        outLon = sumLon / top.length;
+        outLat = sumLat / top.length;
+        outCount = sumCount / top.length;
+      }
+      refined.set(idx, { lon: outLon, lat: outLat, count: outCount });
+    }
+  }
+  return refined;
+}
+
 function thermalDailyDensityForDate(date) {
   const key = `day:${date}`;
   if (thermalFrontState.densityCache.has(key)) return thermalFrontState.densityCache.get(key);
@@ -6337,27 +6415,20 @@ function thermalRenderFrontLayer() {
       const points = thermalCollectFrontPoints(dayFrames);
       if (!points.length) continue;
       const field = thermalBuildDensityField(points, dayFrames.length, dayItem.date);
-      // field.extent = [west, south, east, north] — the previous
-      // destructuring read element 3 (north) as 'south' and emitted
-      // every daily point ~9° north of the actual data. Fix to read
-      // the actual south boundary.
-      const west = field.extent[0];
-      const south = field.extent[1];
-      const cellDeg = field.cellDeg;
+      // v4-refine: pull each surviving cell's location toward the
+      // top-3 surviving cells in its 8-neighborhood (1-stride). Each
+      // output point is the unweighted mean of those top-3 cell
+      // centers; its count is the mean of their counts (so the
+      // radius still encodes local density at the smoothed location).
+      const refined = thermalRefineDensityField(field, 3);
       const maxC = Math.max(field.max || 1, 1);
-      for (let idx = 0; idx < field.counts.length; idx++) {
-        const c = field.counts[idx];
-        if (c < field.cutoff) continue;
-        const col = idx % field.nx;
-        const row = Math.floor(idx / field.nx);
-        const lon = west + col * cellDeg;
-        const lat = south + row * cellDeg;
-        const radius = RADIUS_MIN + (RADIUS_MAX - RADIUS_MIN) * (c - field.cutoff) / maxC;
+      for (const { lon, lat, count } of refined.values()) {
+        const radius = RADIUS_MIN + (RADIUS_MAX - RADIUS_MIN) * (count - field.cutoff) / maxC;
         const feature = new ol.Feature({ geometry: new ol.geom.Point([lon, lat]) });
         feature.setProperties({
           color,
           pointRadius: radius,
-          densityCount: c,
+          densityCount: count,
           dayDate: dayItem.date,
           frameTime: dayItem.t
         });
