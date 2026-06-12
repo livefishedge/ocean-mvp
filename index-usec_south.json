@@ -1,6 +1,6 @@
 {
   "region": "usec_south",
-  "last_updated": "2026-06-12T16:54:16.325447+00:00",
+  "last_updated": "2026-06-12T17:04:24.961256Z",
   "vars": [
     "chl",
     "sst",
@@ -10,22 +10,6 @@
   ],
   "frames": {
     "chl": [
-      {
-        "var": "chl",
-        "id": "usec_south_20260512_2026132.1643_chl_PACE-OCI",
-        "label": "2026-05-12 16:43 UTC | PACE-OCI",
-        "time_iso": "2026-05-12T16:43:00Z",
-        "json_path": "data/usec_south/chl/usec_south_20260512_2026132.1643_chl_PACE-OCI.json",
-        "grid_file": "frame_bbox"
-      },
-      {
-        "var": "chl",
-        "id": "usec_south_20260512_2026132.1653_chl_SGLI",
-        "label": "2026-05-12 16:53 UTC | SGLI",
-        "time_iso": "2026-05-12T16:53:00Z",
-        "json_path": "data/usec_south/chl/usec_south_20260512_2026132.1653_chl_SGLI.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "chl",
         "id": "usec_south_2026132.1727_chl_VJ2",
@@ -1536,6 +1520,14 @@
         "label": "2026-06-11 18:57 UTC | VJ1",
         "time_iso": "2026-06-11T18:57:00Z",
         "json_path": "data/usec_south/chl/usec_south_2026162.1857_chl_VJ1.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_south_20260612_2026163.1426_chl_S3A",
+        "label": "2026-06-12 14:26 UTC | S3A",
+        "time_iso": "2026-06-12T14:26:00Z",
+        "json_path": "data/usec_south/chl/usec_south_20260612_2026163.1426_chl_S3A.json",
         "grid_file": "frame_bbox"
       }
     ],
@@ -12832,6 +12824,14 @@
         "label": "2026-06-12 13:00 UTC",
         "time_iso": "2026-06-12T13:00:00Z",
         "json_path": "data/usec_south/sst_front/sstfront_usec_south_2026163_20260612_13_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_south_2026163_20260612_14_g19",
+        "label": "2026-06-12 14:00 UTC",
+        "time_iso": "2026-06-12T14:00:00Z",
+        "json_path": "data/usec_south/sst_front/sstfront_usec_south_2026163_20260612_14_g19.json",
         "grid_file": "frame_bbox"
       }
     ]
