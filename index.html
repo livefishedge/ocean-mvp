@@ -1203,7 +1203,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-11T19:55"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T08:15"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -6234,7 +6234,11 @@ async function thermalInitMap() {
 function thermalRenderDensityLayer() {
   const map = thermalFrontState.map;
   if (!map) return;
-  if (thermalFrontState.mode !== "daily") {
+  // Hide density heatmap in single-day daily mode (front vector points
+  // are the primary visualization). Only show it when the user explicitly
+  // opts into "all days this period" — that's the only case where the
+  // heatmap adds context the points don't.
+  if (thermalFrontState.mode !== "daily" || !thermalAllDayCb?.checked) {
     if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setSource(null);
     return;
   }
