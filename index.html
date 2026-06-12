@@ -1203,7 +1203,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T08:40"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T10:00"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -6039,7 +6039,7 @@ function thermalCompositeDensityCanvas(field) {
     img.data[k] = Math.round(rSum / aSum);
     img.data[k + 1] = Math.round(gSum / aSum);
     img.data[k + 2] = Math.round(bSum / aSum);
-    img.data[k + 3] = Math.min(245, Math.round(100 + 145 * Math.min(1, aSum)));
+    img.data[k + 3] = Math.min(250, Math.round(180 + 70 * Math.min(1, aSum)));
   }
   ctx.putImageData(img, 0, 0);
   return canvas;
@@ -6256,12 +6256,12 @@ function thermalRenderDensityLayer() {
   });
   if (thermalFrontState.densityLayer) {
     thermalFrontState.densityLayer.setSource(source);
-    // Daily density: render at low opacity so the colored front lines
-    // (zIndex 45, on top) stay readable. Was opacity 1 pre-fix and made
-    // daily mode look like a uniform red blob.
-    thermalFrontState.densityLayer.setOpacity(0.42);
+    // "all days this period" is the only mode where the density heatmap
+    // is visible (single-day daily hides it). Render at full opacity so
+    // the per-day colors are sharp and not muted by basemap blending.
+    thermalFrontState.densityLayer.setOpacity(1.0);
   } else {
-    thermalFrontState.densityLayer = new ol.layer.Image({ source, zIndex: 42, opacity: 0.42 });
+    thermalFrontState.densityLayer = new ol.layer.Image({ source, zIndex: 42, opacity: 1.0 });
     map.addLayer(thermalFrontState.densityLayer);
   }
   thermalFrontState.densityLayer.setVisible(true);
