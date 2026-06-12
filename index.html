@@ -1203,7 +1203,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T13:55"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T14:35"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -1222,12 +1222,15 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   // v4: daily front layer is now cell-density points (no lines).
   v4FrontPoints: true,
   densityCellDeg: 0.01,
-  densityThreshold: 2,
-  // v4-refine: each cell's reported location is the unweighted mean of
-  // its top-K surviving neighbors in the 8-neighborhood (1-stride).
-  v4RefineMode: "topk_mean",
+  densityThreshold: 3,
+  // v4-refine: candidate pool = self + 8 neighbors (1-stride) that
+  // pass the cutoff; top-K (=3) by count; count-weighted mean of
+  // (lon, lat) is the new front location.
+  v4RefineMode: "topk_weighted_mean",
   v4RefineTopK: 3,
-  v4RefineNeighbors: 8
+  v4RefineNeighbors: 8,
+  v4RefineIncludeSelf: true,
+  v4RefineDropBelowCutoff: true
 });
 const QUERY_PARAMS = new URLSearchParams(location.search);
 const REGIONS = {
@@ -5926,11 +5929,12 @@ function thermalBuildDensityField(points, hourlyCount, label) {
   }
   const nonzero = Array.from(counts).filter(v => v > 0);
   const max = Math.max(1, ...nonzero);
-  // v4: fixed threshold of 2 (Mike's spec). Cells hit by fewer than 2
-  // hourly detections are noise. Was max(2, round(max*0.15)) which let
-  // very high-density days use a 5-6 cell floor and very sparse days
-  // collapse everything to 0.
-  const cutoff = 2;
+  // v4: fixed threshold of 3 (Mike's spec for v4-refine). Cells hit
+  // by fewer than 3 hourly detections are noise. Was 2 in the
+  // pre-refine v4; tightened to 3 because the refinement step is
+  // most useful when each surviving cell has at least one strong
+  // core hit, and we want the output to be sparser / more confident.
+  const cutoff = 3;
   return {
     label,
     color: thermalColorForDensityDate(label),
@@ -5946,25 +5950,29 @@ function thermalBuildDensityField(points, hourlyCount, label) {
   };
 }
 
-// v4-refine: for each surviving cell in a density field, look at the
-// 8 immediate neighbors (1-stride away: up, up-right, right, down-right,
-// down, down-left, left, up-left). Among those neighbors that ALSO pass
-// the cutoff, keep the top-K (=3) by count and replace the cell's
-// reported front location with the unweighted mean of their cell
-// centers. The cell's own count is replaced by the mean of the top-K
-// counts so the radius/magnitude still encodes local density at the
-// new location.
+// v4-refine: for each surviving cell in a density field, build a
+// candidate pool of (self + 8 immediate neighbors at 1-stride: up,
+// up-right, right, down-right, down, down-left, left, up-left), keep
+// only those that ALSO pass the cutoff, and pick the top-K (=3) by
+// count. The cell's reported front location is the COUNT-WEIGHTED
+// mean of those top-K cell centers, so a high-count neighbor pulls
+// the result toward it more strongly than a low-count one. The new
+// count for the output point is the count-weighted mean of the top-K
+// counts, which keeps the radius bounded and consistent with the
+// location weighting.
 //
-// Why: the raw v4 scatter produces blocky 0.01 deg cells. Pulling each
-// point toward the densest part of its 8-neighborhood smooths the
+// Why: the raw v4 scatter produces blocky 0.01 deg cells. Pulling
+// each point toward the densest part of its 9-cell window smooths the
 // front into the consensus core, drops single-cell noise outliers,
-// and gives a single representative location per local density mode
-// instead of "wherever the max-count cell happened to land."
+// and gives one representative location per local density mode.
 //
 // Edge handling:
+// - Cell itself below cutoff: drop the point (don't render).
 // - Boundary cells: only in-bounds neighbors are considered.
-// - < K surviving neighbors: average whatever is there (1 or 2).
-// - 0 surviving neighbors: keep the cell at its own center.
+// - < K cells in pool: average whatever is there (1 or 2).
+// - Self is always part of the pool if it passes the cutoff; this
+//   means a strongly isolated cell stays anchored to itself (the
+//   weighted mean with only self in the pool = self).
 function thermalRefineDensityField(field, k = 3) {
   const { counts, nx, ny, cellDeg, extent, cutoff } = field;
   const west = extent[0];
@@ -5974,46 +5982,46 @@ function thermalRefineDensityField(field, k = 3) {
     for (let col = 0; col < nx; col++) {
       const idx = row * nx + col;
       const c = counts[idx];
-      if (c < cutoff) continue;
-      // Gather 8-neighbor cells that pass the cutoff.
-      const neighbors = [];
+      if (c < cutoff) continue; // drop cells below cutoff
+      // Build candidate pool: self + 8 neighbors (in-bounds and >= cutoff).
+      const pool = [{
+        lon: west + col * cellDeg,
+        lat: south + row * cellDeg,
+        count: c
+      }];
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
-          if (dr === 0 && dc === 0) continue; // exclude self
+          if (dr === 0 && dc === 0) continue; // self already in pool
           const nc = col + dc;
           const nr = row + dr;
           if (nc < 0 || nc >= nx || nr < 0 || nr >= ny) continue;
           const ncCount = counts[nr * nx + nc];
           if (ncCount < cutoff) continue;
-          neighbors.push({
+          pool.push({
             lon: west + nc * cellDeg,
             lat: south + nr * cellDeg,
             count: ncCount
           });
         }
       }
-      let outLon, outLat, outCount;
-      if (neighbors.length === 0) {
-        // Isolated surviving cell: keep self so it's still rendered.
-        outLon = west + col * cellDeg;
-        outLat = south + row * cellDeg;
-        outCount = c;
-      } else {
-        // Top-K by count. Stable sort means ties resolve by row-major
-        // scan order, which is deterministic across runs.
-        neighbors.sort((a, b) => b.count - a.count);
-        const top = neighbors.slice(0, k);
-        let sumLon = 0, sumLat = 0, sumCount = 0;
-        for (const n of top) {
-          sumLon += n.lon;
-          sumLat += n.lat;
-          sumCount += n.count;
-        }
-        outLon = sumLon / top.length;
-        outLat = sumLat / top.length;
-        outCount = sumCount / top.length;
+      // Top-K by count. Stable sort means ties resolve by scan order,
+      // which is deterministic across runs.
+      pool.sort((a, b) => b.count - a.count);
+      const top = pool.slice(0, k);
+      // Count-weighted mean of (lon, lat). sumW is the sum of the
+      // top-K weights; the new count is the mean weight (sumW / K)
+      // so the radius stays bounded between cutoff and field.max.
+      let sumW = 0, sumLon = 0, sumLat = 0;
+      for (const t of top) {
+        sumW += t.count;
+        sumLon += t.lon * t.count;
+        sumLat += t.lat * t.count;
       }
-      refined.set(idx, { lon: outLon, lat: outLat, count: outCount });
+      refined.set(idx, {
+        lon: sumLon / sumW,
+        lat: sumLat / sumW,
+        count: sumW / top.length
+      });
     }
   }
   return refined;
