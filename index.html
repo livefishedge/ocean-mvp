@@ -1203,7 +1203,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T08:15"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T08:40"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -6302,10 +6302,16 @@ function thermalRenderFrontLayer() {
   // Daily mode: v4 - render density-thresholded cell centers as points
   // (NO lines). One Point per 0.01° cell that was hit by >=2 hourly
   // detections for that day. Color = day-in-period, radius = subtle.
+  // In "all days this period" mode, the density heatmap is the primary
+  // visualization across the full period — the point layer would be a
+  // noisy pile of small symbols stacked on top of it, so suppress it.
   if (thermalFrontState.mode === "daily") {
-    const dayItems = thermalAllDayCb?.checked
-      ? thermalFrontState.dailyFrames
-      : [thermalFrontState.dailyFrames[thermalFrontState.frameIdx]].filter(Boolean);
+    if (thermalAllDayCb?.checked) {
+      if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(null);
+      return;
+    }
+    // single-day daily mode: only the active day's frame
+    const dayItems = [thermalFrontState.dailyFrames[thermalFrontState.frameIdx]].filter(Boolean);
     if (!dayItems.length) {
       if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(null);
       return;
@@ -6323,7 +6329,12 @@ function thermalRenderFrontLayer() {
       const points = thermalCollectFrontPoints(dayFrames);
       if (!points.length) continue;
       const field = thermalBuildDensityField(points, dayFrames.length, dayItem.date);
-      const [west, , , south] = field.extent;
+      // field.extent = [west, south, east, north] — the previous
+      // destructuring read element 3 (north) as 'south' and emitted
+      // every daily point ~9° north of the actual data. Fix to read
+      // the actual south boundary.
+      const west = field.extent[0];
+      const south = field.extent[1];
       const cellDeg = field.cellDeg;
       const maxC = Math.max(field.max || 1, 1);
       for (let idx = 0; idx < field.counts.length; idx++) {
@@ -6501,6 +6512,14 @@ function thermalSetMode(mode) {
   thermalDayRow?.classList.toggle("hidden", mode !== "animation");
   thermalAllDayToggle?.classList.remove("hidden");
   if (thermalAllDayCb) thermalAllDayCb.checked = false;
+  // Same checkbox, mode-conditional semantics:
+  //  - hourly mode = "all hours this day"   (plays every hour of the selected day)
+  //  - daily  mode = "all days this period" (aggregates density across all days)
+  if (thermalAllDayLabel) {
+    thermalAllDayLabel.textContent = mode === "daily"
+      ? "All days this period"
+      : "All hours this day";
+  }
   if (mode === "daily") {
     const previousDate = thermalFrontState.selectedDate || thermalDateKey(thermalActiveFrameList()[thermalFrontState.frameIdx]?.t || Date.now());
     thermalFrontState.frameIdx = Math.max(0, thermalFrontState.dailyFrames.findIndex(item => item.date === previousDate));
