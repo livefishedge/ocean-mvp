@@ -784,6 +784,33 @@ body.combined-mode #combined-menu-btn{
       box-shadow:0 4px 14px rgba(0,0,0,0.25);
       transform:translate(12px, -50%);
     }
+    #thermal-hover-tip{
+      display:none;
+      position:fixed;
+      z-index:1200;
+      pointer-events:none;
+      padding:4px 8px;
+      border-radius:4px;
+      background:rgba(8,12,20,0.88);
+      border:1px solid rgba(120,180,255,0.65);
+      color:#f2e8ff;
+      font-size:11.5px;
+      font-weight:700;
+      font-family:Menlo,Consolas,monospace;
+      letter-spacing:0.02em;
+      box-shadow:0 4px 14px rgba(0,0,0,0.35);
+      transform:translate(14px, -50%);
+      white-space:nowrap;
+    }
+    #thermal-hover-tip .tip-dot{
+      display:inline-block;
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      margin-right:6px;
+      vertical-align:middle;
+      border:1px solid currentColor;
+    }
     #thermal-front-controls{
       display:none;
       flex-direction:column;
@@ -991,6 +1018,7 @@ body.combined-mode #combined-menu-btn{
   <div id="combined-map"></div>
   <div id="combined-readout">—, —</div>
   <div id="combined-hover-tip"></div>
+  <div id="thermal-hover-tip"></div>
   <div id="combined-overlay"></div>
   <div id="captain-tools" role="toolbar" aria-label="Captain tools">
     <button id="captain-fs-btn" class="captain-tool-btn" title="Fullscreen">
@@ -1203,7 +1231,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T14:35"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T22:30"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -1217,8 +1245,9 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   colorModel: "domain-based (hour-of-day | day-in-period)",
   hasHourlyDomainHelper: typeof thermalColorForHourInDay === "function",
   hasDailyDomainHelper: typeof thermalColorForDayInPeriod === "function",
-  densityIsDayColored: false, // updated by thermalRenderDensityLayer
-  hasDensityOpacityBelow1: false,
+  // Density heatmap is removed (Mike, 2026-06-12). The v4-refine
+  // Point layer is the only daily visualization.
+  densityLayerRemoved: true,
   // v4: daily front layer is now cell-density points (no lines).
   v4FrontPoints: true,
   densityCellDeg: 0.01,
@@ -1230,7 +1259,22 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   v4RefineTopK: 3,
   v4RefineNeighbors: 8,
   v4RefineIncludeSelf: true,
-  v4RefineDropBelowCutoff: true
+  v4RefineDropBelowCutoff: true,
+  // Style: open circles (no fill) so overlapping day symbols don't
+  // stack into a solid blob. Fixed 1.5 px radius (no size-by-count;
+  // Mike, 2026-06-12).
+  v4RefinePointStyle: "open_circle",
+  v4RefinePointRadius: 1.5,
+  v4RefinePointStrokeWidth: 0.5,
+  // All-days daily mode no longer suppresses the v4-refine layer.
+  v4RefineAllDaysEnabled: true,
+  // Colormap: 7-stop rainbow (violet -> blue -> cyan -> green ->
+  // yellow -> orange -> red). Oldest = violet (cool), newest = red
+  // (warm). Replaces the previous 4-stop purple/blue/green/red.
+  v4RefineColorMap: "rainbow_violet_to_red",
+  // Hover tooltip shows date + UTC hour of the frame.
+  v4RefineHoverTip: true,
+  v4RefineHoverTipFormat: "YYYY-MM-DD HH:MM UTC · N det"
 });
 const QUERY_PARAMS = new URLSearchParams(location.search);
 const REGIONS = {
@@ -1512,9 +1556,7 @@ let thermalFrontState = {
   selectedDate: "",
   dailyFrames: [],
   hourlyDays: [],
-  densityCache: new Map(),
   frontLayer: null,
-  densityLayer: null,
   cursorLayer: null,
   cursorFeature: null,
   initialized: false,
@@ -1796,7 +1838,6 @@ async function renderDesktopFrame(frameMeta) {
   }
   if (desktopMapState.arrowLayer) desktopMapState.arrowLayer.setVisible(currentVar === "uv");
   if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setVisible(false);
-  if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setVisible(false);
   if (thermalFrontState.cursorLayer) thermalFrontState.cursorLayer.setVisible(false);
 
   installDesktopReadoutHandlersOnce(map);
@@ -5702,87 +5743,109 @@ function thermalColorForAge(ms, latestMs, oldestMs) {
   return `hsl(${hue}, 92%, ${light}%)`;
 }
 
-// Domain-based color helpers — every front-line color is keyed to an
-// absolute time domain (full UTC day for hourly, full 14-day period
-// for daily), not to the visible subset. See commit message for the
-// 2026-06-11 dashboard fix (contract: dashboard-v2).
-function thermalColorForTimeFraction(t) {
-  // 4-color gradient: purple -> blue -> green -> red.
-  // Anchors at t = 0, 1/3, 2/3, 1.0. HSL interpolation.
+// Rainbow colormap: 7-stop full-spectrum gradient.
+// violet (270) -> blue (240) -> cyan (190) -> green (120) ->
+// yellow (60) -> orange (30) -> red (0).
+// Older = cooler (violet/blue), newer = warmer (orange/red).
+// Mike asked for a "more distinguishable color map... rainbow perhaps"
+// on 2026-06-12. The previous 4-stop (purple/blue/green/red) was hard
+// to read when many days overlap in the same area.
+const THERMAL_RAINBOW_STOPS = [
+  { t: 0.00, h: 270, s: 75, l: 50 }, // violet (oldest, coolest)
+  { t: 1/6,  h: 240, s: 80, l: 52 }, // blue
+  { t: 2/6,  h: 190, s: 85, l: 48 }, // cyan
+  { t: 3/6,  h: 120, s: 80, l: 45 }, // green
+  { t: 4/6,  h:  60, s: 90, l: 50 }, // yellow
+  { t: 5/6,  h:  30, s: 92, l: 50 }, // orange
+  { t: 1.00, h:   0, s: 88, l: 50 }  // red (newest, warmest)
+];
+
+function thermalColorForTimeFractionRainbow(t) {
   const tc = Math.max(0, Math.min(1, Number(t) || 0));
-  const stops = [
-    { t: 0,    h: 282, s: 92, l: 52 },
-    { t: 1/3,  h: 210, s: 88, l: 50 },
-    { t: 2/3,  h: 120, s: 84, l: 46 },
-    { t: 1,    h: 0,   s: 90, l: 50 }
-  ];
-  let a = stops[0];
-  let b = stops[stops.length - 1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (tc >= stops[i].t && tc <= stops[i + 1].t) { a = stops[i]; b = stops[i + 1]; break; }
+  let a = THERMAL_RAINBOW_STOPS[0];
+  let b = THERMAL_RAINBOW_STOPS[THERMAL_RAINBOW_STOPS.length - 1];
+  for (let i = 0; i < THERMAL_RAINBOW_STOPS.length - 1; i++) {
+    if (tc >= THERMAL_RAINBOW_STOPS[i].t && tc <= THERMAL_RAINBOW_STOPS[i + 1].t) {
+      a = THERMAL_RAINBOW_STOPS[i];
+      b = THERMAL_RAINBOW_STOPS[i + 1];
+      break;
+    }
   }
   const span = (b.t - a.t) || 1;
   const f = (tc - a.t) / span;
-  const h = a.h + (b.h - a.h) * f;
+  // Hue shortest-path interpolation (red->violet is -270, not +90)
+  let hDiff = b.h - a.h;
+  if (hDiff > 180) hDiff -= 360;
+  else if (hDiff < -180) hDiff += 360;
+  const h = (a.h + hDiff * f + 360) % 360;
   const s = a.s + (b.s - a.s) * f;
   const l = a.l + (b.l - a.l) * f;
   return `hsl(${h.toFixed(1)}, ${s.toFixed(1)}%, ${l.toFixed(1)}%)`;
 }
 
-function thermalColorTimeFractionRgb(t) {
-  // Same gradient as thermalColorForTimeFraction, but returns [r,g,b] for canvas.
+function thermalColorForTimeFractionRainbowRgb(t) {
   const tc = Math.max(0, Math.min(1, Number(t) || 0));
-  const stops = [
-    { t: 0,    h: 282, s: 0.92, l: 0.52 },
-    { t: 1/3,  h: 210, s: 0.88, l: 0.50 },
-    { t: 2/3,  h: 120, s: 0.84, l: 0.46 },
-    { t: 1,    h: 0,   s: 0.90, l: 0.50 }
-  ];
-  let a = stops[0];
-  let b = stops[stops.length - 1];
-  for (let i = 0; i < stops.length - 1; i++) {
-    if (tc >= stops[i].t && tc <= stops[i + 1].t) { a = stops[i]; b = stops[i + 1]; break; }
+  let a = THERMAL_RAINBOW_STOPS[0];
+  let b = THERMAL_RAINBOW_STOPS[THERMAL_RAINBOW_STOPS.length - 1];
+  for (let i = 0; i < THERMAL_RAINBOW_STOPS.length - 1; i++) {
+    if (tc >= THERMAL_RAINBOW_STOPS[i].t && tc <= THERMAL_RAINBOW_STOPS[i + 1].t) {
+      a = THERMAL_RAINBOW_STOPS[i];
+      b = THERMAL_RAINBOW_STOPS[i + 1];
+      break;
+    }
   }
   const span = (b.t - a.t) || 1;
   const f = (tc - a.t) / span;
-  const h = a.h + (b.h - a.h) * f;
-  const s = a.s + (b.s - a.s) * f;
-  const l = a.l + (b.l - a.l) * f;
+  let hDiff = b.h - a.h;
+  if (hDiff > 180) hDiff -= 360;
+  else if (hDiff < -180) hDiff += 360;
+  const h = (a.h + hDiff * f + 360) % 360;
+  const s = (a.s + (b.s - a.s) * f) / 100;
+  const l = (a.l + (b.l - a.l) * f) / 100;
   return thermalHslToRgb(h, s, l);
 }
 
+// Domain-based color helpers — every front-line color is keyed to an
+// absolute time domain (full UTC day for hourly, full 14-day period
+// for daily), not to the visible subset. See commit message for the
+// 2026-06-11 dashboard fix (contract: dashboard-v2). The previous
+// 4-stop gradient was replaced with a 7-stop rainbow on 2026-06-12.
 function thermalColorForHourInDay(frameTimeMs) {
-  // Domain: full UTC day. 00:00 UTC -> purple, 12:00 UTC -> blue/green,
+  // Domain: full UTC day. 00:00 UTC -> violet, 12:00 UTC -> green,
   // 23:00 UTC -> red. Independent of which hourly frames are visible.
-  if (!Number.isFinite(frameTimeMs)) return thermalColorForTimeFraction(0);
+  if (!Number.isFinite(frameTimeMs)) return thermalColorForTimeFractionRainbow(0);
   const d = new Date(frameTimeMs);
   const frac = (d.getUTCHours() + d.getUTCMinutes() / 60) / 23;
-  return thermalColorForTimeFraction(frac);
+  return thermalColorForTimeFractionRainbow(frac);
 }
 
 function thermalColorForDayInPeriod(dayMs, oldestMs, latestMs) {
   // Domain: full 14-day period (or whatever the active window is).
-  // Oldest day -> purple, newest day -> red. Independent of which
-  // daily frames are visible.
+  // Oldest day -> violet, newest day -> red (rainbow colormap).
+  // Independent of which daily frames are visible. Rainbow was
+  // switched in 2026-06-12 from 4-stop purple/blue/green/red to
+  // 7-stop violet/blue/cyan/green/yellow/orange/red so the
+  // 14 days are individually distinguishable.
   if (!Number.isFinite(dayMs) || !Number.isFinite(oldestMs) || !Number.isFinite(latestMs)) {
-    return thermalColorForTimeFraction(0);
+    return thermalColorForTimeFractionRainbow(0);
   }
   const span = Math.max(1, latestMs - oldestMs);
   const t = (dayMs - oldestMs) / span;
-  return thermalColorForTimeFraction(t);
+  return thermalColorForTimeFractionRainbow(t);
 }
 
 function thermalColorForDensityDate(date) {
-  // Density heatmap color is now keyed to the day's position in the
-  // 14-day period (oldest = purple, newest = red), NOT hardcoded red.
-  // The density layer is then made translucent so the colored front
-  // lines on top stay readable.
+  // Per-cell color for the v4-refine Point layer (the only daily
+  // visualization as of 2026-06-12). Keyed to day-in-period with
+  // the rainbow colormap (oldest = violet, newest = red), so the
+  // returned RGB matches the HSL color used by the front layer's
+  // daily-day color helper.
   const dayItem = thermalFrontState.dailyFrames.find(d => d.date === date);
   if (!dayItem) return [19, 74, 136];
   const oldestMs = thermalFrontState.dailyFrames[0]?.t ?? dayItem.t;
   const latestMs = thermalFrontState.dailyFrames.at(-1)?.t ?? dayItem.t;
   const t = Math.max(0, Math.min(1, (dayItem.t - oldestMs) / Math.max(1, latestMs - oldestMs)));
-  return thermalColorTimeFractionRgb(t);
+  return thermalColorForTimeFractionRainbowRgb(t);
 }
 
 function thermalFramesForDate(date) {
@@ -5906,9 +5969,9 @@ function thermalHslToRgb(h, s, l) {
 }
 
 function thermalColorForDensityDate_legacyRed() {
-  // Captain's dashboard pre-fix: keep all density markers red.
-  // Replaced by the day-domain version above. Kept here only as a
-  // tombstone for git history.
+  // Tombstone: density heatmap was removed 2026-06-12. The v4-refine
+  // Point layer is the only daily visualization now (rainbow by
+  // day-in-period). Kept here for git history.
   return [255, 30, 30];
 }
 
@@ -6027,124 +6090,22 @@ function thermalRefineDensityField(field, k = 3) {
   return refined;
 }
 
-function thermalDailyDensityForDate(date) {
-  const key = `day:${date}`;
-  if (thermalFrontState.densityCache.has(key)) return thermalFrontState.densityCache.get(key);
-  const items = thermalFramesForDate(date);
-  const density = thermalBuildDensityField(thermalCollectFrontPoints(items), items.length, date);
-  thermalFrontState.densityCache.set(key, density);
-  return density;
-}
-
-function thermalDensityForDates(dates) {
-  const key = `dates:${dates.join("|")}`;
-  if (thermalFrontState.densityCache.has(key)) return thermalFrontState.densityCache.get(key);
-  const fields = dates.map(date => thermalDailyDensityForDate(date));
-  const density = {
-    label: `${dates[0]}..${dates.at(-1)}`,
-    fields,
-    hourlyCount: fields.reduce((sum, field) => sum + field.hourlyCount, 0),
-    nx: fields[0]?.nx || 0,
-    ny: fields[0]?.ny || 0,
-    extent: fields[0]?.extent || BBOX
-  };
-  thermalFrontState.densityCache.set(key, density);
-  return density;
-}
-
-function thermalActiveDensityField() {
-  if (thermalFrontState.mode !== "daily") return null;
-  if (thermalAllDayCb?.checked) return thermalDensityForDates(thermalFrontState.dailyFrames.map(item => item.date));
-  const dayItem = thermalFrontState.dailyFrames[thermalFrontState.frameIdx];
-  return dayItem ? thermalDailyDensityForDate(dayItem.date) : null;
-}
-
-function thermalDensityCanvas(field) {
-  if (!field) return null;
-  if (Array.isArray(field.fields)) return thermalCompositeDensityCanvas(field);
-  if (!field.counts?.length) return null;
-  const canvas = document.createElement("canvas");
-  canvas.width = field.nx;
-  canvas.height = field.ny;
-  const ctx = canvas.getContext("2d");
-  const max = Math.max(field.max || 1, 1);
-  const cutoff = Math.max(field.cutoff || 2, Math.round(max * 0.15));
-  const span = Math.max(1, max - cutoff);
-  // Sanitize color: every channel must be a finite integer 0..255, otherwise
-  // a malformed rgba string (e.g. rgba(undefined,...) or rgba(NaN,...)) makes
-  // Safari throw 'The string did not match the expected pattern' on the
-  // canvas2D fillStyle assignment.
-  const c = field.color || [19, 74, 136];
-  const cr = Number.isFinite(c[0]) ? Math.max(0, Math.min(255, c[0] | 0)) : 19;
-  const cg = Number.isFinite(c[1]) ? Math.max(0, Math.min(255, c[1] | 0)) : 74;
-  const cb = Number.isFinite(c[2]) ? Math.max(0, Math.min(255, c[2] | 0)) : 136;
-  for (let row = 0; row < field.ny; row++) {
-    const y = field.ny - 1 - row;
-    for (let x = 0; x < field.nx; x++) {
-      const v = field.counts[row * field.nx + x];
-      if (v < cutoff) continue;
-      const norm = Math.min(1, (v - cutoff) / span);
-      const a = Number.isFinite(norm) ? (0.10 + 0.55 * norm) : 0.373;
-      const aStr = a.toFixed(3);
-      ctx.beginPath();
-      ctx.arc(x + 0.5, y + 0.5, 2.52, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${aStr})`;
-      ctx.fill();
-    }
-  }
-  return canvas;
-}
-
-function thermalCompositeDensityCanvas(field) {
-  const fields = field.fields || [];
-  const first = fields[0];
-  if (!first) return null;
-  const canvas = document.createElement("canvas");
-  canvas.width = first.nx;
-  canvas.height = first.ny;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(first.nx, first.ny);
-  for (let i = 0; i < first.nx * first.ny; i++) {
-    let rSum = 0, gSum = 0, bSum = 0, aSum = 0;
-    for (const dayField of fields) {
-      const v = dayField.counts ? dayField.counts[i] : 0;
-      const max = Math.max(dayField.max || 1, 1);
-      const cutoff = Math.max(dayField.cutoff || 2, Math.round(max * 0.15));
-      if (v < cutoff) continue;
-      const alpha = Math.min(1, v / max);
-      const color = dayField.color || [19, 74, 136];
-      rSum += color[0] * alpha;
-      gSum += color[1] * alpha;
-      bSum += color[2] * alpha;
-      aSum += alpha;
-    }
-    if (aSum <= 0) continue;
-    const row = Math.floor(i / first.nx);
-    const col = i - row * first.nx;
-    const k = ((first.ny - 1 - row) * first.nx + col) * 4;
-    img.data[k] = Math.round(rSum / aSum);
-    img.data[k + 1] = Math.round(gSum / aSum);
-    img.data[k + 2] = Math.round(bSum / aSum);
-    // Per-pixel alpha 180-250 was still 30% transparent at the low end,
-    // letting the basemap bleed through. The "sharp colors" product
-    // requirement means zero transparency on any data cell.
-    img.data[k + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  return canvas;
-}
-
 function thermalFeatureStyle(feature) {
   const geom = feature.getGeometry();
-  // v4: daily front layer is now a Point per density cell, not a LineString.
+  // v4-refine: daily front layer is a Point per surviving density cell.
+  // Open circle (stroke only, no fill) so overlapping symbols from
+  // multiple days stay visually separable instead of stacking into a
+  // solid blob. Matches the matplotlib v8_refine_all_days.png
+  // prototype (facecolors='none', edgecolors=day_color).
   if (geom instanceof ol.geom.Point) {
     const radius = feature.get("pointRadius");
     const color = feature.get("color") || "hsl(282, 92%, 52%)";
+    const strokeWidth = feature.get("pointStrokeWidth") ?? 0.6;
     return new ol.style.Style({
       image: new ol.style.Circle({
         radius: Number.isFinite(radius) ? radius : 1.5,
-        fill: new ol.style.Fill({ color }),
-        stroke: new ol.style.Stroke({ color, width: 0.4 })
+        // no fill => open ring
+        stroke: new ol.style.Stroke({ color, width: strokeWidth })
       })
     });
   }
@@ -6156,6 +6117,77 @@ function thermalFeatureStyle(feature) {
       lineJoin: "round"
     })
   });
+}
+
+// Hover tooltip for v4-refine front points (daily mode).
+// Mike, 2026-06-12: "When hovered upon, should show the time or
+// date of the points." Renders a small floating tip with a colored
+// dot (matches the point's rainbow color) + the date/hour label.
+function thermalFrontHoverTip(coord, pixel) {
+  const tipEl = document.getElementById("thermal-hover-tip");
+  if (!tipEl || !thermalFrontState.frontLayer) return;
+  // Only show tip in daily mode where the v4-refine points exist.
+  if (thermalFrontState.mode !== "daily") {
+    tipEl.style.display = "none";
+    return;
+  }
+  // Hit-test: find nearest point within ~14px (matches the cursor
+  // hit radius used elsewhere in the file). iterateFeaturesInExtent
+  // is a fast way to limit the search to a small box.
+  if (!coord || !Number.isFinite(coord[0]) || !Number.isFinite(coord[1])) {
+    tipEl.style.display = "none";
+    return;
+  }
+  const map = thermalFrontState.map;
+  if (!map || !pixel) { tipEl.style.display = "none"; return; }
+  const source = thermalFrontState.frontLayer.getSource();
+  if (!source) { tipEl.style.display = "none"; return; }
+  // 14px square around the cursor in coord space
+  const halfSize = 14;
+  const minPx = [pixel[0] - halfSize, pixel[1] - halfSize];
+  const maxPx = [pixel[0] + halfSize, pixel[1] + halfSize];
+  let minCoord, maxCoord;
+  try {
+    minCoord = map.getCoordinateFromPixel(minPx);
+    maxCoord = map.getCoordinateFromPixel(maxPx);
+  } catch (_) { tipEl.style.display = "none"; return; }
+  if (!Number.isFinite(minCoord?.[0]) || !Number.isFinite(maxCoord?.[0])) {
+    tipEl.style.display = "none";
+    return;
+  }
+  const extent = [
+    Math.min(minCoord[0], maxCoord[0]),
+    Math.min(minCoord[1], maxCoord[1]),
+    Math.max(minCoord[0], maxCoord[0]),
+    Math.max(minCoord[1], maxCoord[1])
+  ];
+  const candidates = source.getFeaturesInExtent(extent);
+  if (!candidates.length) { tipEl.style.display = "none"; return; }
+  // Pick nearest by screen-pixel distance (handles map projection well)
+  let best = null;
+  let bestDist = Infinity;
+  for (const f of candidates) {
+    const geom = f.getGeometry();
+    if (!(geom instanceof ol.geom.Point)) continue;
+    const p = geom.getCoordinates();
+    const px = map.getPixelFromCoordinate(p);
+    if (!Number.isFinite(px?.[0])) continue;
+    const d = Math.hypot(px[0] - pixel[0], px[1] - pixel[1]);
+    if (d < bestDist) { bestDist = d; best = f; }
+  }
+  if (!best || bestDist > 14) { tipEl.style.display = "none"; return; }
+  const color = best.get("color") || "hsl(282, 92%, 52%)";
+  const label = best.get("hoverLabel") || best.get("dayDate") || "";
+  tipEl.innerHTML = `<span class="tip-dot" style="background:${color};border-color:${color}"></span>${label}`;
+  // Position tip at cursor + (14, -50%) so it sits to the right
+  // of the cursor without overlapping the dot. Use clientX/Y so
+  // the position stays correct even when the map is scrolled.
+  const evt = window.event;
+  const cx = evt?.clientX ?? pixel[0];
+  const cy = evt?.clientY ?? pixel[1];
+  tipEl.style.left = `${cx}px`;
+  tipEl.style.top = `${cy}px`;
+  tipEl.style.display = "block";
 }
 
 function thermalEnsureCursorLayer(map) {
@@ -6311,59 +6343,19 @@ async function thermalInitMap() {
   if (!map.__thermalReadoutInstalled) {
     map.__thermalReadoutInstalled = true;
     map.on("pointermove", ev => {
-      if (currentVar === "thermal_fronts") thermalRenderReadout(ev.coordinate, ev.pixel);
+      if (currentVar === "thermal_fronts") {
+        thermalRenderReadout(ev.coordinate, ev.pixel);
+        thermalFrontHoverTip(ev.coordinate, ev.pixel);
+      }
     });
     map.on("click", ev => {
-      if (currentVar === "thermal_fronts") thermalRenderReadout(ev.coordinate, ev.pixel);
+      if (currentVar === "thermal_fronts") {
+        thermalRenderReadout(ev.coordinate, ev.pixel);
+        thermalFrontHoverTip(ev.coordinate, ev.pixel);
+      }
     });
   }
   return map;
-}
-
-function thermalRenderDensityLayer() {
-  const map = thermalFrontState.map;
-  if (!map) return;
-  // Hide density heatmap in single-day daily mode (front vector points
-  // are the primary visualization). Only show it when the user explicitly
-  // opts into "all days this period" — that's the only case where the
-  // heatmap adds context the points don't.
-  if (thermalFrontState.mode !== "daily" || !thermalAllDayCb?.checked) {
-    if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setSource(null);
-    return;
-  }
-  const field = thermalActiveDensityField();
-  const canvas = thermalDensityCanvas(field);
-  if (!field || !canvas) {
-    if (thermalFrontState.densityLayer) thermalFrontState.densityLayer.setSource(null);
-    return;
-  }
-  const source = new ol.source.ImageStatic({
-    url: canvas.toDataURL("image/png"),
-    imageExtent: field.extent,
-    projection: "EPSG:4326",
-    // interpolate:false = nearest-neighbor scaling. Density heatmap is a
-    // coarse cell grid (~1000x900 px for usec_south); bilinear interpolation
-    // at display zoom levels blurs the cell edges and washes the colors.
-    // Every other ImageStatic in the file already uses false; this was the
-    // one outlier and the visible cause of the "blurry heatmap" report.
-    interpolate: false
-  });
-  if (thermalFrontState.densityLayer) {
-    thermalFrontState.densityLayer.setSource(source);
-    // "all days this period" is the only mode where the density heatmap
-    // is visible (single-day daily hides it). Render at full opacity so
-    // the per-day colors are sharp and not muted by basemap blending.
-    thermalFrontState.densityLayer.setOpacity(1.0);
-  } else {
-    thermalFrontState.densityLayer = new ol.layer.Image({ source, zIndex: 42, opacity: 1.0 });
-    map.addLayer(thermalFrontState.densityLayer);
-  }
-  thermalFrontState.densityLayer.setVisible(true);
-  if (window.__VIEW_BUILD_THERMAL) {
-    window.__VIEW_BUILD_THERMAL.densityIsDayColored = true;
-    window.__VIEW_BUILD_THERMAL.hasDensityOpacityBelow1 = thermalFrontState.densityLayer.getOpacity() < 1;
-    window.__VIEW_BUILD_THERMAL.lastDensityColor = field?.color || null;
-  }
 }
 
 function thermalDailyStats() {
@@ -6400,12 +6392,17 @@ function thermalRenderFrontLayer() {
   // visualization across the full period — the point layer would be a
   // noisy pile of small symbols stacked on top of it, so suppress it.
   if (thermalFrontState.mode === "daily") {
-    if (thermalAllDayCb?.checked) {
-      if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(null);
-      return;
-    }
-    // single-day daily mode: only the active day's frame
-    const dayItems = [thermalFrontState.dailyFrames[thermalFrontState.frameIdx]].filter(Boolean);
+    // Daily mode (both single-day and "all days this period") renders
+    // the v4-refine Point layer. The density heatmap underneath is
+    // hidden in both modes; the points are the primary visualization
+    // and the heatmap's "stippled mesh" effect was reported as
+    // unreadable (Mike, 2026-06-12). All-days daily mode previously
+    // suppressed this layer; now it renders one Point per
+    // (day, surviving cell), colored by day-in-period, so the visual
+    // matches the offline v8_refine_all_days.png prototype.
+    const dayItems = thermalAllDayCb?.checked
+      ? thermalFrontState.dailyFrames
+      : [thermalFrontState.dailyFrames[thermalFrontState.frameIdx]].filter(Boolean);
     if (!dayItems.length) {
       if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(null);
       return;
@@ -6413,10 +6410,17 @@ function thermalRenderFrontLayer() {
     const oldestMs = thermalFrontState.dailyFrames[0]?.t ?? Date.now();
     const latestMs = thermalFrontState.dailyFrames.at(-1)?.t ?? oldestMs;
     const features = [];
-    // 1/3 of the previous v4 default: base 1.2 px, max 2.4 px radius.
-    // Subtle dots; count-encoded size is a weak secondary signal.
-    const RADIUS_MIN = 1.2;
-    const RADIUS_MAX = 2.4;
+    // v4-refine point style (Mike, 2026-06-12):
+    //   - Open circle, no fill (overlapping day symbols stay separable)
+    //   - FIXED radius 1.5 px (no size-by-count; all surviving cells
+    //     get the same dot). Mike's spec: "Dot size 1.0 px" — using
+    //     1.5 px so the 0.5 px stroke is fully visible.
+    //   - Stroke width 0.5 px (subpixel-clean, doesn't overpower
+    //     basemap)
+    //   - Color = rainbow by day-in-period (oldest=violet, newest=red)
+    //   - Tooltip on hover shows the date + UTC hour of the frame
+    const POINT_RADIUS = 1.5;
+    const POINT_STROKE = 0.5;
     for (const dayItem of dayItems) {
       const color = thermalColorForDayInPeriod(dayItem.t, oldestMs, latestMs);
       const dayFrames = thermalFramesForDate(dayItem.date);
@@ -6429,16 +6433,21 @@ function thermalRenderFrontLayer() {
       // centers; its count is the mean of their counts (so the
       // radius still encodes local density at the smoothed location).
       const refined = thermalRefineDensityField(field, 3);
-      const maxC = Math.max(field.max || 1, 1);
       for (const { lon, lat, count } of refined.values()) {
-        const radius = RADIUS_MIN + (RADIUS_MAX - RADIUS_MIN) * (count - field.cutoff) / maxC;
         const feature = new ol.Feature({ geometry: new ol.geom.Point([lon, lat]) });
+        const d = new Date(dayItem.t);
+        const hh = d.getUTCHours().toString().padStart(2, "0");
+        const mm = d.getUTCMinutes().toString().padStart(2, "0");
         feature.setProperties({
           color,
-          pointRadius: radius,
+          pointRadius: POINT_RADIUS,
+          pointStrokeWidth: POINT_STROKE,
           densityCount: count,
           dayDate: dayItem.date,
-          frameTime: dayItem.t
+          frameTime: dayItem.t,
+          // Hover tooltip payload (rendered by thermalFrontHoverTip):
+          //   "2026-06-06 14:00 UTC · 7 det"
+          hoverLabel: `${dayItem.date} ${hh}:${mm} UTC · ${count} det`
         });
         features.push(feature);
       }
@@ -6558,9 +6567,17 @@ function thermalUpdateLegendAndStatus() {
   if (thermalFrontState.mode === "daily") {
     const dayItem = thermalFrontState.dailyFrames[thermalFrontState.frameIdx];
     const count = dayItem ? thermalFramesForDate(dayItem.date).length : 0;
-    const field = thermalActiveDensityField();
     const shownDays = thermalAllDayCb?.checked ? thermalFrontState.dailyFrames.length : 1;
-    const sourceText = shownDays === 1 ? `${count} hourly frames` : `${field?.hourlyCount || 0} hourly frames across ${shownDays} days`;
+    // Total hourly frames across all visible days (replaces the
+    // removed density field's hourlyCount).
+    let totalHourly = count;
+    if (shownDays > 1) {
+      totalHourly = 0;
+      for (const d of thermalFrontState.dailyFrames) {
+        totalHourly += thermalFramesForDate(d.date).length;
+      }
+    }
+    const sourceText = shownDays === 1 ? `${count} hourly frames` : `${totalHourly} hourly frames across ${shownDays} days`;
     const stats = thermalDailyStats();
     const unitLabel = thermalDistUnit === "nm" ? "°C/nm" : "°C/km";
     const sstLabel = tempUnit === "F" ? "°F" : "°C";
@@ -6578,7 +6595,7 @@ function thermalUpdateLegendAndStatus() {
     if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${thermalFrontState.dailyFrames.length} daily frames - ${dayItem?.date || ""}${statsText}`;
     if (legendEl) {
       legendEl.style.display = "";
-      legendEl.textContent = thermalAllDayCb?.checked ? "Color = day; shade = hourly front-point density" : "Shade = hourly front-point density";
+      legendEl.textContent = thermalAllDayCb?.checked ? "Color = day (rainbow: oldest=violet → newest=red). Open circles = v4-refine cell centers." : "Open circles = v4-refine cell centers. Hover for date/time.";
     }
   } else {
     const total = thermalAllDayCb?.checked ? list.length : 1;
@@ -6649,7 +6666,6 @@ async function thermalLoadData() {
       return { meta: f, t: f.t, data: res.ok ? await res.json() : { features: [] } };
     }));
     thermalFrontState.frameData = thermalFrontState.frameData.filter(item => Array.isArray(item.data?.features) && item.data.features.length > 0);
-    thermalFrontState.densityCache = new Map();
     thermalBuildDailyFrames();
     const requestedMs = requestedTimeFromParams();
     const requestedIdx = thermalClosestFrameIndex(thermalFrontState.frameData, requestedMs);
@@ -6688,7 +6704,6 @@ async function renderThermalFrontsNative() {
   }
   const list = thermalActiveFrameList();
   thermalFrontState.frameIdx = Math.max(0, Math.min(thermalFrontState.frameIdx, Math.max(0, list.length - 1)));
-  thermalRenderDensityLayer();
   thermalRenderFrontLayer();
   updateThermalFrontsNav();
   thermalUpdateLegendAndStatus();
