@@ -1231,7 +1231,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-13T00:45"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-13T09:10"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -1261,13 +1261,15 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   v4RefineIncludeSelf: true,
   v4RefineDropBelowCutoff: true,
   // Style: open circles (no fill) so overlapping day symbols don't
-  // stack into a solid blob. Base 1.5 px radius (no size-by-count;
-  // Mike, 2026-06-12). Resolution-aware scale multiplies radius
-  // and stroke by defaultRes/resolution, capped at 2.8x, so the
-  // symbols stay perceptually visible when the user zooms in
-  // (Mike, 2026-06-13: "points get smaller, lines get thinner").
+  // stack into a solid blob. Base 0.75 px radius (no size-by-count;
+  // Mike, 2026-06-12; halved 2026-06-13: "make circles half the
+  // current size, keep line thickness unchanged"). Resolution-aware
+  // scale multiplies radius and stroke by defaultRes/resolution,
+  // capped at 2.8x, so the symbols stay perceptually visible when
+  // the user zooms in (Mike, 2026-06-13: "points get smaller, lines
+  // get thinner").
   v4RefinePointStyle: "open_circle",
-  v4RefinePointRadius: 1.5,
+  v4RefinePointRadius: 0.75,
   v4RefinePointStrokeWidth: 0.5,
   v4RefinePointScaleDefaultRes: 0.011,
   v4RefinePointScaleMax: 2.8,
@@ -6123,11 +6125,11 @@ function thermalFeatureStyle(feature, resolution) {
   if (geom instanceof ol.geom.Point) {
     const radius = feature.get("pointRadius");
     const color = feature.get("color") || "hsl(282, 92%, 52%)";
-    const strokeWidth = feature.get("pointStrokeWidth") ?? 0.6;
+    const strokeWidth = feature.get("pointStrokeWidth") ?? 0.5;
     const scale = thermalPointStyleScale(resolution);
     return new ol.style.Style({
       image: new ol.style.Circle({
-        radius: (Number.isFinite(radius) ? radius : 1.5) * scale,
+        radius: (Number.isFinite(radius) ? radius : 0.75) * scale,
         // no fill => open ring
         stroke: new ol.style.Stroke({ color, width: strokeWidth * scale })
       })
@@ -6449,7 +6451,7 @@ function thermalRenderFrontLayer() {
     //     keeps them perceptually constant-or-larger at every zoom.
     //   - Color = rainbow by day-in-period (oldest=violet, newest=red)
     //   - Tooltip on hover shows the date + UTC hour of the frame
-    const POINT_RADIUS = 1.5;
+    const POINT_RADIUS = 0.75;
     const POINT_STROKE = 0.5;
     for (const dayItem of dayItems) {
       const color = thermalColorForDayInPeriod(dayItem.t, oldestMs, latestMs);
