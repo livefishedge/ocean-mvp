@@ -1231,7 +1231,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-12T22:30"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-13T00:45"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -1261,11 +1261,17 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   v4RefineIncludeSelf: true,
   v4RefineDropBelowCutoff: true,
   // Style: open circles (no fill) so overlapping day symbols don't
-  // stack into a solid blob. Fixed 1.5 px radius (no size-by-count;
-  // Mike, 2026-06-12).
+  // stack into a solid blob. Base 1.5 px radius (no size-by-count;
+  // Mike, 2026-06-12). Resolution-aware scale multiplies radius
+  // and stroke by defaultRes/resolution, capped at 2.8x, so the
+  // symbols stay perceptually visible when the user zooms in
+  // (Mike, 2026-06-13: "points get smaller, lines get thinner").
   v4RefinePointStyle: "open_circle",
   v4RefinePointRadius: 1.5,
   v4RefinePointStrokeWidth: 0.5,
+  v4RefinePointScaleDefaultRes: 0.011,
+  v4RefinePointScaleMax: 2.8,
+  v4RefinePointScaleMin: 0.9,
   // All-days daily mode no longer suppresses the v4-refine layer.
   v4RefineAllDaysEnabled: true,
   // Colormap: 7-stop rainbow (violet -> blue -> cyan -> green ->
@@ -6090,7 +6096,24 @@ function thermalRefineDensityField(field, k = 3) {
   return refined;
 }
 
-function thermalFeatureStyle(feature) {
+// v9-zoomfix: scale open-circle symbols with the map's resolution so
+// they stay perceptually visible as the user zooms in. At default
+// zoom (~6, resolution ~0.011 deg/px in EPSG:4326), scale = 1.0 and
+// the symbols look like the matplotlib v8_refine_all_days.png
+// prototype. At higher zoom, scale grows linearly with the inverse of
+// resolution, capped at THERMAL_POINT_MAX_SCALE so symbols never
+// bloat into noise at the deepest zoom levels.
+const THERMAL_POINT_DEFAULT_RES = 0.011;       // EPSG:4326 @ zoom 6
+const THERMAL_POINT_MAX_SCALE = 2.8;          // cap at deepest zoom
+const THERMAL_POINT_MIN_SCALE = 0.9;          // gentle floor when zoomed out
+function thermalPointStyleScale(resolution) {
+  if (!Number.isFinite(resolution) || resolution <= 0) return 1;
+  const linear = THERMAL_POINT_DEFAULT_RES / resolution;
+  return Math.max(THERMAL_POINT_MIN_SCALE,
+                  Math.min(THERMAL_POINT_MAX_SCALE, linear));
+}
+
+function thermalFeatureStyle(feature, resolution) {
   const geom = feature.getGeometry();
   // v4-refine: daily front layer is a Point per surviving density cell.
   // Open circle (stroke only, no fill) so overlapping symbols from
@@ -6101,11 +6124,12 @@ function thermalFeatureStyle(feature) {
     const radius = feature.get("pointRadius");
     const color = feature.get("color") || "hsl(282, 92%, 52%)";
     const strokeWidth = feature.get("pointStrokeWidth") ?? 0.6;
+    const scale = thermalPointStyleScale(resolution);
     return new ol.style.Style({
       image: new ol.style.Circle({
-        radius: Number.isFinite(radius) ? radius : 1.5,
+        radius: (Number.isFinite(radius) ? radius : 1.5) * scale,
         // no fill => open ring
-        stroke: new ol.style.Stroke({ color, width: strokeWidth })
+        stroke: new ol.style.Stroke({ color, width: strokeWidth * scale })
       })
     });
   }
@@ -6410,13 +6434,19 @@ function thermalRenderFrontLayer() {
     const oldestMs = thermalFrontState.dailyFrames[0]?.t ?? Date.now();
     const latestMs = thermalFrontState.dailyFrames.at(-1)?.t ?? oldestMs;
     const features = [];
-    // v4-refine point style (Mike, 2026-06-12):
+    // v4-refine point style (Mike, 2026-06-12, refined 2026-06-13):
     //   - Open circle, no fill (overlapping day symbols stay separable)
-    //   - FIXED radius 1.5 px (no size-by-count; all surviving cells
-    //     get the same dot). Mike's spec: "Dot size 1.0 px" — using
-    //     1.5 px so the 0.5 px stroke is fully visible.
-    //   - Stroke width 0.5 px (subpixel-clean, doesn't overpower
-    //     basemap)
+    //   - Base radius 1.5 px, base stroke 0.5 px (matches the
+    //     matplotlib v8_refine_all_days.png prototype at default zoom)
+    //   - Resolution-aware scale (see thermalPointStyleScale): the
+    //     style function multiplies radius and stroke by a scale that
+    //     grows linearly with the inverse of map resolution, capped
+    //     at 2.8x. Mike's report (2026-06-13, ~00:36 ET):
+    //     "When zooming in, the points get smaller and smaller,
+    //     circles lines get thinner and thinner" — the base CSS-pixel
+    //     size was staying flat while the basemap got more detailed,
+    //     so the symbols became proportionally invisible. The scale
+    //     keeps them perceptually constant-or-larger at every zoom.
     //   - Color = rainbow by day-in-period (oldest=violet, newest=red)
     //   - Tooltip on hover shows the date + UTC hour of the frame
     const POINT_RADIUS = 1.5;
