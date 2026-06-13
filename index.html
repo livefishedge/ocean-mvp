@@ -818,7 +818,8 @@ body.combined-mode #combined-menu-btn{
     }
     body.thermal-fronts-mode #thermal-front-controls{ display:flex; }
     #thermal-day-row.hidden,
-    #thermal-all-day-toggle.hidden{ display:none !important; }
+    #thermal-all-day-toggle.hidden,
+    #thermal-day-chips-panel.hidden{ display:none !important; }
     #thermal-all-day-toggle{
       display:flex;
       flex-direction:row !important;
@@ -830,6 +831,76 @@ body.combined-mode #combined-menu-btn{
       width:15px;
       height:15px;
       accent-color:#d84bff;
+    }
+    /* v4.1: day-chip multi-select for daily-mode subset.
+       Mike, 2026-06-13 11:50 ET: "during daily mode, add options
+       to select to load any N days within this period." Each chip
+       carries a rainbow swatch matching the day-in-period color
+       (same domain as the on-map points) so the chip = the day. */
+    #thermal-day-chips-panel{
+      display:flex;
+      flex-direction:column;
+      gap:5px;
+      padding-top:2px;
+    }
+    .day-chips-header{
+      display:flex; justify-content:space-between; align-items:center;
+      font-size:10.5px; font-weight:800; letter-spacing:0.04em;
+      text-transform:uppercase; color:var(--fg-mute,#9aa7b5);
+    }
+    .day-chips-title{ color:var(--fg-mute,#9aa7b5); }
+    .day-chips-count{
+      color:var(--fg,#e8eef5); font-weight:700;
+      font-variant-numeric:tabular-nums;
+      background:rgba(255,255,255,0.06);
+      padding:1px 6px; border-radius:8px;
+    }
+    .day-chips-presets{ display:flex; gap:4px; flex-wrap:wrap; }
+    .day-chip-preset{
+      flex:1 1 0; min-width:42px;
+      background:rgba(255,255,255,0.04);
+      border:1px solid rgba(255,255,255,0.12);
+      color:var(--fg,#e8eef5);
+      font-size:11px; font-weight:700;
+      padding:5px 6px; border-radius:6px;
+      cursor:pointer; letter-spacing:0.02em;
+      -webkit-tap-highlight-color:transparent;
+      transition:background 0.12s, border-color 0.12s;
+    }
+    .day-chip-preset:hover{ background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,0.22); }
+    .day-chip-preset:active{ background:rgba(255,255,255,0.18); }
+    .day-chips-row{ display:flex; flex-wrap:wrap; gap:4px; }
+    .day-chip{
+      display:inline-flex; align-items:center; gap:5px;
+      padding:4px 9px 4px 6px;
+      border:1px solid rgba(255,255,255,0.18);
+      background:rgba(255,255,255,0.04);
+      border-radius:14px;
+      font-size:11px; font-weight:600;
+      color:var(--fg,#e8eef5);
+      cursor:pointer; user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      transition:opacity 0.12s, background 0.12s, border-color 0.12s;
+    }
+    .day-chip:hover{ background:rgba(255,255,255,0.10); }
+    .day-chip-swatch{
+      width:10px; height:10px; border-radius:50%;
+      display:inline-block;
+      box-shadow:0 0 0 1px rgba(0,0,0,0.45) inset;
+      flex-shrink:0;
+    }
+    .day-chip.selected{
+      background:rgba(255,255,255,0.08);
+      border-color:rgba(255,255,255,0.42);
+    }
+    .day-chip.unselected{
+      opacity:0.34;
+      text-decoration:line-through;
+      text-decoration-thickness:1px;
+      text-decoration-color:rgba(255,255,255,0.45);
+    }
+    .day-chip.unselected .day-chip-swatch{
+      filter:grayscale(1) brightness(0.55);
     }
     #modebar-host{ display:none !important; }
     #readout{
@@ -1199,6 +1270,19 @@ body.combined-mode #combined-menu-btn{
           <input id="thermal-all-day-cb" type="checkbox" />
           <span id="thermal-all-day-label">All hours this day</span>
         </label>
+        <div id="thermal-day-chips-panel" class="hidden" aria-label="Days in period selector">
+          <div class="day-chips-header">
+            <span class="day-chips-title">Days in period</span>
+            <span id="thermal-day-chips-count" class="day-chips-count" aria-live="polite">0/0</span>
+          </div>
+          <div class="day-chips-presets" role="group" aria-label="Day selection presets">
+            <button class="day-chip-preset" data-preset="all" type="button">All</button>
+            <button class="day-chip-preset" data-preset="none" type="button">None</button>
+            <button class="day-chip-preset" data-preset="last3" type="button">Last 3</button>
+            <button class="day-chip-preset" data-preset="last7" type="button">Last 7</button>
+          </div>
+          <div id="thermal-day-chips" class="day-chips-row" role="group" aria-label="Per-day selection"></div>
+        </div>
         <div class="mode-row">
           <button id="thermal-mode-hourly" class="active" type="button">Hourly</button>
           <button id="thermal-mode-daily" type="button">Daily</button>
@@ -1231,7 +1315,7 @@ body.combined-mode #combined-menu-btn{
 <script>
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
-const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-13T09:10"; // bumps on each push
+const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-13T11:50"; // bumps on each push
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -1276,6 +1360,15 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   v4RefinePointScaleMin: 0.9,
   // All-days daily mode no longer suppresses the v4-refine layer.
   v4RefineAllDaysEnabled: true,
+  // v4.1: day-chip multi-select for daily-mode subset.
+  // Mike, 2026-06-13 11:50 ET: "during daily mode, add options to
+  // select to load any N days within this period." Default: all
+  // dates in the period are selected (no behavior change for users
+  // who never touch the chip panel).
+  dayChipMultiSelect: true,
+  dayChipPresets: ["all", "none", "last3", "last7"],
+  dayChipColorSource: "thermalColorForDayInPeriod (period-relative)",
+  dayChipStatePersistence: "session-only",
   // Colormap: 7-stop rainbow (violet -> blue -> cyan -> green ->
   // yellow -> orange -> red). Oldest = violet (cool), newest = red
   // (warm). Replaces the previous 4-stop purple/blue/green/red.
@@ -1569,7 +1662,18 @@ let thermalFrontState = {
   cursorFeature: null,
   initialized: false,
   loading: false,
-  loadedRegion: null
+  loadedRegion: null,
+  // v4.1: Set of date strings (YYYY-MM-DD) the user has selected for
+  // the "All days this period" overlay in daily mode. Empty set after
+  // a "None" preset. Default behavior: on first build of dailyFrames
+  // the set is initialized to all dates (no behavior change vs.
+  // pre-chip era). Session-only state; resets to "all" on page reload.
+  selectedDaySet: new Set(),
+  // v4.1: tracks whether the user has interacted with chips at all
+  // this session. Prevents the "default to all" re-init from
+  // stomping an explicit user "None" choice when dailyFrames
+  // refreshes from a new data window.
+  dayChipInitialized: false
 };
 
 function isDesktopMapMode() {
@@ -6426,8 +6530,16 @@ function thermalRenderFrontLayer() {
     // suppressed this layer; now it renders one Point per
     // (day, surviving cell), colored by day-in-period, so the visual
     // matches the offline v8_refine_all_days.png prototype.
-    const dayItems = thermalAllDayCb?.checked
-      ? thermalFrontState.dailyFrames
+    //
+    // v4.1 (Mike, 2026-06-13 11:50): apply the chip multi-select
+    // filter on top of the all-days branch. Single-day branch is
+    // unchanged. Colors are still period-relative (oldestMs /
+    // latestMs come from the FULL period, not the selected subset,
+    // so a day that's red stays red even when only the oldest 3 are
+    // picked).
+    const allDaysSelected = thermalAllDayCb?.checked;
+    const dayItems = allDaysSelected
+      ? thermalFrontState.dailyFrames.filter(d => thermalFrontState.selectedDaySet.has(d.date))
       : [thermalFrontState.dailyFrames[thermalFrontState.frameIdx]].filter(Boolean);
     if (!dayItems.length) {
       if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(null);
@@ -6568,6 +6680,140 @@ function thermalSyncDaySelect() {
   thermalDaySelect.value = thermalFrontState.selectedDate;
 }
 
+// v4.1: day-chip multi-select for daily-mode subset.
+// Mike, 2026-06-13 11:50 ET: "during daily mode, add options to
+// select to load any N days within this period so user can view a
+// set of selected days."
+//
+// Behavior:
+//  - Chips rebuilt from thermalFrontState.dailyFrames (oldest→newest)
+//  - Each chip's swatch = thermalColorForDayInPeriod(t, oldest, latest)
+//    so the chip visually matches its on-map color (period-relative
+//    domain; rescaling is intentionally NOT done per-selection)
+//  - Tap a chip to toggle in/out of thermalFrontState.selectedDaySet
+//  - Master presets: All / None / Last 3 / Last 7
+//  - First build of the day list initializes selectedDaySet to all
+//    dates (zero behavior change vs. pre-chip). Subsequent builds
+//    preserve user selection (prune dates that no longer exist).
+//  - Session-only state; not persisted to localStorage.
+
+function thermalRebuildDayChips() {
+  const wrap = document.getElementById("thermal-day-chips");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  const dayItems = thermalFrontState.dailyFrames;
+  const allDates = dayItems.map(d => d.date);
+  const set = thermalFrontState.selectedDaySet;
+  if (!thermalFrontState.dayChipInitialized && allDates.length) {
+    // First run after page load: default to "all selected" so there
+    // is no behavior change for users who never open the chip panel.
+    for (const d of allDates) set.add(d);
+    thermalFrontState.dayChipInitialized = true;
+  } else {
+    // Prune any dates that have rolled out of the period, but do NOT
+    // re-fill an empty set (that would stomp an explicit "None").
+    for (const d of Array.from(set)) {
+      if (!allDates.includes(d)) set.delete(d);
+    }
+  }
+  if (!dayItems.length) {
+    thermalUpdateDayChipsCount();
+    thermalRefreshDayChipsVisibility();
+    return;
+  }
+  const oldestMs = dayItems[0]?.t ?? Date.now();
+  const latestMs = dayItems.at(-1)?.t ?? oldestMs;
+  for (const dayItem of dayItems) {
+    const color = thermalColorForDayInPeriod(dayItem.t, oldestMs, latestMs);
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "day-chip";
+    chip.dataset.date = dayItem.date;
+    chip.setAttribute("aria-pressed", set.has(dayItem.date) ? "true" : "false");
+    const sw = document.createElement("span");
+    sw.className = "day-chip-swatch";
+    sw.style.background = color;
+    const lbl = document.createElement("span");
+    // Compact date label: "Jun 7" (locale-aware, UTC anchored so the
+    // label matches the data date string YYYY-MM-DD exactly).
+    const dd = new Date(dayItem.date + "T00:00:00Z");
+    const month = dd.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+    const dom = dd.getUTCDate();
+    lbl.textContent = `${month} ${dom}`;
+    chip.appendChild(sw);
+    chip.appendChild(lbl);
+    chip.addEventListener("click", () => thermalToggleDay(dayItem.date));
+    wrap.appendChild(chip);
+  }
+  thermalRefreshDayChipStyles();
+  thermalUpdateDayChipsCount();
+  thermalRefreshDayChipsVisibility();
+}
+
+function thermalRefreshDayChipStyles() {
+  const wrap = document.getElementById("thermal-day-chips");
+  if (!wrap) return;
+  const set = thermalFrontState.selectedDaySet;
+  for (const chip of wrap.querySelectorAll(".day-chip")) {
+    const sel = set.has(chip.dataset.date);
+    chip.classList.toggle("selected", sel);
+    chip.classList.toggle("unselected", !sel);
+    chip.setAttribute("aria-pressed", sel ? "true" : "false");
+  }
+}
+
+function thermalUpdateDayChipsCount() {
+  const el = document.getElementById("thermal-day-chips-count");
+  if (!el) return;
+  const total = thermalFrontState.dailyFrames.length;
+  const sel = thermalFrontState.selectedDaySet.size;
+  el.textContent = `${sel}/${total}`;
+}
+
+function thermalRefreshDayChipsVisibility() {
+  const panel = document.getElementById("thermal-day-chips-panel");
+  if (!panel) return;
+  // Show only when daily mode + "All days" checkbox is on. In hourly
+  // mode or single-day daily mode, the chips are meaningless and the
+  // panel collapses.
+  const show = thermalFrontState.mode === "daily" && !!thermalAllDayCb?.checked;
+  panel.classList.toggle("hidden", !show);
+}
+
+function thermalToggleDay(date) {
+  const s = thermalFrontState.selectedDaySet;
+  if (s.has(date)) s.delete(date);
+  else s.add(date);
+  thermalRefreshDayChipStyles();
+  thermalUpdateDayChipsCount();
+  // Re-render the front layer only if the chip selection is
+  // actually being applied (all-days mode in daily view).
+  if (thermalFrontState.mode === "daily" && thermalAllDayCb?.checked) {
+    thermalRenderFrontLayer();
+    thermalUpdateLegendAndStatus();
+  }
+}
+
+function thermalApplyDayPreset(preset) {
+  const allDates = thermalFrontState.dailyFrames.map(d => d.date);
+  const s = thermalFrontState.selectedDaySet;
+  s.clear();
+  if (preset === "all") {
+    for (const d of allDates) s.add(d);
+  } else if (preset === "last3") {
+    for (const d of allDates.slice(-3)) s.add(d);
+  } else if (preset === "last7") {
+    for (const d of allDates.slice(-7)) s.add(d);
+  }
+  // "none" leaves the set empty
+  thermalRefreshDayChipStyles();
+  thermalUpdateDayChipsCount();
+  if (thermalFrontState.mode === "daily" && thermalAllDayCb?.checked) {
+    thermalRenderFrontLayer();
+    thermalUpdateLegendAndStatus();
+  }
+}
+
 function updateThermalFrontsNav() {
   const list = thermalActiveFrameList();
   thermalFrontState.frameIdx = Math.max(0, Math.min(thermalFrontState.frameIdx, Math.max(0, list.length - 1)));
@@ -6599,22 +6845,41 @@ function thermalUpdateLegendAndStatus() {
   if (thermalFrontState.mode === "daily") {
     const dayItem = thermalFrontState.dailyFrames[thermalFrontState.frameIdx];
     const count = dayItem ? thermalFramesForDate(dayItem.date).length : 0;
-    const shownDays = thermalAllDayCb?.checked ? thermalFrontState.dailyFrames.length : 1;
+    // v4.1: shownDays now respects the chip multi-select. In single
+    // day mode (all-days off) it's still 1. In all-days mode, count
+    // the selected subset so the status line matches what the user
+    // actually sees on the map.
+    let shownDays = 1;
+    if (thermalAllDayCb?.checked) {
+      shownDays = 0;
+      for (const d of thermalFrontState.dailyFrames) {
+        if (thermalFrontState.selectedDaySet.has(d.date)) shownDays++;
+      }
+    }
     // Total hourly frames across all visible days (replaces the
     // removed density field's hourlyCount).
     let totalHourly = count;
     if (shownDays > 1) {
       totalHourly = 0;
       for (const d of thermalFrontState.dailyFrames) {
-        totalHourly += thermalFramesForDate(d.date).length;
+        if (thermalFrontState.selectedDaySet.has(d.date)) {
+          totalHourly += thermalFramesForDate(d.date).length;
+        }
       }
     }
-    const sourceText = shownDays === 1 ? `${count} hourly frames` : `${totalHourly} hourly frames across ${shownDays} days`;
+    let sourceText;
+    if (shownDays === 0) {
+      sourceText = "no days selected — pick at least one chip";
+    } else if (shownDays === 1) {
+      sourceText = `${count} hourly frames`;
+    } else {
+      sourceText = `${totalHourly} hourly frames across ${shownDays} days`;
+    }
     const stats = thermalDailyStats();
     const unitLabel = thermalDistUnit === "nm" ? "°C/nm" : "°C/km";
     const sstLabel = tempUnit === "F" ? "°F" : "°C";
     let statsText = ` - ${sourceText}`;
-    if (stats) {
+    if (stats && shownDays > 0) {
       if (stats.meanGrad !== null) {
         const displayGrad = thermalDistUnit === "nm" ? stats.meanGrad * 1.852 : stats.meanGrad;
         statsText += ` | mean gradient: ${displayGrad.toFixed(3)} ${unitLabel}`;
@@ -6627,7 +6892,13 @@ function thermalUpdateLegendAndStatus() {
     if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${thermalFrontState.dailyFrames.length} daily frames - ${dayItem?.date || ""}${statsText}`;
     if (legendEl) {
       legendEl.style.display = "";
-      legendEl.textContent = thermalAllDayCb?.checked ? "Color = day (rainbow: oldest=violet → newest=red). Open circles = v4-refine cell centers." : "Open circles = v4-refine cell centers. Hover for date/time.";
+      const allDays = !!thermalAllDayCb?.checked;
+      const subsetActive = allDays && shownDays !== thermalFrontState.dailyFrames.length;
+      legendEl.textContent = subsetActive
+        ? `Color = day in period (rainbow). Showing ${shownDays} of ${thermalFrontState.dailyFrames.length} selected days. Open circles = v4-refine cell centers.`
+        : (allDays
+          ? "Color = day (rainbow: oldest=violet → newest=red). Open circles = v4-refine cell centers."
+          : "Open circles = v4-refine cell centers. Hover for date/time.");
     }
   } else {
     const total = thermalAllDayCb?.checked ? list.length : 1;
@@ -6662,6 +6933,7 @@ function thermalSetMode(mode) {
   } else {
     thermalFrontState.frameIdx = thermalClosestFrameIndex(thermalActiveFrameList(), priorTime);
   }
+  thermalRefreshDayChipsVisibility();
   renderThermalFrontsNative();
 }
 
@@ -6705,6 +6977,7 @@ async function thermalLoadData() {
       ? thermalDateKey(thermalFrontState.frameData[requestedIdx]?.t || requestedMs)
       : (thermalFrontState.hourlyDays.at(-1) || "");
     thermalSyncDaySelect();
+    thermalRebuildDayChips();
     thermalFrontState.frameIdx = thermalClosestFrameIndex(thermalActiveFrameList(), requestedMs);
     thermalFrontState.initialized = true;
     thermalFrontState.loadedRegion = REGION_ID;
@@ -7369,7 +7642,19 @@ thermalModeNmBtn?.addEventListener("click", () => thermalSetDistUnit("nm"));
 thermalSetTempUnit(tempUnit);
 thermalSetDistUnit(thermalDistUnit);
 
-thermalAllDayCb?.addEventListener("change", () => renderThermalFrontsNative());
+thermalAllDayCb?.addEventListener("change", () => {
+  // v4.1: chip panel is meaningful only in daily mode + all-days on.
+  thermalRefreshDayChipsVisibility();
+  renderThermalFrontsNative();
+});
+
+// v4.1: day-chip preset wiring (All / None / Last 3 / Last 7).
+for (const btn of document.querySelectorAll(".day-chip-preset")) {
+  btn.addEventListener("click", () => {
+    const preset = btn.dataset.preset;
+    if (preset) thermalApplyDayPreset(preset);
+  });
+}
 thermalDaySelect?.addEventListener("change", () => {
   thermalFrontState.selectedDate = thermalDaySelect.value;
   thermalFrontState.frameIdx = 0;
