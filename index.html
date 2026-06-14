@@ -870,6 +870,13 @@ body.combined-mode #combined-menu-btn{
     .day-chip-preset:hover{ background:rgba(255,255,255,0.10); border-color:rgba(255,255,255,0.22); }
     .day-chip-preset:active{ background:rgba(255,255,255,0.18); }
     .day-chips-row{ display:flex; flex-wrap:wrap; gap:4px; }
+    /* v4.3: single "Hours ago" label above the chip row, shared
+       across all chips. The chip itself shows only the number. */
+    .day-chips-relative-label{
+      font-size:10px; font-weight:700; letter-spacing:0.06em;
+      text-transform:uppercase; color:var(--fg-mute,#9aa7b5);
+      padding:2px 2px 0 2px;
+    }
     .day-chip{
       display:inline-flex; align-items:center; gap:5px;
       padding:4px 9px 4px 6px;
@@ -1173,6 +1180,7 @@ body.combined-mode #combined-menu-btn{
           <button class="day-chip-preset" data-preset="latest3" type="button">Latest 3</button>
           <button class="day-chip-preset" data-preset="latest5" type="button">Latest 5</button>
         </div>
+        <div class="day-chips-relative-label" aria-hidden="true">Hours ago</div>
         <div id="combined-chl-chips" class="day-chips-row" role="group" aria-label="Per-frame selection"></div>
       </div>
       <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
@@ -5305,6 +5313,7 @@ function combinedChlFrameTimeMs(frame) {
 }
 
 function combinedChlFormatTime(t) {
+  // Legacy absolute format (kept for any other callers; chips use the relative formatter).
   if (!t) return "?";
   const d = new Date(t);
   const month = d.toLocaleString(undefined, { month: "short" });
@@ -5312,6 +5321,28 @@ function combinedChlFormatTime(t) {
   const hh = String(d.getHours()).padStart(2, "0");
   const mm = String(d.getMinutes()).padStart(2, "0");
   return `${month} ${day} ${hh}:${mm}`;
+}
+
+// Relative-time formatter for the CHL frame chip labels.
+// v4.3: chip shows the offset from the newest eligible frame in the
+// panel, e.g. "0h", "5h", "23h", "1d 3h", "2d". A single "Hours ago"
+// header sits above the chip row; the chip itself carries only the
+// number. Reference = the newest frame's timeMs in the current window.
+// Returns "?" if t or referenceT is missing so a single cache miss
+// in one chip cannot blank out the entire panel.
+function combinedChlFormatRelativeShort(t, referenceT) {
+  if (!Number.isFinite(t) || !Number.isFinite(referenceT)) return "?";
+  const deltaMs = referenceT - t;
+  if (deltaMs < 0) return "0h";
+  const totalMinutes = Math.round(deltaMs / 60000);
+  const totalHours = Math.floor(totalMinutes / 60);
+  if (totalHours < 24) {
+    return totalHours === 0 ? "0h" : `${totalHours}h`;
+  }
+  const days = Math.floor(totalHours / 24);
+  const remH = totalHours - days * 24;
+  if (remH === 0) return `${days}d`;
+  return `${days}d ${remH}h`;
 }
 
 function combinedChlFormatCoveragePct(pct) {
@@ -5444,6 +5475,12 @@ function combinedChlRebuildChips() {
     combinedChlUpdateCountBadge();
     return;
   }
+  // v4.3: derive timeMs from the frame itself, not the coverage cache.
+  // The cache is for coverage (an async fetch) and may not be filled
+  // on first render; the time is always available from the filename
+  // and must never be blank. Reference time for relative labels is
+  // the newest frame in the current window.
+  const referenceT = combinedChlFrameTimeMs(newestFirst[0]) || Date.now();
   for (const frame of newestFirst) {
     const id = combinedChlFrameId(frame);
     const entry = s.cache.get(id) || {};
@@ -5455,11 +5492,15 @@ function combinedChlRebuildChips() {
     chip.className = "day-chip" + (s.selectedFrameIds.has(id) ? " selected" : (eligible ? " unselected" : ""));
     chip.dataset.frameId = id;
     chip.disabled = !eligible;
-    const labelText = combinedChlFormatTime(entry.timeMs);
+    // Chip label = relative time ("5h", "1d 3h"). Tooltip keeps
+    // the absolute timestamp + coverage for hover/audit.
+    const frameT = combinedChlFrameTimeMs(frame);
+    const labelText = combinedChlFormatRelativeShort(frameT, referenceT);
     const covText = combinedChlFormatCoveragePct(coverage);
+    const absText = combinedChlFormatTime(frameT);
     chip.title = eligible
-      ? `${labelText} • ${covText} coverage`
-      : `${labelText} • ${covText} coverage (below ${s.gatePct}% gate)`;
+      ? `${absText} • ${covText} coverage`
+      : `${absText} • ${covText} coverage (below ${s.gatePct}% gate)`;
     // No swatch (we don't have a CHL color domain here). The coverage badge is the differentiator.
     const label = document.createElement("span");
     label.textContent = labelText;
@@ -7879,13 +7920,23 @@ async function loadIndex() {
   // changed and rebuild the UV layer. The chip panel re-renders
   // from the new frames and the UV layer picks up the newest frame
   // instead of staying frozen on the oldest.
+  //
+  // v4.3 fix: do NOT touch s.initialized and do NOT wipe the entire
+  // cache on manifest change. The user's multi-select (selectedFrameIds)
+  // must survive a poll. Evict only entries for frame ids that no
+  // longer exist in the new manifest; everything else is still valid
+  // (timeMs is in the frame, coverage was just fetched). The init
+  // panel's "manifest changed" branch already prunes selectedFrameIds
+  // to still-existing eligible ids, so no further action is needed
+  // there.
   if (window._combinedMap) {
     try {
       const s = window._combinedChl;
       if (s && combinedChlManifestChanged && combinedChlManifestChanged()) {
-        // Manifest changed: reset cache, init will refetch coverage.
-        s.cache = new Map();
-        s.initialized = false;
+        const currentIds = new Set((framesByVar.chl || []).map(combinedChlFrameId));
+        for (const cachedId of s.cache.keys()) {
+          if (!currentIds.has(cachedId)) s.cache.delete(cachedId);
+        }
         if (document.getElementById("chk-combined-chl")?.checked) {
           combinedChlInitPanel();
         }
