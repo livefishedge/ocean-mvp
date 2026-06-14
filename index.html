@@ -1161,6 +1161,20 @@ body.combined-mode #combined-menu-btn{
         <option value="48">Last 48 hours</option>
         <option value="72">Last 72 hours</option>
       </select>
+      <div id="combined-chl-chips-panel" class="hidden" aria-label="Frames in window selector">
+        <div class="day-chips-header">
+          <span class="day-chips-title">Frames in window</span>
+          <span id="combined-chl-chips-count" class="day-chips-count" aria-live="polite">0/0</span>
+        </div>
+        <div class="day-chips-presets" role="group" aria-label="Frame selection presets">
+          <button class="day-chip-preset" data-preset="all" type="button">All eligible</button>
+          <button class="day-chip-preset" data-preset="none" type="button">None</button>
+          <button class="day-chip-preset" data-preset="latest1" type="button">Latest 1</button>
+          <button class="day-chip-preset" data-preset="latest3" type="button">Latest 3</button>
+          <button class="day-chip-preset" data-preset="latest5" type="button">Latest 5</button>
+        </div>
+        <div id="combined-chl-chips" class="day-chips-row" role="group" aria-label="Per-frame selection"></div>
+      </div>
       <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-sst">
@@ -1217,6 +1231,14 @@ body.combined-mode #combined-menu-btn{
         <span class="combined-dot dot-uv"></span>
         <span>Currents</span>
       </label>
+      <select id="combined-uv-hours" style="margin:6px 0 4px 28px;font-size:13px;">
+        <option value="latest" selected>Latest</option>
+        <option value="3">Last 3 hours</option>
+        <option value="6">Last 6 hours</option>
+        <option value="12">Last 12 hours</option>
+        <option value="24">Last 24 hours</option>
+        <option value="48">Last 48 hours</option>
+      </select>
       <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
         <div class="combined-legend-row">
           <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;background:#fff;border-radius:4px;">
@@ -1316,6 +1338,48 @@ body.combined-mode #combined-menu-btn{
 /* ========================= CONFIG ========================= */
 const CTO_TEST_LABEL = "hello pages rebuild";
 const CTO_THERMAL_BUILD = "dashboard-v2-2026-06-13T11:50"; // bumps on each push
+// Captain's Dashboard ("combined" mode) build fingerprint. Mike,
+// 2026-06-13 14:01 ET: "the captain's dashboard in index.html needs
+// a thorough check. Eg, the CHL layer shows inconsistent data from
+// the dropdown label; the currents layer shows stable data or time
+// stamp." Bumps on every push that touches combined mode.
+const CTO_COMBINED_BUILD = "dashboard-v2-2026-06-13T23:10";
+// v4.2: CHL chip multi-select (captain's dashboard). Refactored the
+// composite renderer so chip selection and the hours-window dropdown
+// share one code path; added a UV hours select + rebuild-on-reload so
+// the currents layer is no longer frozen on the oldest frame; fixed
+// the CHL scan-time label to describe the actual data shown (single
+// frame = its time, multi-frame composite = "Median of K frames:
+// <earliest> - <latest>") instead of the previous mean-of-window
+// (which claimed the median composite was one average scan time).
+window.__VIEW_BUILD_COMBINED = Object.assign(window.__VIEW_BUILD_COMBINED || {}, {
+  contract: "dashboard-v2",
+  buildTag: CTO_COMBINED_BUILD,
+  builtAt: new Date().toISOString(),
+  // CHL chip multi-select.
+  chlChipMultiSelect: true,
+  chlChipMaxFrames: 10,
+  chlChipCoverageGatePct: 10,
+  chlChipPresets: ["all", "none", "latest1", "latest3", "latest5"],
+  chlChipStatePersistence: "session-only",
+  chlChipColorSource: "coverage badge (no color domain)",
+  // CHL scan-time label contract: describe what is actually rendered.
+  chlLabelContract: {
+    singleFrame: "<frame time>",
+    multiFrame: "Median of K frames: <earliest> - <latest>",
+    zeroChips: "Pick at least one chip",
+    hoursWindowLegacy: "mean of frames in window (kept for compatibility)"
+  },
+  // UV hours select + rebuild-on-reload. The previous code took
+  // uvFrames[0] (oldest) and never refreshed.
+  uvHoursSelect: true,
+  uvRebuildOnReload: true,
+  uvInitialFrame: "uvFrames[uvFrames.length - 1] (newest)",
+  uvLabelContract: {
+    latest: "<frame time>",
+    hoursWindow: "Latest in last N hours: <frame time>"
+  }
+});
 // Thermal-front color contract fingerprint. Set once at page load so
 // verification can prove Mike's browser loaded the fixed dashboard
 // code, not just that GitHub Pages deployed something.
@@ -2255,14 +2319,27 @@ if (chkChl) chkChl.addEventListener("change", async e => {
   const checked = e.target.checked;
   if (window._combinedChlLayer) window._combinedChlLayer.setVisible(checked);
   if (checked && window._combinedMap) {
-    const hours = parseInt((document.getElementById("combined-chl-composite") || {value:"1"}).value, 10);
-    if (window._combinedChlLayer) { window._combinedMap.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
-    const result = await buildChlCompositeLayer(window._combinedMap, hours);
-    if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
-    if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
-    if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
+    const s = window._combinedChl;
+    if (s && s.initialized && s.eligibleFrameIds.size) {
+      // Chip-driven path: use whatever the user has selected.
+      await combinedChlRenderSelected();
+    } else {
+      // Legacy fallback for first-time render before chips are loaded.
+      const hours = parseInt((document.getElementById("combined-chl-composite") || {value:"1"}).value, 10);
+      if (window._combinedChlLayer) { window._combinedMap.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
+      const result = await buildChlCompositeLayer(window._combinedMap, { hours, labelMode: "hoursWindow" });
+      if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
+      if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
+      if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
+    }
   }
 });
+// Wire the chip panel preset buttons and the hours-dropdown quick
+// preset listener. Idempotent on repeat calls.
+combinedChlWirePresets();
+combinedChlWireHoursDropdown();
+combinedUvWireHoursSelect();
+
 if (chkSst) chkSst.addEventListener("change", e => {
   if (window._combinedSstLayer) window._combinedSstLayer.setVisible(e.target.checked);
   if (e.target.checked && window._combinedMap) {
@@ -2368,10 +2445,17 @@ if (sstHoursSelect) {
   });
 }
 
-if (chkUv) chkUv.addEventListener("change", e => {
-  if (window._combinedUvLayer) window._combinedUvLayer.setVisible(e.target.checked);
+if (chkUv) chkUv.addEventListener("change", async e => {
+  const checked = e.target.checked;
+  if (window._combinedUvLayer) window._combinedUvLayer.setVisible(checked);
   const scale = document.getElementById("combined-current-scale");
-  if (scale) scale.style.display = e.target.checked ? "" : "none";
+  if (scale) scale.style.display = checked ? "" : "none";
+  // v4.2: if turning on, rebuild the layer (was frozen on the oldest
+  // frame from page load). If turning off, just hide.
+  if (checked && window._combinedMap) {
+    const sel = document.getElementById("combined-uv-hours");
+    await rebuildCombinedUvLayer(window._combinedMap, { hoursMode: sel?.value || "latest" });
+  }
 });
 
 if (chkBathy) chkBathy.addEventListener("change", e => {
@@ -2408,10 +2492,17 @@ const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
 if (chlCompositeSelect) {
   chlCompositeSelect.addEventListener("change", async () => {
     const hours = parseInt(chlCompositeSelect.value, 10);
-    // Remove existing CHL layer
+    const s = window._combinedChl;
+    if (s && s.initialized && s.eligibleFrameIds.size) {
+      // Chip-driven: the hours dropdown is now a quick preset that
+      // drives chip selection. The dedicated change listener in
+      // combinedChlWireHoursDropdown handles the actual work.
+      return;
+    }
+    // Legacy fallback (pre-chip-init first paint).
     if (window._combinedChlLayer) { window._combinedMap?.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
     if (!window._combinedMap) return;
-    const result = await buildChlCompositeLayer(window._combinedMap, hours);
+    const result = await buildChlCompositeLayer(window._combinedMap, { hours, labelMode: "hoursWindow" });
     if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
     if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
     if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
@@ -4654,24 +4745,10 @@ async function renderCombinedMode() {
   if (bathyLayer) { map.addLayer(bathyLayer); window._combinedBathyLayer = bathyLayer; }
 
   // ── Layer: UV arrows ─────────────────────────────────────────────────
-  const uvFrames = framesByVar.uv || [];
-  const uvScanTimeDiv = document.getElementById("combined-uv-scan-time");
-  if (uvFrames.length) {
-    const frame = uvFrames[0];
-    const data = await fetchFrameData("uv", frame);
-    const grid = await loadGridForVar("uv", data);
-    window._combinedUvGrid = grid;
-    window._combinedUvData = data;
-    const arrowLayer = buildDesktopUvArrowLayer(data, grid);
-    if (arrowLayer) { map.addLayer(arrowLayer); window._combinedUvLayer = arrowLayer; }
-    // Show scan time of latest UV frame
-    const uvT = epochMsForFrame("uv", frame);
-    if (uvScanTimeDiv) uvScanTimeDiv.textContent = uvT
-      ? new Date(uvT).toLocaleString(undefined, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-      : "";
-  } else {
-    if (uvScanTimeDiv) uvScanTimeDiv.textContent = "";
-  }
+  // v4.2: use the dedicated rebuild helper so the layer picks the
+  // NEWEST UV frame (not the oldest) and refreshes on demand.
+  const uvHoursSel = document.getElementById("combined-uv-hours");
+  await rebuildCombinedUvLayer(map, { hoursMode: uvHoursSel?.value || "latest" });
 
   // ── Layer: Thermal fronts — fixed-pixel point symbols
   await thermalLoadData();
@@ -5022,7 +5099,21 @@ function speedColor(speed, min, max) {
   return `rgb(${r},50,${b})`;
 }
 
-async function buildChlCompositeLayer(map, hours) {
+// buildChlCompositeLayer(map, hours) is the legacy hours-window path.
+// buildChlCompositeLayer(map, { selectedFrames, labelMode }) is the
+// chip-driven path. The function resolves the frame list internally
+// from whichever input is provided. labelMode = "auto" picks a
+// contract that describes the actual data shown:
+//   - 0 frames   -> "Pick at least one chip"
+//   - 1 frame    -> <that frame's time>
+//   - N>1 frames -> "Median of N frames: <earliest> - <latest>"
+//   - hoursWindow (legacy) -> mean of frames in window (kept for the
+//     pre-chip dropdown path so old behavior is unchanged)
+async function buildChlCompositeLayer(map, hoursOrOpts) {
+  const opts = (typeof hoursOrOpts === "object" && hoursOrOpts !== null)
+    ? hoursOrOpts
+    : { hours: hoursOrOpts, labelMode: "hoursWindow" };
+  const explicitFrames = Array.isArray(opts.selectedFrames) ? opts.selectedFrames : null;
   const chlFrames = framesByVar.chl || [];
   if (!chlFrames.length) return {};
   const sorted = [...chlFrames].sort((a, b) => {
@@ -5030,21 +5121,30 @@ async function buildChlCompositeLayer(map, hours) {
     const tb = epochMsForFrame("chl", b) || 0;
     return tb - ta;
   });
-  // Filter by time window relative to the newest frame, not wall-clock time.
-  // Same logic as the SST hours select (sstHoursSelect handler) so the
-  // CHL and SST composites span the same observation window.
-  const latestT = epochMsForFrame("chl", sorted[0]) || Date.now();
-  const cutoff = latestT - (hours || 1) * 3600000;
-  let selected = sorted.filter(f => {
-    const t = epochMsForFrame("chl", f);
-    return t && t >= cutoff;
-  });
-  if (!selected.length) {
-    // Fall back to the latest single frame if the time window has no hits
-    // (e.g. data older than the requested window). Keep the dashboard
-    // showing something rather than going blank.
-    selected = [sorted[0]];
+  let selected;
+  if (explicitFrames) {
+    // Chip-driven path: caller already picked exactly which frames.
+    // Preserve the caller's order; deduplicate by stable frame id.
+    const seen = new Set();
+    selected = [];
+    for (const f of explicitFrames) {
+      const id = f?.id || f?.json_path || JSON.stringify(f);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      selected.push(f);
+    }
+  } else {
+    // Legacy hours-window path: filter relative to the newest frame.
+    const hours = Number(opts.hours) || 1;
+    const latestT = epochMsForFrame("chl", sorted[0]) || Date.now();
+    const cutoff = latestT - hours * 3600000;
+    selected = sorted.filter(f => {
+      const t = epochMsForFrame("chl", f);
+      return t && t >= cutoff;
+    });
+    if (!selected.length) selected = [sorted[0]];
   }
+  if (!selected.length) return {};
   const loaded = (await Promise.all(selected.map(async frame => {
     try {
       const data = await fetchFrameData("chl", frame);
@@ -5151,17 +5251,539 @@ async function buildChlCompositeLayer(map, hours) {
   }
   const epochTimes = selected.map(item => epochMsForFrame("chl", item.frame)).filter(t => t);
   let scanTime = "";
-  if (epochTimes.length > 0) {
-    // Mean scan time across all selected frames
-    const meanTime = epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length;
-    window._combinedChlScanTime = meanTime;
-    scanTime = new Date(meanTime).toLocaleString(undefined, {
+  if (epochTimes.length === 0) {
+    window._combinedChlScanTime = null;
+  } else if (epochTimes.length === 1) {
+    // Single-frame: that frame's time, no averaging.
+    const t = epochTimes[0];
+    window._combinedChlScanTime = t;
+    scanTime = new Date(t).toLocaleString(undefined, {
       year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
     });
   } else {
-    window._combinedChlScanTime = null;
+    const earliest = Math.min.apply(null, epochTimes);
+    const latest = Math.max.apply(null, epochTimes);
+    const labelMode = opts.labelMode || "auto";
+    if (labelMode === "hoursWindow") {
+      // Legacy hours-window fallback: mean of frames in window. Kept
+      // so the pre-chip dropdown path is byte-for-byte unchanged.
+      const meanTime = epochTimes.reduce((a, b) => a + b, 0) / epochTimes.length;
+      window._combinedChlScanTime = meanTime;
+      scanTime = new Date(meanTime).toLocaleString(undefined, {
+        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+    } else {
+      // "auto" / chip-driven: describe the actual data shown.
+      // Median of K frames: <earliest> - <latest>. The label claims
+      // a range, not a single time, because the displayed pixel
+      // values are a per-pixel median across those frames.
+      window._combinedChlScanTime = latest;
+      const fmt = ms => new Date(ms).toLocaleString(undefined, {
+        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+      });
+      scanTime = `Median of ${epochTimes.length} frames: ${fmt(earliest)} – ${fmt(latest)}`;
+    }
   }
-  return { layer, scanTime, data: renderData, grid: base.grid };
+  return { layer, scanTime, data: renderData, grid: base.grid, frameCount: selected.length };
+}
+
+/* ============================================================
+   Combined-mode CHL chip multi-select (v4.2)
+   Pattern is reused from the v4.1 thermal-fronts day-chip panel
+   (commit 2776e0577d). The chip = one CHL frame; coverage gate
+   filters to > 10% valid pixels; multi-select = per-pixel median
+   composite via the refactored buildChlCompositeLayer above.
+   Session-only state; not persisted to localStorage.
+   ============================================================ */
+
+function combinedChlFrameId(frame) {
+  return frame?.id || frame?.json_path || JSON.stringify(frame);
+}
+
+function combinedChlFrameTimeMs(frame) {
+  return epochMsForFrame("chl", frame) || null;
+}
+
+function combinedChlFormatTime(t) {
+  if (!t) return "?";
+  const d = new Date(t);
+  const month = d.toLocaleString(undefined, { month: "short" });
+  const day = d.getDate();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${month} ${day} ${hh}:${mm}`;
+}
+
+function combinedChlFormatCoveragePct(pct) {
+  if (!Number.isFinite(pct)) return "?";
+  return `${Math.round(pct * 10) / 10}%`;
+}
+
+function combinedChlIsValidPixel(v) {
+  return Number.isFinite(v) && v > 0 && Math.abs(v) < 1e20;
+}
+
+function combinedChlComputeCoveragePct(data) {
+  const z = data?.z || data?.chl || data?.data;
+  if (!is2D(z)) return null;
+  let total = 0, valid = 0;
+  for (let r = 0; r < z.length; r++) {
+    const row = z[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      total++;
+      if (combinedChlIsValidPixel(row[c])) valid++;
+    }
+  }
+  if (!total) return null;
+  return (valid / total) * 100;
+}
+
+function combinedChlEnsureState() {
+  if (!window._combinedChl) {
+    window._combinedChl = {
+      selectedFrameIds: new Set(),
+      eligibleFrameIds: new Set(),
+      cache: new Map(),            // frameId -> { timeMs, coverage, manifestKey }
+      manifestKey: "",
+      initialized: false,
+      lastN: 10,
+      gatePct: 10,
+      loadingPromise: null,
+      panelRevealed: false
+    };
+  }
+  return window._combinedChl;
+}
+
+function combinedChlManifestKey() {
+  const ids = (framesByVar.chl || []).map(combinedChlFrameId);
+  return `${(typeof REGION_ID !== "undefined" ? REGION_ID : "?")}|${ids.length}|${ids.slice(-3).join(",")}|${ids[0] || ""}`;
+}
+
+function combinedChlManifestChanged() {
+  const s = combinedChlEnsureState();
+  const k = combinedChlManifestKey();
+  return k !== s.manifestKey;
+}
+
+// Fetch the last N CHL frame JSONs in bounded parallel batches to
+// compute coverage. Caches by frame id; only refetches when the
+// manifest key changes (new frames or region change).
+async function combinedChlEnsureCoverage() {
+  const s = combinedChlEnsureState();
+  const k = combinedChlManifestKey();
+  if (s.loadingPromise && s.manifestKey === k) return s.loadingPromise;
+  const allFrames = framesByVar.chl || [];
+  if (!allFrames.length) return [];
+  // Last N frames, newest-last (chronological). We'll display newest-first.
+  const lastN = allFrames.slice(-s.lastN);
+  s.manifestKey = k;
+  s.loadingPromise = (async () => {
+    const BATCH = 3;
+    for (let i = 0; i < lastN.length; i += BATCH) {
+      const batch = lastN.slice(i, i + BATCH);
+      await Promise.all(batch.map(async frame => {
+        const id = combinedChlFrameId(frame);
+        if (s.cache.has(id) && s.cache.get(id).manifestKey === k) return;
+        try {
+          const data = await fetchFrameData("chl", frame);
+          const coverage = combinedChlComputeCoveragePct(data);
+          s.cache.set(id, {
+            timeMs: combinedChlFrameTimeMs(frame) || null,
+            coverage,
+            manifestKey: k,
+            frame
+          });
+        } catch (err) {
+          console.warn("[CHL chip] coverage fetch failed", id, err);
+          s.cache.set(id, { timeMs: combinedChlFrameTimeMs(frame) || null, coverage: null, manifestKey: k, frame });
+        }
+      }));
+    }
+    s.loadingPromise = null;
+    return lastN;
+  })();
+  return s.loadingPromise;
+}
+
+function combinedChlEligibleFrames() {
+  const s = combinedChlEnsureState();
+  const allFrames = (framesByVar.chl || []).slice(-s.lastN);
+  // Sort newest-first for display.
+  const newestFirst = [...allFrames].sort((a, b) => (combinedChlFrameTimeMs(b) || 0) - (combinedChlFrameTimeMs(a) || 0));
+  return newestFirst.filter(f => {
+    const id = combinedChlFrameId(f);
+    const e = s.cache.get(id);
+    return e && Number.isFinite(e.coverage) && e.coverage > s.gatePct;
+  });
+}
+
+function combinedChlUpdateCountBadge() {
+  const s = combinedChlEnsureState();
+  const eligible = s.eligibleFrameIds.size;
+  const selected = s.selectedFrameIds.size;
+  const el = document.getElementById("combined-chl-chips-count");
+  if (el) el.textContent = `${selected}/${eligible}`;
+}
+
+function combinedChlRebuildChips() {
+  const wrap = document.getElementById("combined-chl-chips");
+  if (!wrap) return;
+  const s = combinedChlEnsureState();
+  wrap.innerHTML = "";
+  const allFrames = (framesByVar.chl || []).slice(-s.lastN);
+  const newestFirst = [...allFrames].sort((a, b) => (combinedChlFrameTimeMs(b) || 0) - (combinedChlFrameTimeMs(a) || 0));
+  s.eligibleFrameIds = new Set();
+  if (!newestFirst.length) {
+    const empty = document.createElement("div");
+    empty.style.fontSize = "11px";
+    empty.style.color = "#9aa7b5";
+    empty.style.padding = "4px 0";
+    empty.textContent = "No frames in window";
+    wrap.appendChild(empty);
+    combinedChlUpdateCountBadge();
+    return;
+  }
+  for (const frame of newestFirst) {
+    const id = combinedChlFrameId(frame);
+    const entry = s.cache.get(id) || {};
+    const coverage = entry.coverage;
+    const eligible = Number.isFinite(coverage) && coverage > s.gatePct;
+    if (eligible) s.eligibleFrameIds.add(id);
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "day-chip" + (s.selectedFrameIds.has(id) ? " selected" : (eligible ? " unselected" : ""));
+    chip.dataset.frameId = id;
+    chip.disabled = !eligible;
+    const labelText = combinedChlFormatTime(entry.timeMs);
+    const covText = combinedChlFormatCoveragePct(coverage);
+    chip.title = eligible
+      ? `${labelText} • ${covText} coverage`
+      : `${labelText} • ${covText} coverage (below ${s.gatePct}% gate)`;
+    // No swatch (we don't have a CHL color domain here). The coverage badge is the differentiator.
+    const label = document.createElement("span");
+    label.textContent = labelText;
+    const badge = document.createElement("span");
+    badge.style.cssText = "font-size:10px;opacity:0.78;margin-left:2px;";
+    badge.textContent = covText;
+    chip.appendChild(label);
+    chip.appendChild(badge);
+    if (eligible) {
+      chip.addEventListener("click", () => combinedChlToggleFrame(id));
+    }
+    wrap.appendChild(chip);
+  }
+  combinedChlUpdateCountBadge();
+}
+
+function combinedChlToggleFrame(frameId) {
+  const s = combinedChlEnsureState();
+  if (!s.eligibleFrameIds.has(frameId)) return;
+  if (s.selectedFrameIds.has(frameId)) s.selectedFrameIds.delete(frameId);
+  else s.selectedFrameIds.add(frameId);
+  s.initialized = true;
+  // Update chip styling in place
+  const wrap = document.getElementById("combined-chl-chips");
+  if (wrap) {
+    const chip = wrap.querySelector(`[data-frame-id="${CSS.escape(frameId)}"]`);
+    if (chip) {
+      chip.classList.toggle("selected", s.selectedFrameIds.has(frameId));
+      chip.classList.toggle("unselected", !s.selectedFrameIds.has(frameId));
+    }
+  }
+  combinedChlUpdateCountBadge();
+  combinedChlRenderSelected();
+}
+
+function combinedChlApplyPreset(name) {
+  const s = combinedChlEnsureState();
+  const eligibleList = (framesByVar.chl || []).slice(-s.lastN)
+    .sort((a, b) => (combinedChlFrameTimeMs(b) || 0) - (combinedChlFrameTimeMs(a) || 0))
+    .filter(f => s.eligibleFrameIds.has(combinedChlFrameId(f)));
+  s.selectedFrameIds = new Set();
+  if (name === "all") {
+    for (const f of eligibleList) s.selectedFrameIds.add(combinedChlFrameId(f));
+  } else if (name === "none") {
+    // explicitly empty
+  } else if (name === "latest1") {
+    if (eligibleList[0]) s.selectedFrameIds.add(combinedChlFrameId(eligibleList[0]));
+  } else if (name === "latest3") {
+    for (const f of eligibleList.slice(0, 3)) s.selectedFrameIds.add(combinedChlFrameId(f));
+  } else if (name === "latest5") {
+    for (const f of eligibleList.slice(0, 5)) s.selectedFrameIds.add(combinedChlFrameId(f));
+  }
+  s.initialized = true;
+  combinedChlRebuildChips();
+  combinedChlRenderSelected();
+}
+
+function combinedChlApplyHoursPreset(hoursRaw) {
+  // Map the legacy hours dropdown into a chip selection. "1" = Latest
+  // 1, anything else = all eligible chips in the window. If no chip
+  // falls in the window, fall back to the latest eligible chip.
+  const s = combinedChlEnsureState();
+  const hours = Number(hoursRaw) || 1;
+  const allFrames = (framesByVar.chl || []).slice().sort((a, b) => (combinedChlFrameTimeMs(b) || 0) - (combinedChlFrameTimeMs(a) || 0));
+  if (!allFrames.length) return;
+  const latestT = combinedChlFrameTimeMs(allFrames[0]) || Date.now();
+  const cutoff = hours === 1 ? Infinity : (latestT - hours * 3600000);
+  const eligibleInWindow = allFrames.filter(f => {
+    const t = combinedChlFrameTimeMs(f);
+    const id = combinedChlFrameId(f);
+    if (!s.eligibleFrameIds.has(id)) return false;
+    if (hours === 1) return true;          // Latest 1 = newest eligible
+    return t && t >= cutoff;
+  });
+  s.selectedFrameIds = new Set();
+  if (eligibleInWindow.length) {
+    for (const f of eligibleInWindow) s.selectedFrameIds.add(combinedChlFrameId(f));
+  } else if (s.eligibleFrameIds.size) {
+    // Fall back to the newest eligible chip so the user always sees
+    // something rather than an empty panel.
+    for (const f of allFrames) {
+      if (s.eligibleFrameIds.has(combinedChlFrameId(f))) {
+        s.selectedFrameIds.add(combinedChlFrameId(f));
+        break;
+      }
+    }
+  }
+  s.initialized = true;
+  combinedChlRebuildChips();
+  combinedChlRenderSelected();
+}
+
+async function combinedChlRenderSelected() {
+  const s = combinedChlEnsureState();
+  const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
+  // 0 chips: clear layer, show "Pick at least one chip"
+  if (s.selectedFrameIds.size === 0) {
+    if (window._combinedChlLayer && window._combinedMap) {
+      try { window._combinedMap.removeLayer(window._combinedChlLayer); } catch (_) {}
+      window._combinedChlLayer = null;
+    }
+    window._combinedChlData = null;
+    window._combinedChlGrid = null;
+    window._combinedChlScanTime = null;
+    if (chlScanTimeDiv) chlScanTimeDiv.textContent = "Pick at least one chip";
+    return;
+  }
+  // Resolve selected frame metas from framesByVar
+  const allFrames = framesByVar.chl || [];
+  const idToFrame = new Map(allFrames.map(f => [combinedChlFrameId(f), f]));
+  const selectedFrames = [];
+  for (const id of s.selectedFrameIds) {
+    const f = idToFrame.get(id);
+    if (f) selectedFrames.push(f);
+  }
+  if (!selectedFrames.length) {
+    if (chlScanTimeDiv) chlScanTimeDiv.textContent = "No matching frames";
+    return;
+  }
+  // Single frame: render directly without composite math
+  if (selectedFrames.length === 1) {
+    const frame = selectedFrames[0];
+    try {
+      const data = await fetchFrameData("chl", frame);
+      const grid = await loadGridForVar("chl", data);
+      const z = mobileZForVar("chl", data);
+      if (!is2D(z)) { if (chlScanTimeDiv) chlScanTimeDiv.textContent = "Frame has no 2D data"; return; }
+      const renderData = { ...data, z, chl: z, data: z, nx: z[0]?.length || 0, ny: z.length, bbox: data?.bbox };
+      const canvas = makeMobileRasterCanvas("chl", grid, renderData);
+      const url = await new Promise((resolve, reject) => {
+        canvas.toBlob((blob) => blob ? resolve(URL.createObjectURL(blob)) : reject(new Error("toBlob null")), "image/png");
+      });
+      if (window._combinedChlLayer && window._combinedMap) {
+        try { window._combinedMap.removeLayer(window._combinedChlLayer); } catch (_) {}
+      }
+      const layer = new ol.layer.Image({
+        source: new ol.source.ImageStatic({ url, imageExtent: frameExtentFromGrid(grid), projection: "EPSG:4326", interpolate: false }),
+        zIndex: 10
+      });
+      const chk = document.getElementById("chk-combined-chl");
+      layer.setVisible(chk ? chk.checked : true);
+      if (window._combinedMap) window._combinedMap.addLayer(layer);
+      window._combinedChlLayer = layer;
+      window._combinedChlData = renderData;
+      window._combinedChlGrid = grid;
+      const t = combinedChlFrameTimeMs(frame);
+      window._combinedChlScanTime = t || null;
+      if (chlScanTimeDiv && t) {
+        chlScanTimeDiv.textContent = new Date(t).toLocaleString(undefined, {
+          year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+        });
+      }
+    } catch (err) {
+      console.error("[CHL chip] single-frame render failed", err);
+      if (chlScanTimeDiv) chlScanTimeDiv.textContent = "Render failed";
+    }
+    return;
+  }
+  // Multi-frame: delegate to the refactored composite renderer
+  if (window._combinedChlLayer && window._combinedMap) {
+    try { window._combinedMap.removeLayer(window._combinedChlLayer); } catch (_) {}
+    window._combinedChlLayer = null;
+  }
+  const result = await buildChlCompositeLayer(window._combinedMap, { selectedFrames, labelMode: "auto" });
+  if (result?.layer) {
+    if (window._combinedMap) window._combinedMap.addLayer(result.layer);
+    window._combinedChlLayer = result.layer;
+  }
+  if (result?.data && result?.grid) {
+    window._combinedChlData = result.data;
+    window._combinedChlGrid = result.grid;
+  }
+  if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
+}
+
+async function combinedChlInitPanel() {
+  const s = combinedChlEnsureState();
+  if (s.initialized && !combinedChlManifestChanged()) {
+    combinedChlRebuildChips();
+    return;
+  }
+  await combinedChlEnsureCoverage();
+  if (!s.initialized) {
+    // Default: Latest 1 eligible
+    const eligible = combinedChlEligibleFrames();
+    s.selectedFrameIds = new Set();
+    if (eligible[0]) s.selectedFrameIds.add(combinedChlFrameId(eligible[0]));
+    s.initialized = true;
+  } else {
+    // Manifest changed: prune selection to still-existing eligible ids
+    const stillEligible = new Set(combinedChlEligibleFrames().map(combinedChlFrameId));
+    s.selectedFrameIds = new Set([...s.selectedFrameIds].filter(id => stillEligible.has(id)));
+  }
+  combinedChlRebuildChips();
+}
+
+// Wire chip preset buttons. Called once after DOMContentLoaded.
+function combinedChlWirePresets() {
+  const panel = document.getElementById("combined-chl-chips-panel");
+  if (!panel) return;
+  panel.querySelectorAll(".day-chip-preset").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const preset = btn.dataset.preset;
+      if (preset) combinedChlApplyPreset(preset);
+    });
+  });
+  // Reveal/hide the panel with the CHL checkbox. Idempotent:
+  // if the user toggles CHL on, init the panel (which fetches
+  // coverage and rebuilds chips). If off, just hide it.
+  const chk = document.getElementById("chk-combined-chl");
+  if (chk && !chk._combinedChlWired) {
+    chk._combinedChlWired = true;
+    chk.addEventListener("change", () => {
+      panel.classList.toggle("hidden", !chk.checked);
+      if (chk.checked) combinedChlInitPanel();
+    });
+  }
+}
+
+// Wire the legacy hours dropdown to drive chip selection. Called
+// once at boot. We do NOT remove the pre-existing handler on
+// #combined-chl-composite (it still rebuilds via the legacy path
+// when chips are not initialized); instead we override its effect
+// by calling combinedChlApplyHoursPreset and then combinedChlRender
+// Selected which replaces the layer.
+function combinedChlWireHoursDropdown() {
+  const sel = document.getElementById("combined-chl-composite");
+  if (!sel || sel._combinedChlHoursWired) return;
+  sel._combinedChlHoursWired = true;
+  sel.addEventListener("change", () => {
+    const s = combinedChlEnsureState();
+    if (!s.initialized) return; // legacy path owns the layer until chip panel is opened
+    combinedChlApplyHoursPreset(sel.value);
+  });
+}
+
+// --- UV (currents) layer rebuild helper (v4.2 captain's-dashboard fix) ---
+// Before v4.2 the UV layer was built once during renderCombinedMode
+// using uvFrames[0] (the OLDEST frame, because framesByVar is sorted
+// oldest-first per the line-4576 comment). Mike, 2026-06-13 14:01 ET:
+// "the currents layer shows stable data or time stamp." Root cause:
+// the layer was never rebuilt and was sourced from the wrong end of
+// the manifest. This helper:
+//   - uses the newest frame for hoursMode === "latest"
+//   - for hour windows, picks the newest frame within [latestT - h, latestT]
+//   - replaces the existing arrow layer cleanly
+//   - updates #combined-uv-scan-time with a label that describes the
+//     data actually shown
+async function rebuildCombinedUvLayer(map, { hoursMode = "latest" } = {}) {
+  const uvFrames = framesByVar.uv || [];
+  const uvScanTimeDiv = document.getElementById("combined-uv-scan-time");
+  // Remove existing
+  if (window._combinedUvLayer && map) {
+    try { map.removeLayer(window._combinedUvLayer); } catch (_) {}
+    window._combinedUvLayer = null;
+  }
+  window._combinedUvData = null;
+  window._combinedUvGrid = null;
+  if (!uvFrames.length) {
+    if (uvScanTimeDiv) uvScanTimeDiv.textContent = "";
+    return null;
+  }
+  // Sort newest-first; pick by hoursMode.
+  const newestFirst = [...uvFrames].sort((a, b) => (epochMsForFrame("uv", b) || 0) - (epochMsForFrame("uv", a) || 0));
+  let frame;
+  if (hoursMode === "latest") {
+    frame = newestFirst[0];
+  } else {
+    const h = Number(hoursMode) || 24;
+    const latestT = epochMsForFrame("uv", newestFirst[0]) || Date.now();
+    const cutoff = latestT - h * 3600000;
+    // The plan said: do not invent vector averaging if no helper
+    // exists. So for hour windows we still pick the newest frame in
+    // the window and label it "Latest in last N hours".
+    frame = newestFirst.find(f => {
+      const t = epochMsForFrame("uv", f);
+      return t && t >= cutoff;
+    }) || newestFirst[0];
+  }
+  if (!frame) { if (uvScanTimeDiv) uvScanTimeDiv.textContent = ""; return null; }
+  try {
+    const data = await fetchFrameData("uv", frame);
+    const grid = await loadGridForVar("uv", data);
+    window._combinedUvGrid = grid;
+    window._combinedUvData = data;
+    const arrowLayer = buildDesktopUvArrowLayer(data, grid);
+    if (arrowLayer && map) {
+      const chk = document.getElementById("chk-combined-uv");
+      arrowLayer.setVisible(chk ? chk.checked : true);
+      map.addLayer(arrowLayer);
+      window._combinedUvLayer = arrowLayer;
+    }
+    const uvT = epochMsForFrame("uv", frame);
+    if (uvScanTimeDiv) {
+      if (uvT) {
+        const fmt = new Date(uvT).toLocaleString(undefined, {
+          year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+        });
+        uvScanTimeDiv.textContent = hoursMode === "latest"
+          ? fmt
+          : `Latest in last ${hoursMode} hours: ${fmt}`;
+      } else {
+        uvScanTimeDiv.textContent = "";
+      }
+    }
+    return arrowLayer;
+  } catch (err) {
+    console.error("[UV] rebuild failed", err);
+    if (uvScanTimeDiv) uvScanTimeDiv.textContent = "Render failed";
+    return null;
+  }
+}
+
+// Wire the UV hours select. Idempotent.
+function combinedUvWireHoursSelect() {
+  const sel = document.getElementById("combined-uv-hours");
+  if (!sel || sel._combinedUvHoursWired) return;
+  sel._combinedUvHoursWired = true;
+  sel.addEventListener("change", () => {
+    if (!window._combinedMap) return;
+    const chk = document.getElementById("chk-combined-uv");
+    if (chk && !chk.checked) return; // don't render into a hidden layer
+    rebuildCombinedUvLayer(window._combinedMap, { hoursMode: sel.value });
+  });
 }
 
 /* ============================================================
@@ -7251,6 +7873,32 @@ async function loadIndex() {
   }
 
   syncFrontOverlayControls();
+
+  // v4.2 captain's-dashboard fix: on data reload, if the combined
+  // mode is active, invalidate the CHL chip cache when the manifest
+  // changed and rebuild the UV layer. The chip panel re-renders
+  // from the new frames and the UV layer picks up the newest frame
+  // instead of staying frozen on the oldest.
+  if (window._combinedMap) {
+    try {
+      const s = window._combinedChl;
+      if (s && combinedChlManifestChanged && combinedChlManifestChanged()) {
+        // Manifest changed: reset cache, init will refetch coverage.
+        s.cache = new Map();
+        s.initialized = false;
+        if (document.getElementById("chk-combined-chl")?.checked) {
+          combinedChlInitPanel();
+        }
+      }
+      const chkUvCb = document.getElementById("chk-combined-uv");
+      if (chkUvCb && chkUvCb.checked) {
+        const sel = document.getElementById("combined-uv-hours");
+        rebuildCombinedUvLayer(window._combinedMap, { hoursMode: sel?.value || "latest" });
+      }
+    } catch (err) {
+      console.warn("[loadIndex] combined-mode post-refresh failed", err);
+    }
+  }
 
   return data;
 }
