@@ -897,14 +897,13 @@ body.combined-mode #combined-menu-btn{
       flex-shrink:0;
     }
     .day-chip.selected{
-      background:rgba(255,255,255,0.08);
-      border-color:rgba(255,255,255,0.42);
+      background:rgba(60,180,100,0.35);
+      border-color:rgba(80,220,120,0.65);
+      color:#e8fff0;
     }
     .day-chip.unselected{
-      opacity:0.34;
-      text-decoration:line-through;
-      text-decoration-thickness:1px;
-      text-decoration-color:rgba(255,255,255,0.45);
+      opacity:0.38;
+      text-decoration:none;
     }
     .day-chip.unselected .day-chip-swatch{
       filter:grayscale(1) brightness(0.55);
@@ -5358,7 +5357,8 @@ function combinedChlEnsureState() {
       lastN: 10,
       gatePct: 10,
       loadingPromise: null,
-      panelRevealed: false
+      panelRevealed: false,
+      opSeq: 0                      // increments on each toggle to abort stale renders
     };
   }
   return window._combinedChl;
@@ -5501,6 +5501,10 @@ function combinedChlToggleFrame(frameId) {
   if (s.selectedFrameIds.has(frameId)) s.selectedFrameIds.delete(frameId);
   else s.selectedFrameIds.add(frameId);
   s.initialized = true;
+  // Increment opSeq so any in-flight fetch from a prior interaction
+  // cannot overwrite the result of this deselect.
+  s.opSeq = (s.opSeq || 0) + 1;
+  const mySeq = s.opSeq;
   // Update chip styling in place
   const wrap = document.getElementById("combined-chl-chips");
   if (wrap) {
@@ -5573,6 +5577,7 @@ function combinedChlApplyHoursPreset(hoursRaw) {
 
 async function combinedChlRenderSelected() {
   const s = combinedChlEnsureState();
+  const mySeq = s.opSeq || 0;   // snapshot of the toggle that started this render
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
   // 0 chips: clear layer, show "Pick at least one chip"
   if (s.selectedFrameIds.size === 0) {
@@ -5603,7 +5608,9 @@ async function combinedChlRenderSelected() {
     const frame = selectedFrames[0];
     try {
       const data = await fetchFrameData("chl", frame);
+      if (s.opSeq !== mySeq) return;   // stale — user deselected while we were fetching
       const grid = await loadGridForVar("chl", data);
+      if (s.opSeq !== mySeq) return;
       const z = mobileZForVar("chl", data);
       if (!is2D(z)) { if (chlScanTimeDiv) chlScanTimeDiv.textContent = "Frame has no 2D data"; return; }
       const renderData = { ...data, z, chl: z, data: z, nx: z[0]?.length || 0, ny: z.length, bbox: data?.bbox };
@@ -5611,6 +5618,7 @@ async function combinedChlRenderSelected() {
       const url = await new Promise((resolve, reject) => {
         canvas.toBlob((blob) => blob ? resolve(URL.createObjectURL(blob)) : reject(new Error("toBlob null")), "image/png");
       });
+      if (s.opSeq !== mySeq) { try { URL.revokeObjectURL(url); } catch (_) {} return; }
       if (window._combinedChlLayer && window._combinedMap) {
         try { window._combinedMap.removeLayer(window._combinedChlLayer); } catch (_) {}
       }
@@ -5643,6 +5651,7 @@ async function combinedChlRenderSelected() {
     window._combinedChlLayer = null;
   }
   const result = await buildChlCompositeLayer(window._combinedMap, { selectedFrames, labelMode: "auto" });
+  if (s.opSeq !== mySeq) return;   // stale — user deselected while compositing
   if (result?.layer) {
     if (window._combinedMap) window._combinedMap.addLayer(result.layer);
     window._combinedChlLayer = result.layer;
