@@ -5687,13 +5687,19 @@ async function combinedChlInitPanel() {
     const stillEligible = new Set(combinedChlEligibleFrames().map(combinedChlFrameId));
     s.selectedFrameIds = new Set([...s.selectedFrameIds].filter(id => stillEligible.has(id)));
   }
-  // Build chips immediately — coverage badges may show "?" until the
-  // background fetch resolves. This eliminates the 10-second lag.
+  // Build chips SYNCHRONOUSLY first. Chips must exist in the DOM before
+  // renderSelected() runs — otherwise renderSelected() removes the layer
+  // (0-chip branch) before the chip DOM exists to show the selection.
   combinedChlRebuildChips();
-  // Fetch coverage in background; rebuild chips again when it resolves.
-  // Handle the case where coverage is already loaded (returns undefined).
+  // Now render with chips in the DOM. This is synchronous with respect
+  // to the map — it does not wait for coverage.
+  combinedChlRenderSelected();
+  // Fetch coverage in background; rebuild + re-render once it resolves.
   const p = combinedChlEnsureCoverage();
-  if (p) p.then(() => combinedChlRebuildChips());
+  if (p) p.then(() => {
+    combinedChlRebuildChips();
+    combinedChlRenderSelected();
+  });
 }
 
 // Wire chip preset buttons. Called once after DOMContentLoaded.
