@@ -5314,7 +5314,7 @@ function combinedChlFormatRelativeShort(t, referenceT) {
   const totalMinutes = Math.round(deltaMs / 60000);
   const totalHours = Math.floor(totalMinutes / 60);
   if (totalHours < 24) {
-    return totalHours === 0 ? "0h" : `${totalHours}h`;
+    return totalHours === 0 ? "<1h" : `${totalHours}h`;
   }
   const days = Math.floor(totalHours / 24);
   const remH = totalHours - days * 24;
