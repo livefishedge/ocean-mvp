@@ -4798,6 +4798,12 @@ async function renderCombinedMode() {
   });
 
   window._combinedRenderLocked = false;
+  // If CHL is already checked on first render (e.g. page refreshed in
+  // combined mode), the change handler hasn't fired — init the panel now.
+  if (chkChl?.checked) {
+    combinedChlInitPanel();
+    combinedChlRenderSelected();
+  }
   console.log("[combined] renderCombinedMode finished successfully");
   console.log("[combined] FINAL state — total layers:", map.getLayers().getLength());
   const allLayers = [];
