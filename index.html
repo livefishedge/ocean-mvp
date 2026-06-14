@@ -4751,6 +4751,24 @@ async function renderCombinedMode() {
   if (initialThermal.densityLayer) { map.addLayer(initialThermal.densityLayer); window._combinedFrontDensityLayer = initialThermal.densityLayer; }
   if (thermalScanTimeDiv) thermalScanTimeDiv.textContent = initialThermal.scanTime || "";
 
+  // ── Cursor circle (matches mobile/thermal-fronts behavior) ───────────
+  const cursorFeature = new ol.Feature({
+    geometry: new ol.geom.Point([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2])
+  });
+  cursorFeature.setStyle(new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: 3,
+      fill: new ol.style.Fill({ color: "rgba(255,255,255,0.45)" }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.55)", width: 1 })
+    })
+  }));
+  const cursorLayer = new ol.layer.Vector({
+    source: new ol.source.Vector({ features: [cursorFeature] }),
+    zIndex: 60
+  });
+  map.addLayer(cursorLayer);
+  window._combinedCursorFeature = cursorFeature;
+
   // ── Cursor readout ───────────────────────────────────────────────────
   const readoutEl = document.getElementById("combined-readout");
   const hoverTip = document.getElementById("combined-hover-tip");
@@ -4760,6 +4778,7 @@ async function renderCombinedMode() {
       return;
     }
     const [lon, lat] = ev.coordinate;
+    cursorFeature.getGeometry().setCoordinates([lon, lat]);
     const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
     const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
@@ -4791,6 +4810,7 @@ async function renderCombinedMode() {
   map.on("click", (ev) => {
     if (!ev.coordinate) return;
     const [lon, lat] = ev.coordinate;
+    cursorFeature.getGeometry().setCoordinates([lon, lat]);
     const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
     const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
     const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
