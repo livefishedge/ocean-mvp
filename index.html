@@ -4755,13 +4755,18 @@ async function renderCombinedMode() {
   const readoutEl = document.getElementById("combined-readout");
   const hoverTip = document.getElementById("combined-hover-tip");
   map.on("pointermove", (ev) => {
-    if (!ev.coordinate) return;
+    if (!ev.coordinate) {
+      if (readoutEl) readoutEl.textContent = "—, —";
+      return;
+    }
     const [lon, lat] = ev.coordinate;
     const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
     const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
     const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
     if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
+    if (readoutEl) readoutEl.textContent = parts.join("  ");
+    console.log("[combined:pointermove]", parts.join("  "), "| grid:", !!window._combinedChlGrid, "| data:", !!window._combinedChlData);
     const bathyFeature = map.forEachFeatureAtPixel(ev.pixel, feature => (
       Number.isFinite(feature.get("depth")) ? feature : null
     ), { hitTolerance: 6 });
