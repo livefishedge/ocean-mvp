@@ -1159,27 +1159,7 @@ body.combined-mode #combined-menu-btn{
         <span class="combined-dot dot-chl"></span>
         <span>Chlorophyll</span>
       </label>
-      <select id="combined-chl-composite" style="margin:6px 0 4px 28px;font-size:13px;">
-        <option value="1">Latest</option>
-        <option value="3">Last 3 hours</option>
-        <option value="6">Last 6 hours</option>
-        <option value="12">Last 12 hours</option>
-        <option value="24" selected>Last 24 hours</option>
-        <option value="48">Last 48 hours</option>
-        <option value="72">Last 72 hours</option>
-      </select>
       <div id="combined-chl-chips-panel" class="hidden" aria-label="Frames in window selector">
-        <div class="day-chips-header">
-          <span class="day-chips-title">Frames in window</span>
-          <span id="combined-chl-chips-count" class="day-chips-count" aria-live="polite">0/0</span>
-        </div>
-        <div class="day-chips-presets" role="group" aria-label="Frame selection presets">
-          <button class="day-chip-preset" data-preset="all" type="button">All eligible</button>
-          <button class="day-chip-preset" data-preset="none" type="button">None</button>
-          <button class="day-chip-preset" data-preset="latest1" type="button">Latest 1</button>
-          <button class="day-chip-preset" data-preset="latest3" type="button">Latest 3</button>
-          <button class="day-chip-preset" data-preset="latest5" type="button">Latest 5</button>
-        </div>
         <div class="day-chips-relative-label" aria-hidden="true">Hours ago</div>
         <div id="combined-chl-chips" class="day-chips-row" role="group" aria-label="Per-frame selection"></div>
       </div>
@@ -2338,25 +2318,12 @@ if (chkChl) chkChl.addEventListener("change", async e => {
   const checked = e.target.checked;
   if (window._combinedChlLayer) window._combinedChlLayer.setVisible(checked);
   if (checked && window._combinedMap) {
-    const s = window._combinedChl;
-    if (s && s.initialized && s.eligibleFrameIds.size) {
-      // Chip-driven path: use whatever the user has selected.
-      await combinedChlRenderSelected();
-    } else {
-      // Legacy fallback for first-time render before chips are loaded.
-      const hours = parseInt((document.getElementById("combined-chl-composite") || {value:"1"}).value, 10);
-      if (window._combinedChlLayer) { window._combinedMap.removeLayer(window._combinedChlLayer); window._combinedChlLayer = null; }
-      const result = await buildChlCompositeLayer(window._combinedMap, { hours, labelMode: "hoursWindow" });
-      if (result?.layer) { window._combinedMap.addLayer(result.layer); window._combinedChlLayer = result.layer; }
-      if (result?.data && result?.grid) { window._combinedChlData = result.data; window._combinedChlGrid = result.grid; }
-      if (chlScanTimeDiv) chlScanTimeDiv.textContent = result?.scanTime || "";
-    }
+    // Chip-driven: init panel if first time, then render whatever is selected.
+    await combinedChlInitPanel();
+    await combinedChlRenderSelected();
   }
 });
-// Wire the chip panel preset buttons and the hours-dropdown quick
-// preset listener. Idempotent on repeat calls.
-combinedChlWirePresets();
-combinedChlWireHoursDropdown();
+// Wire UV hours select (CHL presets and dropdown are removed in v4.4).
 combinedUvWireHoursSelect();
 
 if (chkSst) chkSst.addEventListener("change", e => {
