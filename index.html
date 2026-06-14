@@ -5474,7 +5474,11 @@ function combinedChlRebuildChips() {
     if (eligible) s.eligibleFrameIds.add(id);
     const chip = document.createElement("button");
     chip.type = "button";
-    chip.className = "day-chip" + (s.selectedFrameIds.has(id) ? " selected" : (eligible ? " unselected" : ""));
+    // Show as .selected if in selectedFrameIds (user's explicit choice,
+    // independent of coverage gate). Otherwise dim if eligible, or
+    // disabled-style if below gate and not selected.
+    const inSelected = s.selectedFrameIds.has(id);
+    chip.className = "day-chip" + (inSelected ? " selected" : (eligible ? " unselected" : ""));
     chip.dataset.frameId = id;
     chip.disabled = !eligible;
     // Chip label = relative time ("5h", "1d 3h"). Tooltip keeps
@@ -5677,10 +5681,12 @@ async function combinedChlInitPanel() {
     return;
   }
   if (!s.initialized) {
-    // Default: Latest 1 eligible
-    const eligible = combinedChlEligibleFrames();
+    // Default: Latest 1 frame by timestamp (NOT cache-dependent).
+    // Cache may be empty on first load; don't let that make selectedFrameIds empty.
+    const allFrames = framesByVar.chl || [];
+    const sorted = [...allFrames].sort((a, b) => (combinedChlFrameTimeMs(b) || 0) - (combinedChlFrameTimeMs(a) || 0));
     s.selectedFrameIds = new Set();
-    if (eligible[0]) s.selectedFrameIds.add(combinedChlFrameId(eligible[0]));
+    if (sorted[0]) s.selectedFrameIds.add(combinedChlFrameId(sorted[0]));
     s.initialized = true;
   } else {
     // Manifest changed: prune selection to still-existing eligible ids
