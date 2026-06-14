@@ -1159,7 +1159,7 @@ body.combined-mode #combined-menu-btn{
         <span>Chlorophyll</span>
       </label>
       <div id="combined-chl-chips-panel" class="hidden" aria-label="Frames in window selector">
-        <div class="day-chips-relative-label" aria-hidden="true">Hours ago</div>
+        <div class="day-chips-relative-label" aria-hidden="true">Hours ago - coverage</div>
         <div id="combined-chl-chips" class="day-chips-row" role="group" aria-label="Per-frame selection"></div>
       </div>
       <div id="combined-chl-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
@@ -1358,7 +1358,7 @@ window.__VIEW_BUILD_COMBINED = Object.assign(window.__VIEW_BUILD_COMBINED || {},
   chlChipLabelFormat: "relative (Nh ago / Nd Nh ago)",
   chlChipRelativeReference: "newest frame in window",
   chlChipLabelHeaderSelector: ".day-chips-relative-label",
-  chlChipLabelHeaderText: "Hours ago",
+  chlChipLabelHeaderText: "Hours ago - coverage",
   chlChipSurvivesPoll: true,
   chlChipTimeFromFrame: true,
   // CHL scan-time label contract: describe what is actually rendered.
@@ -5670,7 +5670,6 @@ async function combinedChlInitPanel() {
     combinedChlRebuildChips();
     return;
   }
-  await combinedChlEnsureCoverage();
   if (!s.initialized) {
     // Default: Latest 1 eligible
     const eligible = combinedChlEligibleFrames();
@@ -5682,7 +5681,13 @@ async function combinedChlInitPanel() {
     const stillEligible = new Set(combinedChlEligibleFrames().map(combinedChlFrameId));
     s.selectedFrameIds = new Set([...s.selectedFrameIds].filter(id => stillEligible.has(id)));
   }
+  // Build chips immediately — coverage badges may show "?" until the
+  // background fetch resolves. This eliminates the 10-second lag.
   combinedChlRebuildChips();
+  // Fetch coverage in background; rebuild chips again when it resolves.
+  // Handle the case where coverage is already loaded (returns undefined).
+  const p = combinedChlEnsureCoverage();
+  if (p) p.then(() => combinedChlRebuildChips());
 }
 
 // Wire chip preset buttons. Called once after DOMContentLoaded.
