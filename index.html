@@ -4490,19 +4490,6 @@ async function renderCombinedMode() {
   console.log("[combined] renderCombinedMode called, currentVar:", currentVar, "REGION_ID:", REGION_ID);
   document.body.classList.add("combined-mode");
 
-  // ── Layer z-index constants (combined mode) ────────────────────────────
-  const COMBINED_Z_RASTER_BASE = 0;   // Positron/OSM raster — bottom contextual base
-  const COMBINED_Z_SST        = 9;
-  const COMBINED_Z_CHL        = 10;
-  const COMBINED_Z_BATHY      = 15;
-  const COMBINED_Z_UV         = 20;
-  const COMBINED_Z_OCEAN_TINT = 24;  // GEBCO additive ocean wash
-  const COMBINED_Z_THERMAL_D  = 30;
-  const COMBINED_Z_THERMAL_L  = 32;
-  const COMBINED_Z_PLACE_LBL  = 56;  // above land mask
-  const COMBINED_Z_LAND_MASK  = 50;  // bathy-derived land mask — above all data
-  const COMBINED_Z_CURSOR     = 60;
-
   // ── Build a standalone OL map in #combined-map ─────────────────────────
   const combinedMapDiv = document.getElementById("combined-map");
   if (!combinedMapDiv) {
@@ -4596,14 +4583,11 @@ async function renderCombinedMode() {
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
-  // Layer order: Positron(0) -> SST(9) -> CHL(10) -> bathy(15) -> UV(20) -> GEBCO-ocean-tint(24) -> fronts(30/32) -> land-mask(50) -> place-labels(40) -> cursors(60)
-  // NOTE: Positron is one composited raster — land, ocean, roads, labels all baked together.
-  // It cannot be cleanly separated post-download. Ocean pixels are opaque blue in the tile.
-  // To achieve land-on-top / ocean-below-data: see the bathy-derived land mask at z=50.
+  // Layer order: Positron(0, ocean=transparent) -> SST(9) -> CHL(10) -> bathy(15) -> UV(20) -> GEBCO-ocean-tint(24) -> fronts(30/32) -> labels(40) -> cursors(60)
 
-  // ── Layer: CartoDB Positron (bottom contextual basemap) ──────────────────
-  // Ocean pixels in this tile are opaque blue — this layer MUST stay below all ocean
-  // data layers. The bathy-derived land mask (z=50) is what puts opaque land above data.
+  // ── Layer: CartoDB Positron (land-only basemap, ocean transparent) ───────
+  // Positron has no ocean tint — ocean areas are fully transparent, so all ocean
+  // data layers (CHL, SST, UV) show through immediately below land at z=0.
   const osmLayer = new ol.layer.Tile({
     source: new ol.source.OSM({
       url: "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
@@ -4771,12 +4755,6 @@ async function renderCombinedMode() {
   if (initialThermal.densityLayer) { map.addLayer(initialThermal.densityLayer); window._combinedFrontDensityLayer = initialThermal.densityLayer; }
   if (thermalScanTimeDiv) thermalScanTimeDiv.textContent = initialThermal.scanTime || "";
 
-  // ── Layer: Bathymetry-derived land mask — above all data ────────────
-  // makeMobileLandCanvas paints land opaque (hides data) and ocean transparent
-  // (data shows through). This is what puts land above ocean data layers.
-  await ensureCombinedLandLayer(map);
-  await ensureCombinedPlaceLayer(map);
-
   // ── Cursor circle (matches mobile/thermal-fronts behavior) ───────────
   const cursorFeature = new ol.Feature({
     geometry: new ol.geom.Point([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2])
@@ -4860,10 +4838,6 @@ async function renderCombinedMode() {
   const allLayers = [];
   map.getLayers().forEach((l, i) => allLayers.push({i, zIndex: l.getZIndex(), type: l.getClassName()}));
   console.log("[combined] FINAL layers:", JSON.stringify(allLayers));
-  // Human-readable stack order (lowest z to highest)
-  const sorted = [...allLayers].sort((a, b) => a.zIndex - b.zIndex);
-  console.log("[combined] layer stack (low→high):", sorted.map(l => `z=${l.zIndex} ${l.type || "?"}`).join(" | "));
-  console.log("[combined] EXPECTED: Positron(0) → SST(9) → CHL(10) → bathy(15) → UV(20) → GEBCO-tint(24) → fronts(30/32) → landMask(50) → placeLabels(56) → cursor(60)");
   const vp = map.getTargetElement()?.querySelector(".ol-viewport");
   const cv = map.getTargetElement()?.querySelector("canvas");
   console.log("[combined] FINAL viewport:", vp ? `${vp.offsetWidth}x${vp.offsetHeight}` : "NO VIEWPORT");
@@ -5033,7 +5007,7 @@ async function ensureCombinedLandLayer(map) {
     projection: "EPSG:4326",
     interpolate: false
   });
-  const layer = new ol.layer.Image({ source: src, zIndex: COMBINED_Z_LAND_MASK });
+  const layer = new ol.layer.Image({ source: src, zIndex: 24 });
   map.addLayer(layer);
   window._combinedLandLayer = layer;
   console.log("[combined] LAND layer added, total layers:", map.getLayers().getLength());
@@ -5051,7 +5025,7 @@ async function ensureCombinedPlaceLayer(map) {
   const layer = new ol.layer.Vector({
     source,
     style: combinedPlaceStyle,
-    zIndex: COMBINED_Z_PLACE_LBL,
+    zIndex: 40,
     declutter: true
   });
   map.addLayer(layer);
