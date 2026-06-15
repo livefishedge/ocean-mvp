@@ -9,6 +9,7 @@
 
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ol-mapbox-style@13.4.1/dist/olms.js"></script>
   <script src="drawMobileUvArrowsLite.js?v=20260517-arrows2"></script>
   <!-- Auth + Analytics -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -566,7 +567,7 @@ body.combined-mode #combined-menu-btn{
     body.combined-mode #plot{ display:none !important; }
     body.combined-mode #mobile-map{ display:none !important; cursor:crosshair; }
     body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; cursor:crosshair; }
-    body.combined-mode #combined-map .ol-viewport{ background:#f8fbff; }
+    body.combined-mode #combined-map .ol-viewport{ background:transparent; }
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
 
@@ -595,7 +596,7 @@ body.combined-mode #combined-menu-btn{
       z-index:0;
       width:100%; height:100%;
     }
-    #combined-map .ol-viewport{ background:#f8fbff; }
+    #combined-map .ol-viewport{ background:transparent; }
     /* Captain tools palette — horizontal row, upper-left */
     #captain-tools{
       display:none;
@@ -1613,8 +1614,15 @@ function mapViewportRanges(map) {
   if (!map) return null;
   const size = map.getSize();
   if (!size || size[0] <= 0 || size[1] <= 0) return null;
-  const extent = map.getView().calculateExtent(size);
+  let extent = map.getView().calculateExtent(size);
   if (!extent || extent.length < 4 || !extent.every(Number.isFinite)) return null;
+  // ALWAYS return extent in EPSG:4326 (lat/lon) for backend APIs and viewState.
+  // The combined map uses EPSG:3857 internally (for OpenFreeMap vector tiles);
+  // transform on the way out so the rest of the viewer code stays unchanged.
+  const viewProjCode = map.getView().getProjection().getCode();
+  if (viewProjCode !== 'EPSG:4326') {
+    extent = ol.proj.transformExtent(extent, viewProjCode, 'EPSG:4326');
+  }
   return { xRange: [extent[0], extent[2]], yRange: [extent[1], extent[3]] };
 }
 function currentViewportRanges() {
@@ -1661,20 +1669,25 @@ function applyViewStateToOlMap(map, fallbackExtent) {
   const size = map.getSize();
   if (!size || size[0] <= 0 || size[1] <= 0) return;
   const view = map.getView();
+  const viewProjCode = view.getProjection().getCode();
   // null = "preserve whatever view state is already set" — but only if the view has a center
   if (fallbackExtent === null) {
     // If view has no center yet (first render), fall back to BBOX
     const center = view.getCenter();
     if (!center) {
-      view.fit(BBOX, { size, nearest: true });
+      const bboxFit = viewProjCode === 'EPSG:4326' ? BBOX : ol.proj.transformExtent(BBOX, 'EPSG:4326', viewProjCode);
+      view.fit(bboxFit, { size, nearest: true });
     }
     // Otherwise do nothing — keep the current zoom/center
     return;
   }
-  const extent = viewState.hasRange && viewState.xRange && viewState.yRange
+  // viewState.xRange/yRange are always in EPSG:4326 (lat/lon) by convention.
+  // fallbackExtent is whatever the caller passed (also expected in 4326).
+  let extent4326 = viewState.hasRange && viewState.xRange && viewState.yRange
     ? [viewState.xRange[0], viewState.yRange[0], viewState.xRange[1], viewState.yRange[1]]
     : fallbackExtent;
-  if (!extent) return;
+  if (!extent4326) return;
+  const extent = viewProjCode === 'EPSG:4326' ? extent4326 : ol.proj.transformExtent(extent4326, 'EPSG:4326', viewProjCode);
   view.fit(extent, { size, nearest: true });
 }
 applyInitialViewportParams();
@@ -4516,8 +4529,14 @@ async function renderCombinedMode() {
   // NOTE: do NOT unlock _combinedRenderLocked here — it must stay set while the
   // function is building the new map. Unlock only after the new map is complete.
 
-  const view = new ol.View({ projection: "EPSG:4326" });
-  console.log("[combined] creating OL map, combinedMapDiv:", combinedMapDiv, "size:", combinedMapDiv?.clientWidth, combinedMapDiv?.clientHeight);
+  // Combined view uses EPSG:3857 (Web Mercator) so OpenFreeMap vector tiles can
+  // render. All data layers (CHL/SST/UV/bathy) keep `projection: "EPSG:4326"` on
+  // their ImageStatic sources — OL reprojects them automatically on render.
+  // At the boundary (applyViewStateToOlMap / mapViewportRanges) we transform
+  // extents in/out of 4326 so the rest of the viewer (viewState, backend APIs)
+  // stays in lat/lon.
+  const view = new ol.View({ projection: "EPSG:3857" });
+  console.log("[combined] creating OL map (EPSG:3857), combinedMapDiv:", combinedMapDiv, "size:", combinedMapDiv?.clientWidth, combinedMapDiv?.clientHeight);
   // Force layout so combinedMapDiv has real pixel dimensions before new ol.Map
   // (position:absolute divs report 0x0 until the browser computes layout)
   combinedMapDiv.getBoundingClientRect();
@@ -4583,16 +4602,49 @@ async function renderCombinedMode() {
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
-  // Layer order: OSM(0) -> CHL(10) -> bathy contours(15) -> UV(20) -> land(24) -> fronts(30/32) -> labels(40)
+  // Layer order: OFM vector base(0) -> CHL(10) -> bathy contours(15) -> UV(20) -> land(24) -> fronts(30/32) -> labels(40)
 
-  // ── Layer: OSM base (coastal context — roads, cities) ─────────────────────
-  const osmLayer = new ol.layer.Tile({
-    source: new ol.source.OSM(),
+  // ── Layer: OpenFreeMap Liberty vector base (ocean transparent) ─────────
+  // Replaces the previous OSM raster basemap. Ocean polygons are hidden via
+  // layer visibility (set in the patched style below), so CHL/SST/UV rasters
+  // below remain visible through the ocean. Land/roads/labels/parks stay as
+  // context. Synchronously add the empty VectorTileLayer; the style is applied
+  // asynchronously in the background so this code does not block chip-button
+  // initialization (lesson from v4.14: don't place network-dependent awaits
+  // between unrelated UI init steps).
+  const landBaseLayer = new ol.layer.VectorTile({
+    declutter: true,
     zIndex: 0,
-    opacity: 1.0,
-    preload: 0
+    preload: 0,
+    background: undefined  // no opaque background — ocean stays transparent
   });
-  map.addLayer(osmLayer);
+  map.addLayer(landBaseLayer);
+  (async () => {
+    try {
+      const style = await fetch("https://tiles.openfreemap.org/styles/liberty", { credentials: "omit" }).then(r => r.json());
+      const patched = JSON.parse(JSON.stringify(style));
+      for (const L of patched.layers) {
+        const isBackground = (L.id === "background");
+        const isNaturalEarth = (L.id === "natural_earth");
+        const isWaterFill = (L.id === "water");
+        const isWaterLabel = (/^water_/.test(L.id) || /^waterway_/.test(L.id));
+        if (isBackground || isNaturalEarth || isWaterLabel) {
+          // Hide entirely: beige background fill, relief shading, water labels
+          L.layout = Object.assign({}, L.layout, { visibility: "none" });
+        } else if (isWaterFill) {
+          // Faint ocean tint — fill-opacity 0.35 gives a clear "this is ocean"
+          // cue over the dark page background while keeping data overlays
+          // visually dominant. (Mike's fallback suggestion was 0.15; we use
+          // 0.35 because the page bg is #050b10 and 0.15 reads as black.)
+          L.paint = Object.assign({}, L.paint, { "fill-opacity": 0.35 });
+        }
+      }
+      await olms.applyStyle(landBaseLayer, patched, { updateSource: true });
+      console.log("[combined] OpenFreeMap basemap applied (water hidden) ✓");
+    } catch (e) {
+      console.warn("[combined] OpenFreeMap style apply failed:", e?.message || e);
+    }
+  })();
 
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
