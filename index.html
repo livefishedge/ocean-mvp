@@ -14,7 +14,7 @@
   <!-- Auth + Analytics -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="supabase-init.js?v=20260610"></script>
-  <script src="https://cdn.jsdelivr.net/npm/posthog-js@4/dist/posthog.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/posthog-js@1.200.0/dist/array.js"></script>
 
 
   <style>
@@ -1609,6 +1609,42 @@ function applyInitialViewportParams() {
   const vp = viewportFromParams();
   if (!vp) return;
   viewState = { hasRange: true, xRange: vp.xRange, yRange: vp.yRange };
+}
+
+// toMapProjection: convert a 4326 coord (or geometry coords) to the view's
+// projection. Used for Vector features: the source's `projection` option is
+// only honored by `format.readFeatures`, NOT for features passed via the
+// `features` constructor. Since v4.16, views are in EPSG:3857, so Vector
+// features with 4326 geometries need to be transformed at creation time, or
+// they render at the wrong pixel (e.g. lon -73 rendered as 3857-meter -73
+// off-screen). Pass either a single [lon, lat] pair (returns the transformed
+// pair) or a deeply-nested coord array (recursively transforms all pairs in
+// place). Mutation is the same shape OL geom constructors expect, so callers
+// can use the return value directly or ignore it.
+function toMapProjection(coord, targetProjCode) {
+  if (!window.ol?.proj) return coord;
+  const target = targetProjCode || (window._defaultViewProjection = "EPSG:3857");
+  if (Array.isArray(coord) && coord.length >= 2 && typeof coord[0] === "number" && typeof coord[1] === "number") {
+    return ol.proj.transform(coord, "EPSG:4326", target);
+  }
+  if (Array.isArray(coord)) {
+    for (let i = 0; i < coord.length; i++) coord[i] = toMapProjection(coord[i], target);
+    return coord;
+  }
+  return coord;
+}
+
+// transformFeaturesToMapProjection: walk a list of OL features and transform
+// each feature's geometry coordinates from 4326 to the view's projection
+// (EPSG:3857). Mutates the features in place using each geometry's built-in
+// `transform` method. Use this immediately after building the features array
+// but before creating the Vector source.
+function transformFeaturesToMapProjection(features, targetProjCode) {
+  const target = targetProjCode || (window._defaultViewProjection = "EPSG:3857");
+  for (const f of features) {
+    const g = f.getGeometry?.();
+    if (g && typeof g.transform === "function") g.transform("EPSG:4326", target);
+  }
 }
 function mapViewportRanges(map) {
   if (!map) return null;
@@ -3970,15 +4006,15 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
       ];
       features.push(new ol.Feature({
         geometry: new ol.geom.MultiLineString([
-          [[lon0, lat0], [lon1, lat1]],
-          [[lon1, lat1], left],
-          [[lon1, lat1], right]
+          [toMapProjection([lon0, lat0]), toMapProjection([lon1, lat1])],
+          [toMapProjection([lon1, lat1]), left],
+          [toMapProjection([lon1, lat1]), right]
         ])
       }));
     }
   }
 
-  const source = new ol.source.Vector({ features });
+  const source = new ol.source.Vector({ features, projection: "EPSG:4326" });
   return new ol.layer.Vector({
     source,
     zIndex: 25,
@@ -4109,11 +4145,11 @@ async function ensureDesktopPlaceLayer(map) {
   const features = PLACE_LABELS
     .filter(placeInRegion)
     .map(p => new ol.Feature({
-      geometry: new ol.geom.Point([p.lon, p.lat]),
+      geometry: new ol.geom.Point(toMapProjection([p.lon, p.lat])),
       name: p.name,
       type: p.type
     }));
-  const source = new ol.source.Vector({ features });
+  const source = new ol.source.Vector({ features, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source,
     style: mobilePlaceStyle,
@@ -4130,7 +4166,7 @@ async function ensureDesktopBathyContourLayer(map, bathyData, gridInfo) {
   // Re-use existing layer or create new one
   let layer = desktopMapState.bathyContourLayer;
   if (!layer) {
-    const source = new ol.source.Vector({ wrapX: false });
+    const source = new ol.source.Vector({ wrapX: false, projection: "EPSG:4326" });
     layer = new ol.layer.Vector({
       source,
       style: new ol.style.Style({
@@ -4184,7 +4220,9 @@ function updateBathyContours(map) {
   for (const level of levels) {
     const segs = extractContourSegments(bd, level, sx, sy, extent);
     for (const seg of segs) {
-      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg), depth: level }));
+      const feat = new ol.Feature({ geometry: new ol.geom.LineString(seg), depth: level });
+      feat.getGeometry().transform("EPSG:4326", "EPSG:3857");
+      source.addFeature(feat);
     }
   }
 }
@@ -4306,11 +4344,11 @@ function ensureMobilePlaceLayer(map) {
   const features = PLACE_LABELS
     .filter(placeInRegion)
     .map(p => new ol.Feature({
-      geometry: new ol.geom.Point([p.lon, p.lat]),
+      geometry: new ol.geom.Point(toMapProjection([p.lon, p.lat])),
       name: p.name,
       type: p.type
     }));
-  const source = new ol.source.Vector({ features });
+  const source = new ol.source.Vector({ features, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source,
     style: mobilePlaceStyle,
@@ -4937,7 +4975,7 @@ async function renderCombinedMode() {
 
   // ── Cursor circle (matches mobile/thermal-fronts behavior) ───────────
   const cursorFeature = new ol.Feature({
-    geometry: new ol.geom.Point([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2])
+    geometry: new ol.geom.Point(toMapProjection([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2]))
   });
   cursorFeature.setStyle(new ol.style.Style({
     image: new ol.style.Circle({
@@ -4947,7 +4985,7 @@ async function renderCombinedMode() {
     })
   }));
   const cursorLayer = new ol.layer.Vector({
-    source: new ol.source.Vector({ features: [cursorFeature] }),
+    source: new ol.source.Vector({ features: [cursorFeature], projection: "EPSG:4326" }),
     zIndex: 60
   });
   map.addLayer(cursorLayer);
@@ -5050,7 +5088,7 @@ async function renderCombinedMode() {
 // ── Helpers for combined mode ──────────────────────────────────────────────
 
 function buildBathyContourLayer(bathyData, gridInfo, map) {
-  const source = new ol.source.Vector({ wrapX: false });
+  const source = new ol.source.Vector({ wrapX: false, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source,
     style: feature => new ol.style.Style({
@@ -5092,7 +5130,9 @@ function updateBathyContoursForMap(map) {
   for (const level of levels) {
     const segs = extractContourSegments(bd, level, sx, sy, extent);
     for (const seg of segs) {
-      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg), depth: level }));
+      const feat = new ol.Feature({ geometry: new ol.geom.LineString(seg), depth: level });
+      feat.getGeometry().transform("EPSG:4326", "EPSG:3857");
+      source.addFeature(feat);
     }
   }
 }
@@ -5213,11 +5253,11 @@ async function ensureCombinedPlaceLayer(map) {
   if (!map || window._combinedPlaceLayer) return;
   const places = PLACE_LABELS.filter(placeInRegion);
   const features = places.map(p => new ol.Feature({
-    geometry: new ol.geom.Point([p.lon, p.lat]),
+    geometry: new ol.geom.Point(toMapProjection([p.lon, p.lat])),
     name: p.name,
     type: p.type
   }));
-  const source = new ol.source.Vector({ features, wrapX: false });
+  const source = new ol.source.Vector({ features, wrapX: false, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source,
     style: combinedPlaceStyle,
@@ -5282,7 +5322,7 @@ function buildDesktopUvArrowLayer(data, grid) {
     }
   }
   if (!features.length) return null;
-  const source = new ol.source.Vector({ features, wrapX: false });
+  const source = new ol.source.Vector({ features, wrapX: false, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source,
     style: (feature) => new ol.style.Style({
@@ -5304,7 +5344,11 @@ function buildArrowGeometry(lon, lat, u, v, len, cell) {
     const headAng = Math.PI / 6;
     const left = [lon1 + headLen * Math.cos(theta + Math.PI - headAng), lat1 + headLen * Math.sin(theta + Math.PI - headAng)];
     const right = [lon1 + headLen * Math.cos(theta + Math.PI + headAng), lat1 + headLen * Math.sin(theta + Math.PI + headAng)];
-    return new ol.geom.MultiLineString([[[lon, lat], [lon1, lat1]], [[lon1, lat1], left], [[lon1, lat1], right]]);
+    return new ol.geom.MultiLineString([
+      [toMapProjection([lon, lat]), toMapProjection([lon1, lat1])],
+      [toMapProjection([lon1, lat1]), left],
+      [toMapProjection([lon1, lat1]), right]
+    ]);
   } catch { return null; }
 }
 
@@ -6267,7 +6311,7 @@ async function buildUvCompositeLayer(map, count) {
     }
   }
   if (!features.length) return { scanTime };
-  const source = new ol.source.Vector({ features, wrapX: false });
+  const source = new ol.source.Vector({ features, wrapX: false, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source,
     style: (feature) => new ol.style.Style({
@@ -6281,15 +6325,19 @@ async function buildUvCompositeLayer(map, count) {
 function buildThermalFrontLineLayer(frontData) {
   const features = frontData.features || [];
   if (!features.length) return null;
-  const source = new ol.source.Vector({ wrapX: false });
+  const source = new ol.source.Vector({ wrapX: false, projection: "EPSG:4326" });
   for (const feat of features) {
     const coords = feat.geometry?.coordinates || [];
     if (feat.geometry?.type === "LineString" && coords.length >= 2) {
-      source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(coords) }));
+      const f = new ol.Feature({ geometry: new ol.geom.LineString(coords) });
+      f.getGeometry().transform("EPSG:4326", "EPSG:3857");
+      source.addFeature(f);
     } else if (feat.geometry?.type === "MultiLineString") {
       for (const seg of coords) {
         if (Array.isArray(seg) && seg.length >= 2) {
-          source.addFeature(new ol.Feature({ geometry: new ol.geom.LineString(seg) }));
+          const f = new ol.Feature({ geometry: new ol.geom.LineString(seg) });
+          f.getGeometry().transform("EPSG:4326", "EPSG:3857");
+          source.addFeature(f);
         }
       }
     }
@@ -7222,7 +7270,7 @@ function thermalFrontHoverTip(coord, pixel) {
 function thermalEnsureCursorLayer(map) {
   if (!map || thermalFrontState.cursorLayer) return;
   thermalFrontState.cursorFeature = new ol.Feature({
-    geometry: new ol.geom.Point([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2])
+    geometry: new ol.geom.Point(toMapProjection([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2]))
   });
   thermalFrontState.cursorFeature.setStyle(new ol.style.Style({
     image: new ol.style.Circle({
@@ -7232,7 +7280,7 @@ function thermalEnsureCursorLayer(map) {
     })
   }));
   thermalFrontState.cursorLayer = new ol.layer.Vector({
-    source: new ol.source.Vector({ features: [thermalFrontState.cursorFeature] }),
+    source: new ol.source.Vector({ features: [thermalFrontState.cursorFeature], projection: "EPSG:4326" }),
     zIndex: 60
   });
   map.addLayer(thermalFrontState.cursorLayer);
@@ -7490,7 +7538,7 @@ function thermalRenderFrontLayer() {
       // radius still encodes local density at the smoothed location).
       const refined = thermalRefineDensityField(field, 3);
       for (const { lon, lat, count } of refined.values()) {
-        const feature = new ol.Feature({ geometry: new ol.geom.Point([lon, lat]) });
+        const feature = new ol.Feature({ geometry: new ol.geom.Point(toMapProjection([lon, lat])) });
         const d = new Date(dayItem.t);
         const hh = d.getUTCHours().toString().padStart(2, "0");
         const mm = d.getUTCMinutes().toString().padStart(2, "0");
@@ -7512,7 +7560,7 @@ function thermalRenderFrontLayer() {
       window.__VIEW_BUILD_THERMAL.dailyFrontGeometry = features.length ? "Point" : "none";
       window.__VIEW_BUILD_THERMAL.dailyFrontPointCount = features.length;
     }
-    const source = new ol.source.Vector({ features });
+    const source = new ol.source.Vector({ features, projection: "EPSG:4326" });
     if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(source);
     else {
       thermalFrontState.frontLayer = new ol.layer.Vector({
@@ -7538,7 +7586,8 @@ function thermalRenderFrontLayer() {
       const coords = sourceFeature?.geometry?.coordinates || [];
       const props = sourceFeature?.properties || {};
       for (const segment of thermalSegmentedLineStrings(coords)) {
-        const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment) });
+        const segment3857 = toMapProjection(segment);
+        const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment3857) });
         feature.setProperties({
           sourceProps: props,
           sourceCoords: coords,
@@ -7550,7 +7599,7 @@ function thermalRenderFrontLayer() {
       }
     }
   }
-  const source = new ol.source.Vector({ features });
+  const source = new ol.source.Vector({ features, projection: "EPSG:4326" });
   if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setSource(source);
   else {
     thermalFrontState.frontLayer = new ol.layer.Vector({
@@ -9312,7 +9361,7 @@ function updateDistPanel() {
 function renderDistLayer(map) {
   if (captainDistTool.lineLayer) map.removeLayer(captainDistTool.lineLayer);
   if (captainDistTool.points.length < 2) return;
-  const pts = captainDistTool.points.map(p => [p.lon, p.lat]);
+  const pts = captainDistTool.points.map(p => toMapProjection([p.lon, p.lat]));
   const feats = [];
   let running = 0;
   for (let i = 1; i < pts.length; i++) {
@@ -9324,10 +9373,10 @@ function renderDistLayer(map) {
     }));
   }
   const ptFeats = captainDistTool.points.map((p, i) => new ol.Feature({
-    geometry: new ol.geom.Point([p.lon, p.lat]),
+    geometry: new ol.geom.Point(toMapProjection([p.lon, p.lat])),
     label: String(i)
   }));
-  const src = new ol.source.Vector({ features: [...feats, ...ptFeats], wrapX: false });
+  const src = new ol.source.Vector({ features: [...feats, ...ptFeats], wrapX: false, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source: src,
     style: feat => {
@@ -9410,10 +9459,10 @@ function renderPtsLayer(map) {
   if (captainAddTool.markerLayer) map.removeLayer(captainAddTool.markerLayer);
   if (captainAddTool.points.length === 0) return;
   const feats = captainAddTool.points.map((p, i) => {
-    const f = new ol.Feature({ geometry: new ol.geom.Point([p.lon, p.lat]), idx: i });
+    const f = new ol.Feature({ geometry: new ol.geom.Point(toMapProjection([p.lon, p.lat])), idx: i });
     return f;
   });
-  const src = new ol.source.Vector({ features: feats, wrapX: false });
+  const src = new ol.source.Vector({ features: feats, wrapX: false, projection: "EPSG:4326" });
   const layer = new ol.layer.Vector({
     source: src,
     style: feat => new ol.style.Style({
