@@ -4673,6 +4673,27 @@ async function renderCombinedMode() {
           return L.type === "fill" || L.type === "line" ||
                  L.type === "symbol" || L.type === "fill-extrusion";
         });
+        // Override OFM's maxzoom restrictions on key land layers so they
+        // render at every zoom we care about. Without this, `landuse_residential`
+        // (maxzoom: 12 in OFM) is invisible at the user's typical 13+ zoom,
+        // leaving the dark page background to show through where residential
+        // polygons should be — exactly the bug Mike caught at 9:26 EDT.
+        for (const L of out.layers) {
+          if (L.id === "landuse_residential") {
+            // Bump maxzoom to 24 (effectively unlimited) so residential land
+            // is visible at every zoom. Also slightly increase the high-zoom
+            // fill opacity so the land tint is clearly distinguishable from
+            // the dark page bg even where CHL is transparent.
+            delete L.maxzoom;
+            if (L.paint && Array.isArray(L.paint["fill-color"])) {
+              L.paint["fill-color"] = [
+                "interpolate", ["linear"], ["zoom"],
+                9, "hsla(35, 30%, 70%, 0.55)",
+                14, "hsla(35, 35%, 75%, 0.65)"
+              ];
+            }
+          }
+        }
         return out;
       }
 
