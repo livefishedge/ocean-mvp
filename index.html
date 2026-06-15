@@ -4602,7 +4602,7 @@ async function renderCombinedMode() {
   }
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
-  // Layer order: OFM base(0, fills+ocean-tint) -> CHL(10) -> bathy(15) -> UV(20) -> fronts(30/32) -> OFM fg(40, lines+labels)
+  // Layer order: OFM water(0, dimmed ocean tint) -> CHL(10) -> bathy(15) -> UV(20) -> fronts(30/32) -> OFM land(40, all land fills+lines+labels)
 
   // ── Layers: OpenFreeMap Liberty vector base + foreground ────────────────
   // Two VectorTileLayers share the same OFM style split by layer type:
@@ -4635,16 +4635,21 @@ async function renderCombinedMode() {
       const style = await fetch("https://tiles.openfreemap.org/styles/liberty", { credentials: "omit" }).then(r => r.json());
 
       // Split the OFM style into two filtered copies by layer type.
-      // Below-data group: fills (parks, landuse, buildings, dimmed water).
-      // Above-data group: lines + symbols (roads, labels, boundaries, POIs).
+      // Below-data group: ONLY the water fill (dimmed) — the ocean tint.
+      // Above-data group: ALL land content (fills, lines, symbols, 3D
+      // buildings) — parks, residential, buildings, roads, labels, etc.
+      //
+      // Why this split: Mike's mobile feedback (8:29 EDT) — coastal land
+      // was still appearing below the CHL raster because the OFM base
+      // layer (fills) sat at z=0 with parks/residential/buildings under
+      // the data. Now only the water polygon sits below the data, so
+      // the ocean still gets a faint blue tint where data is transparent,
+      // but every land feature renders on top.
       function patchBelow(src) {
         const out = JSON.parse(JSON.stringify(src));
         out.layers = out.layers.filter(L => {
-          // Always drop: background, natural_earth relief raster, waterway lines
-          if (L.id === "background" || L.id === "natural_earth") return false;
-          if (/^waterway_/.test(L.id)) return false;
-          // Keep fills only (and the special-cased water)
-          return L.type === "fill";
+          if (L.id !== "water") return false;
+          return true;
         });
         for (const L of out.layers) {
           if (L.id === "water") {
@@ -4657,12 +4662,16 @@ async function renderCombinedMode() {
       function patchAbove(src) {
         const out = JSON.parse(JSON.stringify(src));
         out.layers = out.layers.filter(L => {
-          // Drop the same things we hid below + anything that would dominate
+          // Drop: background, natural_earth, the water fill, waterway lines,
+          // and water labels (water labels are also redundant over our data).
           if (L.id === "background" || L.id === "natural_earth") return false;
           if (L.id === "water") return false;
           if (/^waterway_/.test(L.id) || /^water_/.test(L.id)) return false;
-          // Keep only foreground types: lines, symbols, fill-extrusions
-          return L.type === "line" || L.type === "symbol" || L.type === "fill-extrusion";
+          // Keep everything that is land: fills (parks, residential, buildings,
+          // 3D buildings), lines (roads, road casings, bridges, boundaries),
+          // and symbols (road labels, place labels, POIs, highway shields).
+          return L.type === "fill" || L.type === "line" ||
+                 L.type === "symbol" || L.type === "fill-extrusion";
         });
         return out;
       }
