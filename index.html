@@ -541,7 +541,7 @@
       width:100vw;
       height:100dvh;
       cursor:crosshair;
-      background:#f8fbff;
+      background:transparent;  /* let the OFM water fill (z=0) show through as the ocean tint */
     }
     body.thermal-fronts-mode #mobile-map{ display:none !important; cursor:crosshair; }
     body.thermal-fronts-mode #ranges{ display:none !important; }
@@ -1819,9 +1819,17 @@ async function initDesktopMapIfNeeded() {
   }
   const target = document.getElementById("plot");
   if (!target || !window.ol) return null;
+  // View projection is EPSG:3857 (Web Mercator) to match the OpenFreeMap
+  // vector tile schema. Data layers (CHL/SST/UV/bathy ImageStatic sources,
+  // UV arrow Vector features) keep their EPSG:4326 extents — OL reprojects
+  // them on render. Coordinate-boundary transforms are handled by
+  // mapViewportRanges() and applyViewStateToOlMap(), so the rest of the
+  // viewer code (readouts, sampleRasterValueAt, viewState) stays in 4326.
+  const bboxCenter4326 = [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2];
+  const bboxCenter3857 = ol.proj.transform(bboxCenter4326, "EPSG:4326", "EPSG:3857");
   const view = new ol.View({
-    projection: "EPSG:4326",
-    center: [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2],
+    projection: "EPSG:3857",
+    center: bboxCenter3857,
     zoom: 6,
     minZoom: 4,
     maxZoom: 13,
@@ -1851,6 +1859,10 @@ async function initDesktopMapIfNeeded() {
   });
   desktopMapState.map.on("moveend", () => syncViewStateFromOlMap(desktopMapState.map));
   installOlGestureZoomFallback(desktopMapState.map, target);
+  // Add the OFM two-layer vector basemap (water below, land above). This
+  // replaces the previous bathy-derived land mask as the desktop single-
+  // product basemap, matching the combined dashboard's look.
+  applyOfmTwoLayerBasemap(desktopMapState.map, "desktop");
   console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
   return desktopMapState.map;
 }
@@ -1882,6 +1894,10 @@ function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
 }
 
 function renderDesktopReadout(lon, lat) {
+  // The desktop non-combined map's view is EPSG:3857 (Web Mercator), so
+  // ev.coordinate from pointermove/click is in meters. The readout text
+  // and the raster sampler both need EPSG:4326. The caller transforms
+  // first and passes (lon4326, lat4326) — this function just trusts them.
   // Guard: if no grid/data yet, show just coordinates
   if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
     setReadout(formatReadoutCoords(lon, lat));
@@ -1911,13 +1927,21 @@ function renderDesktopReadout(lon, lat) {
 function installDesktopReadoutHandlersOnce(map) {
   if (map.__desktopReadoutInstalled) return;
   map.__desktopReadoutInstalled = true;
+  // The desktop non-combined map's view is EPSG:3857 — ev.coordinate is in
+  // meters. Transform to 4326 once and pass the lon/lat pair through.
+  function to4326(ev) {
+    if (!ev.coordinate) return null;
+    return ol.proj.transform(ev.coordinate, "EPSG:3857", "EPSG:4326");
+  }
   map.on("pointermove", (ev) => {
-    if (!ev.coordinate) return;
-    renderDesktopReadout(ev.coordinate[0], ev.coordinate[1]);
+    const xy = to4326(ev);
+    if (!xy) return;
+    renderDesktopReadout(xy[0], xy[1]);
   });
   map.on("click", (ev) => {
-    if (!ev.coordinate) return;
-    renderDesktopReadout(ev.coordinate[0], ev.coordinate[1]);
+    const xy = to4326(ev);
+    if (!xy) return;
+    renderDesktopReadout(xy[0], xy[1]);
   });
 }
 
@@ -4300,8 +4324,14 @@ function ensureMobilePlaceLayer(map) {
 
 function ensureMobileCursorLayer(map) {
   if (mobileMapState.cursorLayer) return;
+  // Initial cursor position at BBOX center, in the view's projection.
+  // Mobile map's view is EPSG:3857, so transform the 4326 BBOX center.
+  const center4326 = [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2];
+  const center = map?.getView()?.getProjection()?.getCode() === "EPSG:3857"
+    ? ol.proj.transform(center4326, "EPSG:4326", "EPSG:3857")
+    : center4326;
   mobileMapState.cursorFeature = new ol.Feature({
-    geometry: new ol.geom.Point([(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2])
+    geometry: new ol.geom.Point(center)
   });
   mobileMapState.cursorFeature.setStyle(new ol.style.Style({
     image: new ol.style.Circle({
@@ -4317,9 +4347,12 @@ function ensureMobileCursorLayer(map) {
   map.addLayer(mobileMapState.cursorLayer);
 }
 
-function updateMobileCursor(lon, lat) {
-  if (!mobileMapState.cursorFeature || !isFinite(lon) || !isFinite(lat)) return;
-  mobileMapState.cursorFeature.getGeometry().setCoordinates([lon, lat]);
+function updateMobileCursor(x, y) {
+  if (!mobileMapState.cursorFeature || !isFinite(x) || !isFinite(y)) return;
+  // x, y are now expected in the view's projection (EPSG:3857), not 4326.
+  // The cursor feature geometry is in the view projection because the map
+  // is in 3857 — we set the raw map coord directly.
+  mobileMapState.cursorFeature.getGeometry().setCoordinates([x, y]);
 }
 
 function sampleMobileValueAt(lon, lat) {
@@ -4327,8 +4360,24 @@ function sampleMobileValueAt(lon, lat) {
 }
 
 function renderMobileReadout(lon, lat) {
+  // Backwards-compat shim. New code path is renderMobileReadoutFromLonLat
+  // (which receives already-transformed 4326 coordinates) plus an explicit
+  // updateMobileCursor(x3857, y3857) call from the event handler.
   if (!isFinite(lon) || !isFinite(lat)) return;
-  updateMobileCursor(lon, lat);
+  // Best-effort: assume 4326 if called directly (old callers); the cursor
+  // will be placed wrong (in 4326 instead of 3857) but the readout text and
+  // sampling will still be correct. New code path bypasses this function.
+  if (mobileMapState.map) {
+    try {
+      const xy3857 = ol.proj.transform([lon, lat], "EPSG:4326", "EPSG:3857");
+      updateMobileCursor(xy3857[0], xy3857[1]);
+    } catch (_) { /* projection not registered yet — skip cursor */ }
+  }
+  renderMobileReadoutFromLonLat(lon, lat);
+}
+
+function renderMobileReadoutFromLonLat(lon, lat) {
+  if (!isFinite(lon) || !isFinite(lat)) return;
   const base = formatReadoutCoords(lon, lat);
   const val = sampleMobileValueAt(lon, lat);
   if (val === null || val === undefined) {
@@ -4350,12 +4399,18 @@ function installMobileReadoutOnce(map) {
   if (map.__mobileReadoutInstalled) return;
   map.__mobileReadoutInstalled = true;
   ensureMobileCursorLayer(map);
-  map.on("pointermove", (ev) => {
-    renderMobileReadout(ev.coordinate[0], ev.coordinate[1]);
-  });
-  map.on("click", (ev) => {
-    renderMobileReadout(ev.coordinate[0], ev.coordinate[1]);
-  });
+  // The mobile map's view is EPSG:3857 — ev.coordinate is in meters. The
+  // readout text and raster sampler need 4326; the cursor feature geometry
+  // (already in the view's projection) needs the 3857 coord.
+  function handle(ev) {
+    if (!ev.coordinate) return;
+    const xy3857 = ev.coordinate;
+    const xy4326 = ol.proj.transform(xy3857, "EPSG:3857", "EPSG:4326");
+    updateMobileCursor(xy3857[0], xy3857[1]);
+    renderMobileReadoutFromLonLat(xy4326[0], xy4326[1]);
+  }
+  map.on("pointermove", handle);
+  map.on("click", handle);
 }
 
 function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
@@ -4448,9 +4503,17 @@ function initMobileMapIfNeeded() {
     mobileMapState.map.updateSize();
     return mobileMapState.map;
   }
+  // View projection is EPSG:3857 (Web Mercator) to match the OpenFreeMap
+  // vector tile schema. Data layers (CHL/SST/UV/bathy ImageStatic sources,
+  // UV arrow Vector features) keep their EPSG:4326 extents — OL reprojects
+  // them on render. Coordinate-boundary transforms are handled by
+  // mapViewportRanges() and applyViewStateToOlMap(), so the rest of the
+  // viewer code (readouts, sampleRasterValueAt, viewState) stays in 4326.
+  const bboxCenter4326 = [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2];
+  const bboxCenter3857 = ol.proj.transform(bboxCenter4326, "EPSG:4326", "EPSG:3857");
   const view = new ol.View({
-    projection: "EPSG:4326",
-    center: [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2],
+    projection: "EPSG:3857",
+    center: bboxCenter3857,
     zoom: 6,
     minZoom: 4,
     maxZoom: 13,
@@ -4478,17 +4541,127 @@ function initMobileMapIfNeeded() {
   });
   mobileMapState.map.on("moveend", () => syncViewStateFromOlMap(mobileMapState.map));
   installOlGestureZoomFallback(mobileMapState.map, target);
+  // Add the OFM two-layer vector basemap so the mobile single-product pages
+  // match the combined dashboard's look.
+  applyOfmTwoLayerBasemap(mobileMapState.map, "mobile");
   document.body.classList.add("mobile-map-ready");
   return mobileMapState.map;
 }
 
-function fitMobileMapWidth(map, extent) {
+function fitMobileMapWidth(map, extent4326) {
   const size = map.getSize();
   if (!size || size[0] <= 0 || size[1] <= 0) return;
+  // extent4326 is in 4326. The mobile map's view is EPSG:3857 — transform
+  // the extent and the center to 3857 before applying.
+  const viewProjCode = map.getView().getProjection().getCode();
+  const extent = viewProjCode === "EPSG:4326"
+    ? extent4326
+    : ol.proj.transformExtent(extent4326, "EPSG:4326", viewProjCode);
   const widthRes = Math.abs(extent[2] - extent[0]) / size[0];
   map.getView().setCenter([(extent[0] + extent[2]) / 2, (extent[1] + extent[3]) / 2]);
   map.getView().setRotation(0);
   map.getView().setResolution(widthRes);
+}
+
+/* ====================== OFM BASEMAP HELPER (shared) ====================== */
+// Apply the OpenFreeMap Liberty "two-layer split" basemap to an existing map:
+//   • "base"   at zIndex 0  : ONLY the dimmed water fill — the ocean tint below data.
+//   • "fg"     at zIndex 40 : ALL land content (fills, lines, symbols, 3D buildings).
+// Same tiles, same tile cache, two layers with the same OFM style split by L.type.
+//
+// IMPORTANT: This requires the view to be in EPSG:3857 (Web Mercator). OL does
+// not reproject vector tiles 3857 → 4326, so the view must match the tile CRS.
+// For the data layers (ImageStatic 4326), OL reprojects automatically on render.
+// Coordinate-boundary transforms are handled by mapViewportRanges() and
+// applyViewStateToOlMap() at the viewState boundary, so the rest of the
+// viewer code stays in 4326.
+//
+// Both VectorTileLayers are added synchronously; style is applied asynchronously
+// in an unawaited IIFE so this does not block chip-button initialization
+// (lesson from v4.14: no network-dependent awaits between unrelated UI init).
+async function applyOfmTwoLayerBasemap(map, label = "ofm") {
+  if (!map || !window.olms) return;
+  const landBaseLayer = new ol.layer.VectorTile({
+    declutter: false,
+    zIndex: 0,
+    preload: 0,
+    background: undefined
+  });
+  const landForegroundLayer = new ol.layer.VectorTile({
+    declutter: true,
+    zIndex: 40,
+    preload: 0,
+    background: undefined
+  });
+  map.addLayer(landBaseLayer);
+  map.addLayer(landForegroundLayer);
+
+  // Fire-and-forget style apply. Do not await here — that would block callers
+  // and break the v4.14 chip-button init lesson.
+  (async () => {
+    try {
+      const style = await fetch("https://tiles.openfreemap.org/styles/liberty", { credentials: "omit" }).then(r => r.json());
+
+      // Split the OFM style into two filtered copies by layer type.
+      // Below-data group: ONLY the water fill (dimmed) — the ocean tint.
+      // Above-data group: ALL land content (fills, lines, symbols, 3D
+      // buildings) — parks, residential, buildings, roads, labels, etc.
+      function patchBelow(src) {
+        const out = JSON.parse(JSON.stringify(src));
+        out.layers = out.layers.filter(L => L.id === "water");
+        for (const L of out.layers) {
+          if (L.id === "water") {
+            // Faint ocean tint — fill-opacity 0.35 over the dark page bg
+            L.paint = Object.assign({}, L.paint, { "fill-opacity": 0.35 });
+          }
+        }
+        return out;
+      }
+      function patchAbove(src) {
+        const out = JSON.parse(JSON.stringify(src));
+        out.layers = out.layers.filter(L => {
+          // Drop: background, natural_earth, the water fill, waterway lines,
+          // and water labels (water labels are also redundant over our data).
+          if (L.id === "background" || L.id === "natural_earth") return false;
+          if (L.id === "water") return false;
+          if (/^waterway_/.test(L.id) || /^water_/.test(L.id)) return false;
+          // Keep everything that is land: fills (parks, residential, buildings,
+          // 3D buildings), lines (roads, road casings, bridges, boundaries),
+          // and symbols (road labels, place labels, POIs, highway shields).
+          return L.type === "fill" || L.type === "line" ||
+                 L.type === "symbol" || L.type === "fill-extrusion";
+        });
+        // Override OFM's maxzoom restrictions on `landuse_residential` so it
+        // renders at every zoom. The underlying tile data still has no
+        // residential features at z=13+ for most regions — this is a known
+        // OFM data limitation (memory/2026-06-15.md). The override keeps the
+        // style consistent in case OFM ever ships more residential data.
+        for (const L of out.layers) {
+          if (L.id === "landuse_residential") {
+            delete L.maxzoom;
+            if (L.paint && Array.isArray(L.paint["fill-color"])) {
+              L.paint["fill-color"] = [
+                "interpolate", ["linear"], ["zoom"],
+                9, "hsla(35, 30%, 70%, 0.55)",
+                14, "hsla(35, 35%, 75%, 0.65)"
+              ];
+            }
+          }
+        }
+        return out;
+      }
+
+      const styleBelow = patchBelow(style);
+      const styleAbove = patchAbove(style);
+      await Promise.all([
+        olms.applyStyle(landBaseLayer, styleBelow, { updateSource: true }),
+        olms.applyStyle(landForegroundLayer, styleAbove, { updateSource: true })
+      ]);
+      console.log(`[${label}] OpenFreeMap basemap applied (below+above) ✓`);
+    } catch (e) {
+      console.warn(`[${label}] OpenFreeMap style apply failed:`, e?.message || e);
+    }
+  })();
 }
 
 /* ====================== COMBINED MODE RENDERER ====================== */
@@ -4603,111 +4776,7 @@ async function renderCombinedMode() {
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
   // Layer order: OFM water(0, dimmed ocean tint) -> CHL(10) -> bathy(15) -> UV(20) -> fronts(30/32) -> OFM land(40, all land fills+lines+labels)
-
-  // ── Layers: OpenFreeMap Liberty vector base + foreground ────────────────
-  // Two VectorTileLayers share the same OFM style split by layer type:
-  //   • "base"   at zIndex 0  : park / landuse / landcover / building fills +
-  //                              dimmed water fill — subtle land context below data.
-  //   • "fg"     at zIndex 40 : roads, road casings, road labels, place labels,
-  //                              boundaries, POIs — crisp foreground above data
-  //                              so coastal roads and town names stay readable
-  //                              over CHL/SST/UV rasters (Mike's v4.15.1 ask).
-  // Both layers are added synchronously; style is applied asynchronously in the
-  // background so this does not block chip-button initialization
-  // (lesson from v4.14: no network-dependent awaits between unrelated UI init).
-  const landBaseLayer = new ol.layer.VectorTile({
-    declutter: false,
-    zIndex: 0,
-    preload: 0,
-    background: undefined
-  });
-  const landForegroundLayer = new ol.layer.VectorTile({
-    declutter: true,
-    zIndex: 40,
-    preload: 0,
-    background: undefined
-  });
-  map.addLayer(landBaseLayer);
-  map.addLayer(landForegroundLayer);
-
-  (async () => {
-    try {
-      const style = await fetch("https://tiles.openfreemap.org/styles/liberty", { credentials: "omit" }).then(r => r.json());
-
-      // Split the OFM style into two filtered copies by layer type.
-      // Below-data group: ONLY the water fill (dimmed) — the ocean tint.
-      // Above-data group: ALL land content (fills, lines, symbols, 3D
-      // buildings) — parks, residential, buildings, roads, labels, etc.
-      //
-      // Why this split: Mike's mobile feedback (8:29 EDT) — coastal land
-      // was still appearing below the CHL raster because the OFM base
-      // layer (fills) sat at z=0 with parks/residential/buildings under
-      // the data. Now only the water polygon sits below the data, so
-      // the ocean still gets a faint blue tint where data is transparent,
-      // but every land feature renders on top.
-      function patchBelow(src) {
-        const out = JSON.parse(JSON.stringify(src));
-        out.layers = out.layers.filter(L => {
-          if (L.id !== "water") return false;
-          return true;
-        });
-        for (const L of out.layers) {
-          if (L.id === "water") {
-            // Faint ocean tint — fill-opacity 0.35 over the dark page bg
-            L.paint = Object.assign({}, L.paint, { "fill-opacity": 0.35 });
-          }
-        }
-        return out;
-      }
-      function patchAbove(src) {
-        const out = JSON.parse(JSON.stringify(src));
-        out.layers = out.layers.filter(L => {
-          // Drop: background, natural_earth, the water fill, waterway lines,
-          // and water labels (water labels are also redundant over our data).
-          if (L.id === "background" || L.id === "natural_earth") return false;
-          if (L.id === "water") return false;
-          if (/^waterway_/.test(L.id) || /^water_/.test(L.id)) return false;
-          // Keep everything that is land: fills (parks, residential, buildings,
-          // 3D buildings), lines (roads, road casings, bridges, boundaries),
-          // and symbols (road labels, place labels, POIs, highway shields).
-          return L.type === "fill" || L.type === "line" ||
-                 L.type === "symbol" || L.type === "fill-extrusion";
-        });
-        // Override OFM's maxzoom restrictions on key land layers so they
-        // render at every zoom we care about. Without this, `landuse_residential`
-        // (maxzoom: 12 in OFM) is invisible at the user's typical 13+ zoom,
-        // leaving the dark page background to show through where residential
-        // polygons should be — exactly the bug Mike caught at 9:26 EDT.
-        for (const L of out.layers) {
-          if (L.id === "landuse_residential") {
-            // Bump maxzoom to 24 (effectively unlimited) so residential land
-            // is visible at every zoom. Also slightly increase the high-zoom
-            // fill opacity so the land tint is clearly distinguishable from
-            // the dark page bg even where CHL is transparent.
-            delete L.maxzoom;
-            if (L.paint && Array.isArray(L.paint["fill-color"])) {
-              L.paint["fill-color"] = [
-                "interpolate", ["linear"], ["zoom"],
-                9, "hsla(35, 30%, 70%, 0.55)",
-                14, "hsla(35, 35%, 75%, 0.65)"
-              ];
-            }
-          }
-        }
-        return out;
-      }
-
-      const styleBelow = patchBelow(style);
-      const styleAbove = patchAbove(style);
-      await Promise.all([
-        olms.applyStyle(landBaseLayer, styleBelow, { updateSource: true }),
-        olms.applyStyle(landForegroundLayer, styleAbove, { updateSource: true })
-      ]);
-      console.log("[combined] OpenFreeMap basemap applied (below+above) ✓");
-    } catch (e) {
-      console.warn("[combined] OpenFreeMap style apply failed:", e?.message || e);
-    }
-  })();
+  await applyOfmTwoLayerBasemap(map, "combined");
 
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
@@ -4885,6 +4954,10 @@ async function renderCombinedMode() {
   window._combinedCursorFeature = cursorFeature;
 
   // ── Cursor readout ───────────────────────────────────────────────────
+  // The combined view is EPSG:3857 (Web Mercator) so vector tiles render
+  // correctly. ev.coordinate is therefore in *meters*, not degrees — the
+  // readout text and raster samplers need 4326 (lon/lat). Transform once
+  // here and reuse; keep the 3857 coordinate for the cursor feature.
   const readoutEl = document.getElementById("combined-readout");
   const hoverTip = document.getElementById("combined-hover-tip");
   map.on("pointermove", (ev) => {
@@ -4892,12 +4965,15 @@ async function renderCombinedMode() {
       if (readoutEl) readoutEl.textContent = "—, —";
       return;
     }
-    const [lon, lat] = ev.coordinate;
-    cursorFeature.getGeometry().setCoordinates([lon, lat]);
-    const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
-    const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
+    const xy3857 = ev.coordinate;
+    const xy4326 = ol.proj.transform(xy3857, "EPSG:3857", "EPSG:4326");
+    const lon4326 = xy4326[0];
+    const lat4326 = xy4326[1];
+    cursorFeature.getGeometry().setCoordinates(xy3857);
+    const parts = [`${lat4326.toFixed(4)}, ${lon4326.toFixed(4)}`];
+    const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon4326, lat4326);
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
-    const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
+    const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon4326, lat4326);
     if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
     if (readoutEl) readoutEl.textContent = parts.join("  ");
     console.log("[combined:pointermove]", parts.join("  "), "| grid:", !!window._combinedChlGrid, "| data:", !!window._combinedChlData);
@@ -4924,11 +5000,14 @@ async function renderCombinedMode() {
   });
   map.on("click", (ev) => {
     if (!ev.coordinate) return;
-    const [lon, lat] = ev.coordinate;
-    cursorFeature.getGeometry().setCoordinates([lon, lat]);
-    const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
-    const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
-    const parts = [`${lat.toFixed(4)}, ${lon.toFixed(4)}`];
+    const xy3857 = ev.coordinate;
+    const xy4326 = ol.proj.transform(xy3857, "EPSG:3857", "EPSG:4326");
+    const lon4326 = xy4326[0];
+    const lat4326 = xy4326[1];
+    cursorFeature.getGeometry().setCoordinates(xy3857);
+    const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon4326, lat4326);
+    const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon4326, lat4326);
+    const parts = [`${lat4326.toFixed(4)}, ${lon4326.toFixed(4)}`];
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
     if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
     if (readoutEl) readoutEl.textContent = parts.join("  ");
@@ -4995,7 +5074,13 @@ function updateBathyContoursForMap(map) {
   const source = window._bathyContourSource;
   if (!bd || !source || !map) return;
   source.clear();
-  const extent = map.getView().calculateExtent(map.getSize());
+  // Combined view is EPSG:3857. depthMaxInExtent and extractContourSegments
+  // compare against bd.xAxis/bd.yAxis in 4326, so transform first.
+  const viewExtent = map.getView().calculateExtent(map.getSize());
+  const viewProjCode = map.getView().getProjection().getCode();
+  const extent = viewProjCode === "EPSG:4326"
+    ? viewExtent
+    : ol.proj.transformExtent(viewExtent, viewProjCode, "EPSG:4326");
   const [vx0, vy0, vx1, vy1] = extent;
   const maxW = 400, maxH = 600;
   const sx = Math.max(1, Math.floor(bd.nx / maxW));
@@ -7286,16 +7371,29 @@ async function thermalInitMap() {
   if (thermalFrontState.cursorLayer) thermalFrontState.cursorLayer.setVisible(true);
   if (!map.__thermalReadoutInstalled) {
     map.__thermalReadoutInstalled = true;
+    // The thermal-fronts map is in EPSG:3857 (Web Mercator). ev.coordinate
+    // is in meters; thermalRenderReadout + thermalNearestGradient expect
+    // 4326 (lon/lat). Transform once before passing through. pixel is
+    // screen-relative and stays as-is.
+    const to4326 = (ev) => {
+      if (!ev || !ev.coordinate) return null;
+      const xy4326 = ol.proj.transform(ev.coordinate, "EPSG:3857", "EPSG:4326");
+      return { coord: xy4326, pixel: ev.pixel };
+    };
     map.on("pointermove", ev => {
       if (currentVar === "thermal_fronts") {
-        thermalRenderReadout(ev.coordinate, ev.pixel);
-        thermalFrontHoverTip(ev.coordinate, ev.pixel);
+        const x = to4326(ev);
+        if (!x) return;
+        thermalRenderReadout(x.coord, x.pixel);
+        thermalFrontHoverTip(x.coord, x.pixel);
       }
     });
     map.on("click", ev => {
       if (currentVar === "thermal_fronts") {
-        thermalRenderReadout(ev.coordinate, ev.pixel);
-        thermalFrontHoverTip(ev.coordinate, ev.pixel);
+        const x = to4326(ev);
+        if (!x) return;
+        thermalRenderReadout(x.coord, x.pixel);
+        thermalFrontHoverTip(x.coord, x.pixel);
       }
     });
   }
@@ -9356,7 +9454,10 @@ function installCaptainToolHandler(map) {
   if (_captainMapClickHandler) { map.un('click', _captainMapClickHandler); _captainMapClickHandler = null; }
   _captainMapClickHandler = (ev) => {
     if (!ev.coordinate) return;
-    const [lon, lat] = ev.coordinate;
+    // Combined map is EPSG:3857; transform to 4326 before treating as lon/lat.
+    const xy4326 = ol.proj.transform(ev.coordinate, "EPSG:3857", "EPSG:4326");
+    const lon = xy4326[0];
+    const lat = xy4326[1];
     if (captainDistTool.active) { addDistPoint(lon, lat, map); }
     else if (captainAddTool.active) { addWaypoint(lon, lat, map); }
   };
