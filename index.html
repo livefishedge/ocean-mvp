@@ -597,6 +597,14 @@ body.combined-mode #combined-menu-btn{
       width:100%; height:100%;
     }
     #combined-map .ol-viewport{ background:transparent; }
+    /* All OL viewports render land as uniform tan. The OFM water layer
+       (below the data) paints light gray on top, and roads/labels paint
+       on top of the tan. The Mapbox `background` layer type does not
+       render inside a VectorTileLayer in OL, so the viewport CSS bg is
+       the only reliable way to paint the landmass in a flat color. */
+    .ol-viewport{ background:#d2b48c; }
+    #combined-map .ol-viewport{ background:#d2b48c; }
+    #mobile-map .ol-viewport{ background:#d2b48c; }
     /* Captain tools palette — horizontal row, upper-left */
     #captain-tools{
       display:none;
@@ -4644,12 +4652,14 @@ async function applyOfmTwoLayerBasemap(map, label = "ofm") {
       // Below-data group: ONLY the water fill (solid light gray) — the
       // ocean background. Solid (opacity 1.0) so the dark page bg does
       // not bleed through.
-      // Above-data group: a uniform tan land background + roads + place
-      // labels. Drops all the OFM landuse/landcover/park fills, the 3D
-      // building fill-extrusions, and the water layers. Keeps `background`
-      // (recolored tan) so rural land is also uniformly tan, and keeps
-      // `line` (roads, boundaries) and `symbol` (labels) layers for
-      // geographic context on top of the tan.
+      // Above-data group: roads + place labels on top of the tan land.
+      // Drops all OFM landuse/landcover/park/building fills, the 3D
+      // building fill-extrusions, the water layers, and the natural
+      // earth hillshade. The tan land comes from the OL viewport CSS
+      // background (#tan-vp rule) since the Mapbox `background` layer
+      // type does not render inside a VectorTileLayer in OL. Keeps
+      // `line` (roads, road casings, bridges, boundaries) and `symbol`
+      // (place labels, road labels, POIs) for geographic context.
       function patchBelow(src) {
         const out = JSON.parse(JSON.stringify(src));
         out.layers = out.layers.filter(L => L.id === "water");
@@ -4667,17 +4677,15 @@ async function applyOfmTwoLayerBasemap(map, label = "ofm") {
       function patchAbove(src) {
         const out = JSON.parse(JSON.stringify(src));
         out.layers = out.layers.filter(L => {
-          // Keep the OFM `background` layer (recolored tan below) so the
-          // entire landmass is a uniform tan, including rural areas that
-          // have no landuse fill in the underlying tile data.
-          if (L.id === "background") return true;
-          // Drop natural_earth (raster hillshade — we want flat tan).
-          if (L.id === "natural_earth") return false;
-          // Drop water and waterway layers (already painted by patchBelow).
+          // Drop: background (handled by OL viewport CSS bg, not by
+          // VectorTileLayer rendering), natural_earth (raster hillshade),
+          // water + waterway_* (already painted by patchBelow).
+          if (L.id === "background" || L.id === "natural_earth") return false;
           if (L.id === "water") return false;
           if (/^waterway_/.test(L.id) || /^water_/.test(L.id)) return false;
-          // Drop all the OFM landuse/landcover/park fills — we want a
-          // uniform tan, not differentiated landuse colors.
+          // Drop all OFM fills — landuse, landcover, park, building,
+          // aeroway, road_area_pattern — we want a uniform tan land,
+          // not differentiated landuse colors.
           if (L.type === "fill") return false;
           // Drop 3D building fill-extrusions — we want a flat 2D look.
           if (L.type === "fill-extrusion") return false;
@@ -4685,13 +4693,6 @@ async function applyOfmTwoLayerBasemap(map, label = "ofm") {
           // symbols (place labels, road labels, POIs) for context.
           return L.type === "line" || L.type === "symbol";
         });
-        for (const L of out.layers) {
-          // Recolor the OFM background to tan. This is the entire landmass
-          // fill; everything else (roads, labels) paints on top of it.
-          if (L.id === "background") {
-            L.paint = { "background-color": "#d2b48c" };
-          }
-        }
         return out;
       }
 
