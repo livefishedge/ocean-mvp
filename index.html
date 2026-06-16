@@ -230,9 +230,6 @@
       touch-action:none;
       z-index:20;
     }
-    #mobile-map .ol-viewport{
-      background:#050b10;
-    }
     #mobile-map .ol-viewport,
     #mobile-map .ol-unselectable,
     #mobile-map canvas{
@@ -567,7 +564,6 @@ body.combined-mode #combined-menu-btn{
     body.combined-mode #plot{ display:none !important; }
     body.combined-mode #mobile-map{ display:none !important; cursor:crosshair; }
     body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; cursor:crosshair; }
-    body.combined-mode #combined-map .ol-viewport{ background:transparent; }
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
 
@@ -596,12 +592,16 @@ body.combined-mode #combined-menu-btn{
       z-index:0;
       width:100%; height:100%;
     }
-    #combined-map .ol-viewport{ background:transparent; }
     /* All OL viewports render land as uniform tan. The OFM water layer
        (below the data) paints light gray on top, and roads/labels paint
        on top of the tan. The Mapbox `background` layer type does not
        render inside a VectorTileLayer in OL, so the viewport CSS bg is
-       the only reliable way to paint the landmass in a flat color. */
+       the only reliable way to paint the landmass in a flat color.
+       NOTE: do not re-introduce `background:transparent` on any specific
+       map's .ol-viewport — it overrides these tan rules (even ones with
+       the same selector due to source order) and the land goes black
+       again on that page. The Captain's Dashboard regression at v4.16.5
+       was caused by exactly that. */
     .ol-viewport{ background:#d2b48c; }
     #combined-map .ol-viewport{ background:#d2b48c; }
     #mobile-map .ol-viewport{ background:#d2b48c; }
