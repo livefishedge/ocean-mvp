@@ -563,7 +563,7 @@ body.combined-mode #combined-menu-btn{
     body.combined-mode #hamburger-btn{ display:none !important; }
     body.combined-mode #plot{ display:none !important; }
     body.combined-mode #mobile-map{ display:none !important; cursor:crosshair; }
-    body.combined-mode #combined-map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; cursor:crosshair; }
+    body.combined-mode #map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; cursor:crosshair; }
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
 
@@ -585,7 +585,7 @@ body.combined-mode #combined-menu-btn{
     }
 
     /* Combined standalone map (no toolbar conflicts) */
-    #combined-map{
+    #map{
       display:none;
       position:absolute;
       top:0; left:0; right:0; bottom:0;
@@ -597,14 +597,9 @@ body.combined-mode #combined-menu-btn{
        on top of the tan. The Mapbox `background` layer type does not
        render inside a VectorTileLayer in OL, so the viewport CSS bg is
        the only reliable way to paint the landmass in a flat color.
-       NOTE: do not re-introduce `background:transparent` on any specific
-       map's .ol-viewport — it overrides these tan rules (even ones with
-       the same selector due to source order) and the land goes black
-       again on that page. The Captain's Dashboard regression at v4.16.5
-       was caused by exactly that. */
+       This is the v5 contract: one CSS rule defines the basemap for
+       every page, expressed once. See docs-v5-one-map-basemap.md. */
     .ol-viewport{ background:#d2b48c; }
-    #combined-map .ol-viewport{ background:#d2b48c; }
-    #mobile-map .ol-viewport{ background:#d2b48c; }
     /* Captain tools palette — horizontal row, upper-left */
     #captain-tools{
       display:none;
@@ -1101,7 +1096,7 @@ body.combined-mode #combined-menu-btn{
   <div id="plot"></div>
   <div id="readout">Lat/Lon: -- | Value: --</div>
   <button id="hamburger-btn" aria-label="Open product menu">☰</button>
-  <div id="combined-map"></div>
+  <div id="map"></div>
   <div id="combined-readout">—, —</div>
   <div id="combined-hover-tip"></div>
   <div id="thermal-hover-tip"></div>
@@ -1906,7 +1901,7 @@ async function initDesktopMapIfNeeded() {
   // Add the OFM two-layer vector basemap (water below, land above). This
   // replaces the previous bathy-derived land mask as the desktop single-
   // product basemap, matching the combined dashboard's look.
-  applyOfmTwoLayerBasemap(desktopMapState.map, "desktop");
+  applyOfmTwoLayerBasemap(desktopMapState.map);
   console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
   return desktopMapState.map;
 }
@@ -4589,7 +4584,7 @@ function initMobileMapIfNeeded() {
   installOlGestureZoomFallback(mobileMapState.map, target);
   // Add the OFM two-layer vector basemap so the mobile single-product pages
   // match the combined dashboard's look.
-  applyOfmTwoLayerBasemap(mobileMapState.map, "mobile");
+  applyOfmTwoLayerBasemap(mobileMapState.map);
   document.body.classList.add("mobile-map-ready");
   return mobileMapState.map;
 }
@@ -4625,7 +4620,7 @@ function fitMobileMapWidth(map, extent4326) {
 // Both VectorTileLayers are added synchronously; style is applied asynchronously
 // in an unawaited IIFE so this does not block chip-button initialization
 // (lesson from v4.14: no network-dependent awaits between unrelated UI init).
-async function applyOfmTwoLayerBasemap(map, label = "ofm") {
+async function applyOfmTwoLayerBasemap(map) {
   if (!map || !window.olms) return;
   const landBaseLayer = new ol.layer.VectorTile({
     declutter: false,
@@ -4702,9 +4697,9 @@ async function applyOfmTwoLayerBasemap(map, label = "ofm") {
         olms.applyStyle(landBaseLayer, styleBelow, { updateSource: true }),
         olms.applyStyle(landForegroundLayer, styleAbove, { updateSource: true })
       ]);
-      console.log(`[${label}] OpenFreeMap basemap applied (below+above) ✓`);
+      console.log(`[ofm] OpenFreeMap basemap applied (below+above) ✓`);
     } catch (e) {
-      console.warn(`[${label}] OpenFreeMap style apply failed:`, e?.message || e);
+      console.warn(`[ofm] OpenFreeMap style apply failed:`, e?.message || e);
     }
   })();
 }
@@ -4721,9 +4716,9 @@ async function renderCombinedMode() {
   console.log("[combined] renderCombinedMode called, currentVar:", currentVar, "REGION_ID:", REGION_ID);
   document.body.classList.add("combined-mode");
 
-  // ── Build a standalone OL map in #combined-map ─────────────────────────
-  const combinedMapDiv = document.getElementById("combined-map");
-  if (!combinedMapDiv) {
+  // ── Build a standalone OL map in #map ─────────────────────────
+  const mapDiv = document.getElementById("map");
+  if (!mapDiv) {
     window._combinedRenderLocked = false;
     return;
   }
@@ -4754,12 +4749,12 @@ async function renderCombinedMode() {
   // extents in/out of 4326 so the rest of the viewer (viewState, backend APIs)
   // stays in lat/lon.
   const view = new ol.View({ projection: "EPSG:3857" });
-  console.log("[combined] creating OL map (EPSG:3857), combinedMapDiv:", combinedMapDiv, "size:", combinedMapDiv?.clientWidth, combinedMapDiv?.clientHeight);
-  // Force layout so combinedMapDiv has real pixel dimensions before new ol.Map
+  console.log("[combined] creating OL map (EPSG:3857), mapDiv:", mapDiv, "size:", mapDiv?.clientWidth, mapDiv?.clientHeight);
+  // Force layout so mapDiv has real pixel dimensions before new ol.Map
   // (position:absolute divs report 0x0 until the browser computes layout)
-  combinedMapDiv.getBoundingClientRect();
+  mapDiv.getBoundingClientRect();
   const map = new ol.Map({
-    target: combinedMapDiv,
+    target: mapDiv,
     view,
     layers: [],
     overlays: [],
@@ -4787,9 +4782,9 @@ async function renderCombinedMode() {
       console.log("[combined] updateSize from RO, new size:", m.getSize());
     }
   });
-  ro.observe(combinedMapDiv);
+  ro.observe(mapDiv);
 
-  // Force OL to remeasure after layout is ready — #combined-map is position:absolute
+  // Force OL to remeasure after layout is ready — #map is position:absolute
   // with explicit top/left/right/bottom but may have 0x0 size at construction time
   // (browser hasn't laid it out yet). DevTools opening causes a reflow that fixes this.
   // Trigger the same remeasure via updateSize() after the first animation frame.
@@ -4821,7 +4816,7 @@ async function renderCombinedMode() {
   console.log("[combined] view.fit done, map size:", map.getSize(), "view zoom:", view.getZoom());
 
   // Layer order: OFM water(0, dimmed ocean tint) -> CHL(10) -> bathy(15) -> UV(20) -> fronts(30/32) -> OFM land(40, all land fills+lines+labels)
-  await applyOfmTwoLayerBasemap(map, "combined");
+  await applyOfmTwoLayerBasemap(map);
 
   const chlFrames = framesByVar.chl || [];
   const chlScanTimeDiv = document.getElementById("combined-chl-scan-time");
@@ -5085,7 +5080,7 @@ async function renderCombinedMode() {
   console.log("[combined] window._combinedFrontDensityLayer:", !!window._combinedFrontDensityLayer);
   console.log("[combined] window._combinedFrontLineLayer:", !!window._combinedFrontLineLayer);
   // Log combined UI elements
-  console.log("[combined] #combined-map:", !!combinedMapDiv, "display:", combinedMapDiv ? getComputedStyle(combinedMapDiv).display : "N/A", "size:", combinedMapDiv ? `${combinedMapDiv.clientWidth}x${combinedMapDiv.clientHeight}` : "N/A");
+  console.log("[combined] #map:", !!mapDiv, "display:", mapDiv ? getComputedStyle(mapDiv).display : "N/A", "size:", mapDiv ? `${mapDiv.clientWidth}x${mapDiv.clientHeight}` : "N/A");
   console.log("[combined] #combined-readout:", !!readoutEl, "display:", readoutEl ? getComputedStyle(readoutEl).display : "N/A");
   console.log("[combined] #combined-controls:", !!combinedControls, "display:", combinedControls ? getComputedStyle(combinedControls).display : "N/A");
   console.log("[combined] #combined-menu-btn:", !!combinedMenuBtn, "display:", combinedMenuBtn ? getComputedStyle(combinedMenuBtn).display : "N/A");
@@ -9558,7 +9553,7 @@ document.getElementById('captain-save-btn')?.addEventListener('click', (e) => {
 });
 
 document.getElementById('captain-fs-btn')?.addEventListener('click', () => {
-  const fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || document.querySelector('#combined-map') || document.documentElement;
+  const fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || document.querySelector('#map') || document.documentElement;
   const target = document.fullscreenElement ? null : fullscreenEl;
   if (!document.fullscreenElement && !document.webkitFullscreenElement) {
     if (fullscreenEl.requestFullscreen) fullscreenEl.requestFullscreen();
