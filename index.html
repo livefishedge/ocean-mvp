@@ -7961,7 +7961,22 @@ async function renderThermalFrontsNative() {
   const requestedViewport = viewportFromParams();
   if (!map.__thermalInitialFitDone) {
     map.updateSize();
-    map.getView().fit(requestedViewport ? [requestedViewport.xRange[0], requestedViewport.yRange[0], requestedViewport.xRange[1], requestedViewport.yRange[1]] : BBOX.map(Number), {
+    // v4.16 switched the thermal-fronts map view to EPSG:3857 (Web Mercator)
+    // to match the OFM vector tile schema. The viewport extent and BBOX are
+    // still in EPSG:4326 (lat/lon) by viewer convention. OL's view.fit() does
+    // NOT auto-detect projection — passing a 4326 extent to a 3857 view
+    // causes the map to fit to a tiny region near (0, 0) at the equator,
+    // which leaves the entire US East Coast off-screen and produces
+    // near-zero readout values when the user moves the cursor. Transform
+    // the extent to 3857 before fitting.
+    const extent4326 = requestedViewport
+      ? [requestedViewport.xRange[0], requestedViewport.yRange[0], requestedViewport.xRange[1], requestedViewport.yRange[1]]
+      : BBOX.map(Number);
+    const viewProjCode = map.getView().getProjection().getCode();
+    const extentForFit = viewProjCode === "EPSG:4326"
+      ? extent4326
+      : ol.proj.transformExtent(extent4326, "EPSG:4326", viewProjCode);
+    map.getView().fit(extentForFit, {
       size: map.getSize(),
       padding: [58, 0, 0, 0],
       nearest: true
