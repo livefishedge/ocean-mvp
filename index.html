@@ -4007,8 +4007,8 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
       features.push(new ol.Feature({
         geometry: new ol.geom.MultiLineString([
           [toMapProjection([lon0, lat0]), toMapProjection([lon1, lat1])],
-          [toMapProjection([lon1, lat1]), left],
-          [toMapProjection([lon1, lat1]), right]
+          [toMapProjection([lon1, lat1]), toMapProjection(left)],
+          [toMapProjection([lon1, lat1]), toMapProjection(right)]
         ])
       }));
     }
@@ -5346,8 +5346,8 @@ function buildArrowGeometry(lon, lat, u, v, len, cell) {
     const right = [lon1 + headLen * Math.cos(theta + Math.PI + headAng), lat1 + headLen * Math.sin(theta + Math.PI + headAng)];
     return new ol.geom.MultiLineString([
       [toMapProjection([lon, lat]), toMapProjection([lon1, lat1])],
-      [toMapProjection([lon1, lat1]), left],
-      [toMapProjection([lon1, lat1]), right]
+      [toMapProjection([lon1, lat1]), toMapProjection(left)],
+      [toMapProjection([lon1, lat1]), toMapProjection(right)]
     ]);
   } catch { return null; }
 }
