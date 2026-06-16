@@ -4641,16 +4641,25 @@ async function applyOfmTwoLayerBasemap(map, label = "ofm") {
       const style = await fetch("https://tiles.openfreemap.org/styles/liberty", { credentials: "omit" }).then(r => r.json());
 
       // Split the OFM style into two filtered copies by layer type.
-      // Below-data group: ONLY the water fill (dimmed) — the ocean tint.
-      // Above-data group: ALL land content (fills, lines, symbols, 3D
-      // buildings) — parks, residential, buildings, roads, labels, etc.
+      // Below-data group: ONLY the water fill (solid light gray) — the
+      // ocean background. Solid (opacity 1.0) so the dark page bg does
+      // not bleed through.
+      // Above-data group: a uniform tan land background + roads + place
+      // labels. Drops all the OFM landuse/landcover/park fills, the 3D
+      // building fill-extrusions, and the water layers. Keeps `background`
+      // (recolored tan) so rural land is also uniformly tan, and keeps
+      // `line` (roads, boundaries) and `symbol` (labels) layers for
+      // geographic context on top of the tan.
       function patchBelow(src) {
         const out = JSON.parse(JSON.stringify(src));
         out.layers = out.layers.filter(L => L.id === "water");
         for (const L of out.layers) {
           if (L.id === "water") {
-            // Faint ocean tint — fill-opacity 0.35 over the dark page bg
-            L.paint = Object.assign({}, L.paint, { "fill-opacity": 0.35 });
+            // Solid light gray ocean — no longer a dimmed tint.
+            L.paint = Object.assign({}, L.paint, {
+              "fill-color": "#d0d0d0",
+              "fill-opacity": 1.0
+            });
           }
         }
         return out;
@@ -4658,32 +4667,29 @@ async function applyOfmTwoLayerBasemap(map, label = "ofm") {
       function patchAbove(src) {
         const out = JSON.parse(JSON.stringify(src));
         out.layers = out.layers.filter(L => {
-          // Drop: background, natural_earth, the water fill, waterway lines,
-          // and water labels (water labels are also redundant over our data).
-          if (L.id === "background" || L.id === "natural_earth") return false;
+          // Keep the OFM `background` layer (recolored tan below) so the
+          // entire landmass is a uniform tan, including rural areas that
+          // have no landuse fill in the underlying tile data.
+          if (L.id === "background") return true;
+          // Drop natural_earth (raster hillshade — we want flat tan).
+          if (L.id === "natural_earth") return false;
+          // Drop water and waterway layers (already painted by patchBelow).
           if (L.id === "water") return false;
           if (/^waterway_/.test(L.id) || /^water_/.test(L.id)) return false;
-          // Keep everything that is land: fills (parks, residential, buildings,
-          // 3D buildings), lines (roads, road casings, bridges, boundaries),
-          // and symbols (road labels, place labels, POIs, highway shields).
-          return L.type === "fill" || L.type === "line" ||
-                 L.type === "symbol" || L.type === "fill-extrusion";
+          // Drop all the OFM landuse/landcover/park fills — we want a
+          // uniform tan, not differentiated landuse colors.
+          if (L.type === "fill") return false;
+          // Drop 3D building fill-extrusions — we want a flat 2D look.
+          if (L.type === "fill-extrusion") return false;
+          // Keep lines (roads, road casings, bridges, boundaries) and
+          // symbols (place labels, road labels, POIs) for context.
+          return L.type === "line" || L.type === "symbol";
         });
-        // Override OFM's maxzoom restrictions on `landuse_residential` so it
-        // renders at every zoom. The underlying tile data still has no
-        // residential features at z=13+ for most regions — this is a known
-        // OFM data limitation (memory/2026-06-15.md). The override keeps the
-        // style consistent in case OFM ever ships more residential data.
         for (const L of out.layers) {
-          if (L.id === "landuse_residential") {
-            delete L.maxzoom;
-            if (L.paint && Array.isArray(L.paint["fill-color"])) {
-              L.paint["fill-color"] = [
-                "interpolate", ["linear"], ["zoom"],
-                9, "hsla(35, 30%, 70%, 0.55)",
-                14, "hsla(35, 35%, 75%, 0.65)"
-              ];
-            }
+          // Recolor the OFM background to tan. This is the entire landmass
+          // fill; everything else (roads, labels) paints on top of it.
+          if (L.id === "background") {
+            L.paint = { "background-color": "#d2b48c" };
           }
         }
         return out;
