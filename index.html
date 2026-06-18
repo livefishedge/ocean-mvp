@@ -220,22 +220,22 @@
       height: 100dvh;
       touch-action: none;
     }
-    #mobile-map{
+    #map{
       display:none;
       position:fixed;
       inset:0;
       width:100vw;
       height:100dvh;
-      background:#050b10;
       touch-action:none;
       z-index:20;
+      cursor:crosshair;
     }
-    #mobile-map .ol-viewport,
-    #mobile-map .ol-unselectable,
-    #mobile-map canvas{
+    #map .ol-viewport,
+    #map .ol-unselectable,
+    #map canvas{
       touch-action:none;
     }
-    #mobile-map .ol-control{
+    body.mobile-map-ready #map .ol-control{
       display:none;
     }
     #mobile-time-badge{
@@ -531,16 +531,18 @@
 
     /* Plot: full viewport */
     #plot{ height: 100dvh; min-height: 200px; }
+    body.desktop-map-ready #plot,
     body.mobile-map-ready #plot{ display:none; }
-    body.mobile-map-ready #mobile-map{ display:block; cursor:crosshair; }
+    body.desktop-map-ready #map,
+    body.mobile-map-ready #map{ display:block; }
     body.thermal-fronts-mode #plot{
-      display:block !important;
+      display:none !important;
       width:100vw;
       height:100dvh;
       cursor:crosshair;
       background:transparent;  /* let the OFM water fill (z=0) show through as the ocean tint */
     }
-    body.thermal-fronts-mode #mobile-map{ display:none !important; cursor:crosshair; }
+    body.thermal-fronts-mode #map{ display:block !important; }
     body.thermal-fronts-mode #ranges{ display:none !important; }
     body.thermal-fronts-mode #mobile-time-badge{ display:none !important; }
     body.thermal-fronts-mode #toolbar{ display:flex !important; }
@@ -562,7 +564,6 @@ body.combined-mode #combined-menu-btn{
     body.combined-mode #toolbar{ display:none !important; }
     body.combined-mode #hamburger-btn{ display:none !important; }
     body.combined-mode #plot{ display:none !important; }
-    body.combined-mode #mobile-map{ display:none !important; cursor:crosshair; }
     body.combined-mode #map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; cursor:crosshair; }
     body.combined-mode #combined-readout{ display:block !important; }
     body.combined-mode #status{ display:none !important; }
@@ -584,14 +585,6 @@ body.combined-mode #combined-menu-btn{
       border-radius:6px; color:var(--fg); font-size:13px; cursor:pointer;
     }
 
-    /* Combined standalone map (no toolbar conflicts) */
-    #map{
-      display:none;
-      position:absolute;
-      top:0; left:0; right:0; bottom:0;
-      z-index:0;
-      width:100%; height:100%;
-    }
     /* All OL viewports render land as uniform tan. The OFM water layer
        (below the data) paints light gray on top, and roads/labels paint
        on top of the tan. The Mapbox `background` layer type does not
@@ -1091,7 +1084,6 @@ body.combined-mode #combined-menu-btn{
     <span id="toolbar-status"></span>
   </div>
 
-  <div id="mobile-map"></div>
   <div id="mobile-time-badge"></div>
   <div id="plot"></div>
   <div id="readout">Lat/Lon: -- | Value: --</div>
@@ -1792,6 +1784,27 @@ let thermalFrontState = {
   dayChipInitialized: false
 };
 
+function getUnifiedMapTarget() {
+  return document.getElementById("map");
+}
+
+function detachInactiveMapTargets(activeMap) {
+  for (const map of [desktopMapState.map, mobileMapState.map, window._combinedMap, thermalFrontState.map]) {
+    if (map && map !== activeMap && typeof map.setTarget === "function") {
+      try { map.setTarget(undefined); } catch (_) {}
+    }
+  }
+}
+
+function attachMapToUnifiedTarget(map) {
+  const target = getUnifiedMapTarget();
+  if (!map || !target) return null;
+  detachInactiveMapTargets(map);
+  if (map.getTargetElement?.() !== target) map.setTarget(target);
+  map.updateSize?.();
+  return target;
+}
+
 function isDesktopMapMode() {
   // Desktop = non-touch pointer device. Window size does NOT exclude laptops.
   // isMobileDevice() size check is WRONG for desktop — excludes compact windows.
@@ -1854,11 +1867,17 @@ function installOlGestureZoomFallback(map, target) {
 }
 
 async function initDesktopMapIfNeeded() {
+  document.body.classList.remove("mobile-map-ready");
+  if (currentVar === "thermal_fronts") {
+    document.body.classList.remove("desktop-map-ready");
+  } else {
+    document.body.classList.add("desktop-map-ready");
+  }
   if (desktopMapState.map) {
-    desktopMapState.map.updateSize();
+    attachMapToUnifiedTarget(desktopMapState.map);
     return desktopMapState.map;
   }
-  const target = document.getElementById("plot");
+  const target = getUnifiedMapTarget();
   if (!target || !window.ol) return null;
   // View projection is EPSG:3857 (Web Mercator) to match the OpenFreeMap
   // vector tile schema. Data layers (CHL/SST/UV/bathy ImageStatic sources,
@@ -1904,7 +1923,8 @@ async function initDesktopMapIfNeeded() {
   // replaces the previous bathy-derived land mask as the desktop single-
   // product basemap, matching the combined dashboard's look.
   applyOfmTwoLayerBasemap(desktopMapState.map);
-  console.log("[OL] desktop OL map created, target element:", document.getElementById("plot") ? "found" : "NOT FOUND");
+  attachMapToUnifiedTarget(desktopMapState.map);
+  console.log("[OL] desktop OL map created, target element:", getUnifiedMapTarget() ? "#map" : "NOT FOUND");
   return desktopMapState.map;
 }
 
@@ -1991,7 +2011,11 @@ async function renderDesktopFrame(frameMeta) {
     console.log("[OL] renderDesktopFrame called, currentVar:", currentVar, "IS_TOUCH:", IS_TOUCH, "isDesktopMapMode():", isDesktopMapMode(), "isMobileMapMode():", isMobileMapMode());
     updateReadoutPosition();
 
-  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts" || currentVar === "combined") return false;
+  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts" || currentVar === "combined") {
+    document.body.classList.remove("desktop-map-ready");
+    detachInactiveMapTargets(null);
+    return false;
+  }
   const needsMapInit = !desktopMapState.map && currentVar !== "combined";
   let loadDiv = null;
   if (needsMapInit) {
@@ -2095,19 +2119,12 @@ async function renderDesktopFrame(frameMeta) {
   installDesktopReadoutHandlersOnce(map);
   console.log("[OL] readout handlers installed");
 
-  // Hide Plotly div completely when OL is rendering (avoid visual overlap)
+  // Keep Plotly hidden and make the unified map surface measurable.
   const plotDivEl = document.getElementById("plot");
-  if (plotDivEl) {
-    // Ensure the div has explicit dimensions so OL map can render
-    if (!plotDivEl.style.width && !plotDivEl.offsetWidth) {
-      plotDivEl.style.width = "100%";
-    }
-    if (!plotDivEl.style.height && !plotDivEl.offsetHeight) {
-      plotDivEl.style.height = "100%";
-    }
-    plotDivEl.style.display = "block";
-    // Ensure Plotly doesn't try to re-render on top of OL
-    plotDivEl.classList.remove("js-plotly-plot");
+  const mapDivEl = getUnifiedMapTarget();
+  if (plotDivEl) plotDivEl.style.display = "none";
+  if (mapDivEl) {
+    attachMapToUnifiedTarget(map);
   }
 
   // Ensure desktop land layer is present (persists across product switches)
@@ -2134,7 +2151,7 @@ async function renderDesktopFrame(frameMeta) {
   if (cbar) cbar.style.display = "none";
   const cbFig = document.getElementById("cb-figure");
   if (cbFig) cbFig.style.display = "none";
-  document.getElementById("plot").style.background = "";
+  if (plotDivEl) plotDivEl.style.background = "";
 
   // Remove loading banner on success
   const loadDiv2 = loadDiv || document.getElementById("ol-loading");
@@ -4539,11 +4556,12 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
 }
 
 function initMobileMapIfNeeded() {
-  const target = document.getElementById("mobile-map");
+  document.body.classList.remove("desktop-map-ready");
+  document.body.classList.add("mobile-map-ready");
+  const target = getUnifiedMapTarget();
   if (!target || !window.ol) return null;
   if (mobileMapState.map) {
-    document.body.classList.add("mobile-map-ready");
-    mobileMapState.map.updateSize();
+    attachMapToUnifiedTarget(mobileMapState.map);
     return mobileMapState.map;
   }
   // View projection is EPSG:3857 (Web Mercator) to match the OpenFreeMap
@@ -4587,7 +4605,7 @@ function initMobileMapIfNeeded() {
   // Add the OFM two-layer vector basemap so the mobile single-product pages
   // match the combined dashboard's look.
   applyOfmTwoLayerBasemap(mobileMapState.map);
-  document.body.classList.add("mobile-map-ready");
+  attachMapToUnifiedTarget(mobileMapState.map);
   return mobileMapState.map;
 }
 
@@ -4716,6 +4734,7 @@ async function renderCombinedMode() {
   }
   window._combinedRenderLocked = true;
   console.log("[combined] renderCombinedMode called, currentVar:", currentVar, "REGION_ID:", REGION_ID);
+  document.body.classList.remove("desktop-map-ready", "mobile-map-ready");
   document.body.classList.add("combined-mode");
 
   // ── Build a standalone OL map in #map ─────────────────────────
@@ -4741,6 +4760,7 @@ async function renderCombinedMode() {
     window._combinedFrontLineLayer = null;
     console.log("[combined] CLEANUP: all combined state cleared");
   }
+  detachInactiveMapTargets(null);
   // NOTE: do NOT unlock _combinedRenderLocked here — it must stay set while the
   // function is building the new map. Unlock only after the new map is complete.
 
@@ -4764,6 +4784,7 @@ async function renderCombinedMode() {
   });
   window._combinedMap = map;
   window._combinedMapRef = map;
+  attachMapToUnifiedTarget(map);
   installCaptainToolHandler(map);
   map.on("moveend", () => syncViewStateFromOlMap(map));
   console.log("[combined] OL map created, target:", !!map.getTargetElement(), "size:", map.getSize());
@@ -6440,7 +6461,11 @@ async function buildThermalFrontDensityCanvas(frontData, grid) {
 }
 
 async function renderMobileFrame(frameMeta) {
-  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts" || currentVar === "combined") return false;
+  if (currentVar === "chl_front" || currentVar === "sst_front" || currentVar === "thermal_fronts" || currentVar === "combined") {
+    document.body.classList.remove("mobile-map-ready");
+    detachInactiveMapTargets(null);
+    return false;
+  }
   const map = initMobileMapIfNeeded();
   if (!map) return false;
 
