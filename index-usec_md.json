@@ -1,6 +1,6 @@
 {
   "region": "usec_md",
-  "last_updated": "2026-06-19T02:25:20.592843Z",
+  "last_updated": "2026-06-19T03:38:07.436788Z",
   "vars": [
     "chl",
     "sst",
@@ -1251,10 +1251,10 @@
       },
       {
         "var": "chl",
-        "id": "usec_md_20260618_2026169.1451_chl_S3A-S3B",
-        "label": "2026-06-18 14:51 UTC | S3A-S3B",
-        "time_iso": "2026-06-18T14:51:00Z",
-        "json_path": "data/usec_md/chl/usec_md_20260618_2026169.1451_chl_S3A-S3B.json",
+        "id": "usec_md_20260618_2026169.1616_chl_S3A-S3B",
+        "label": "2026-06-18 16:16 UTC | S3A-S3B",
+        "time_iso": "2026-06-18T16:16:00Z",
+        "json_path": "data/usec_md/chl/usec_md_20260618_2026169.1616_chl_S3A-S3B.json",
         "grid_file": "frame_bbox"
       },
       {
@@ -1291,14 +1291,6 @@
       }
     ],
     "sst": [
-      {
-        "var": "sst",
-        "id": "sst_usec_md_2026139_20260519_03_g19",
-        "label": "2026-05-19 03:00 UTC",
-        "time_iso": "2026-05-19T03:00:00Z",
-        "json_path": "data/usec_md/sst/sst_usec_md_2026139_20260519_03_g19.json",
-        "grid_file": "goes_sst_1000_grid.json"
-      },
       {
         "var": "sst",
         "id": "sst_usec_md_2026139_20260519_04_g19",
@@ -5650,6 +5642,30 @@
         "time_iso": "2026-06-18T21:00:00Z",
         "json_path": "data/usec_md/sst/sst_usec_md_2026169_20260618_21_g19.json",
         "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_md_2026169_20260618_22_g19",
+        "label": "2026-06-18 22:00 UTC",
+        "time_iso": "2026-06-18T22:00:00Z",
+        "json_path": "data/usec_md/sst/sst_usec_md_2026169_20260618_22_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_md_2026169_20260618_23_g19",
+        "label": "2026-06-18 23:00 UTC",
+        "time_iso": "2026-06-18T23:00:00Z",
+        "json_path": "data/usec_md/sst/sst_usec_md_2026169_20260618_23_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_md_2026170_20260619_00_g19",
+        "label": "2026-06-19 00:00 UTC",
+        "time_iso": "2026-06-19T00:00:00Z",
+        "json_path": "data/usec_md/sst/sst_usec_md_2026170_20260619_00_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
       }
     ],
     "uv": [
@@ -5895,14 +5911,6 @@
       }
     ],
     "sst_front": [
-      {
-        "var": "sst_front",
-        "id": "sstfront_usec_md_2026139_20260519_03_g19",
-        "label": "2026-05-19 03:00 UTC",
-        "time_iso": "2026-05-19T03:00:00Z",
-        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026139_20260519_03_g19.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "sst_front",
         "id": "sstfront_usec_md_2026139_20260519_04_g19",
@@ -10253,6 +10261,30 @@
         "label": "2026-06-18 21:00 UTC",
         "time_iso": "2026-06-18T21:00:00Z",
         "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026169_20260618_21_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_md_2026169_20260618_22_g19",
+        "label": "2026-06-18 22:00 UTC",
+        "time_iso": "2026-06-18T22:00:00Z",
+        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026169_20260618_22_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_md_2026169_20260618_23_g19",
+        "label": "2026-06-18 23:00 UTC",
+        "time_iso": "2026-06-18T23:00:00Z",
+        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026169_20260618_23_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_md_2026170_20260619_00_g19",
+        "label": "2026-06-19 00:00 UTC",
+        "time_iso": "2026-06-19T00:00:00Z",
+        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026170_20260619_00_g19.json",
         "grid_file": "frame_bbox"
       }
     ]
