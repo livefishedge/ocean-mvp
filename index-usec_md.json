@@ -1,6 +1,6 @@
 {
   "region": "usec_md",
-  "last_updated": "2026-06-26T00:31:09.910677Z",
+  "last_updated": "2026-06-26T01:25:46.329951Z",
   "vars": [
     "chl",
     "sst",
@@ -1263,6 +1263,14 @@
         "label": "2026-06-25 17:36 UTC | VNP",
         "time_iso": "2026-06-25T17:36:00Z",
         "json_path": "data/usec_md/chl/usec_md_2026176.1736_chl_VNP.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_md_20260625_2026176.1738_chl_PACE-OCI",
+        "label": "2026-06-25 17:38 UTC | PACE-OCI",
+        "time_iso": "2026-06-25T17:38:00Z",
+        "json_path": "data/usec_md/chl/usec_md_20260625_2026176.1738_chl_PACE-OCI.json",
         "grid_file": "frame_bbox"
       }
     ],
