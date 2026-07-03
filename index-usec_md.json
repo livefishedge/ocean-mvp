@@ -1,6 +1,6 @@
 {
   "region": "usec_md",
-  "last_updated": "2026-07-03T21:40:56.246563Z",
+  "last_updated": "2026-07-03T22:23:31.009654Z",
   "vars": [
     "chl",
     "sst",
@@ -1211,14 +1211,6 @@
       },
       {
         "var": "chl",
-        "id": "usec_md_2026184.1648_chl_VNP",
-        "label": "2026-07-03 16:48 UTC | VNP",
-        "time_iso": "2026-07-03T16:48:00Z",
-        "json_path": "data/usec_md/chl/usec_md_2026184.1648_chl_VNP.json",
-        "grid_file": "frame_bbox"
-      },
-      {
-        "var": "chl",
         "id": "usec_md_2026184.1706_chl_VJ1",
         "label": "2026-07-03 17:06 UTC | VJ1",
         "time_iso": "2026-07-03T17:06:00Z",
@@ -1232,17 +1224,17 @@
         "time_iso": "2026-07-03T17:54:00Z",
         "json_path": "data/usec_md/chl/usec_md_2026184.1754_chl_VJ2.json",
         "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
+        "id": "usec_md_2026184.1827_chl_VNP",
+        "label": "2026-07-03 18:27 UTC | VNP",
+        "time_iso": "2026-07-03T18:27:00Z",
+        "json_path": "data/usec_md/chl/usec_md_2026184.1827_chl_VNP.json",
+        "grid_file": "frame_bbox"
       }
     ],
     "sst": [
-      {
-        "var": "sst",
-        "id": "sst_usec_md_2026153_20260602_22_g19",
-        "label": "2026-06-02 22:00 UTC",
-        "time_iso": "2026-06-02T22:00:00Z",
-        "json_path": "data/usec_md/sst/sst_usec_md_2026153_20260602_22_g19.json",
-        "grid_file": "goes_sst_1000_grid.json"
-      },
       {
         "var": "sst",
         "id": "sst_usec_md_2026153_20260602_23_g19",
@@ -6407,14 +6399,6 @@
       }
     ],
     "sst_front": [
-      {
-        "var": "sst_front",
-        "id": "sstfront_usec_md_2026153_20260602_22_g19",
-        "label": "2026-06-02 22:00 UTC",
-        "time_iso": "2026-06-02T22:00:00Z",
-        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026153_20260602_22_g19.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "sst_front",
         "id": "sstfront_usec_md_2026153_20260602_23_g19",
