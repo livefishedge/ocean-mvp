@@ -1,6 +1,6 @@
 {
   "region": "usec_md",
-  "last_updated": "2026-07-04T15:25:26.709562Z",
+  "last_updated": "2026-07-04T16:28:05.685279Z",
   "vars": [
     "chl",
     "sst",
@@ -9,14 +9,6 @@
   ],
   "frames": {
     "chl": [
-      {
-        "var": "chl",
-        "id": "usec_md_20260603_2026154.1622_chl_PACE-OCI",
-        "label": "2026-06-03 16:22 UTC | PACE-OCI",
-        "time_iso": "2026-06-03T16:22:00Z",
-        "json_path": "data/usec_md/chl/usec_md_20260603_2026154.1622_chl_PACE-OCI.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "chl",
         "id": "usec_md_2026154.1715_chl_VJ2",
@@ -971,6 +963,14 @@
       },
       {
         "var": "chl",
+        "id": "usec_md_20260626_2026177.1724_chl_S3X",
+        "label": "2026-06-26 17:24 UTC",
+        "time_iso": "2026-06-26T17:24:00Z",
+        "json_path": "data/usec_md/chl/usec_md_20260626_2026177.1724_chl_S3X.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "chl",
         "id": "usec_md_20260626_2026177.1724_chl_PACE-OCI",
         "label": "2026-06-26 17:24 UTC | PACE-OCI",
         "time_iso": "2026-06-26T17:24:00Z",
@@ -1235,14 +1235,6 @@
       }
     ],
     "sst": [
-      {
-        "var": "sst",
-        "id": "sst_usec_md_2026154_20260603_16_g19",
-        "label": "2026-06-03 16:00 UTC",
-        "time_iso": "2026-06-03T16:00:00Z",
-        "json_path": "data/usec_md/sst/sst_usec_md_2026154_20260603_16_g19.json",
-        "grid_file": "goes_sst_1000_grid.json"
-      },
       {
         "var": "sst",
         "id": "sst_usec_md_2026154_20260603_17_g19",
@@ -6399,14 +6391,6 @@
       }
     ],
     "sst_front": [
-      {
-        "var": "sst_front",
-        "id": "sstfront_usec_md_2026154_20260603_16_g19",
-        "label": "2026-06-03 16:00 UTC",
-        "time_iso": "2026-06-03T16:00:00Z",
-        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026154_20260603_16_g19.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "sst_front",
         "id": "sstfront_usec_md_2026154_20260603_17_g19",
