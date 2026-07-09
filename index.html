@@ -1527,6 +1527,32 @@ function setActiveRegion(regionId, regionMeta) {
 // Initialise from URL param / default (uses fallback bboxes)
 setActiveRegion(REGION_ID);
 
+// Re-initialise data + UI after a region switch (called by the auth callback
+// when profile.selected_region differs from the URL/default region on first load).
+// Without this, the post-auth region switch silently keeps the previous region's
+// frames on screen while BBOX/REGION_ID flip to the new region — producing
+// mismatched display like "Raleigh in Mid-Atlantic" and a "stuck loading" feel.
+async function initializeData() {
+  try {
+    await loadIndex();
+    for (const v of ["chl","sst","uv"]) {
+      if (framesByVar[v]?.length) {
+        frameTimesByVar[v] = framesByVar[v].map(f => epochMsForFrame(v, f));
+      }
+    }
+    syncRangeInputsToVar();
+    updateSliderUI();
+    syncTimeControls();
+    syncArrowLegend();
+    syncControlsHeight();
+    if (framesByVar[currentVar]?.length) await showFrame();
+    else { }
+    if (currentVar === "combined") document.body.classList.add("combined-mode");
+  } catch (e) {
+    console.error("initializeData failed:", e);
+  }
+}
+
 // UV product contains currents vectors over SSH/ADT background.
 const VAR_LABELS = {
   chl:"Chlorophyll", sst:"Temperature",
