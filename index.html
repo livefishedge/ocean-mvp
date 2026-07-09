@@ -1496,6 +1496,10 @@ if (!REGIONS[REGION_ID]) REGION_ID = "usec_south";
 // Bounding Box (LonMin, LatMin, LonMax, LatMax) — set by setActiveRegion()
 let BBOX = [...(REGION_FALLBACKS[REGION_ID]?.bbox ?? REGION_FALLBACKS.usec_south.bbox)];
 
+// Declared before setActiveRegion() so the initial call can assign to it
+// without hitting a Temporal Dead Zone ReferenceError.
+let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
+
 /**
  * Centralised region-state setter. Call whenever the active region changes
  * (URL param, auth callback, hamburger/combined selects).
@@ -1540,8 +1544,6 @@ const VAR_TO_GRID = {
   thermal_fronts: null,   // thermal_fronts frames have no grid file — inferred from frame metadata
   combined: null
 };
-
-let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.02, vmax: 10.0, unit: "mg/m3" },
