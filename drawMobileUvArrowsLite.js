@@ -14,8 +14,8 @@ function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAsce
   const sx = ctx.canvas.width  / Math.max(1, nx - 1);
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
 
-  // Sparse enough to be cheap; dense enough to show the flow without whitening the ADT field.
-  const step = Math.max(5, Math.floor(Math.sqrt(nx * ny) / 14));
+  // Doubled density: step halved vs. prior (was /14), minimum lowered to 3.
+  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 28));
   const maxSpeed = 1.2;
   const minSpeed = 0.035;
   const minLen = 0.55 * Math.min(sx, sy);
