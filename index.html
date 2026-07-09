@@ -1024,6 +1024,16 @@ body.combined-mode #combined-menu-btn{
       return false;
     }
 
+    // Shared promise so bottom-of-page init() can wait for the auth callback
+    // to determine the right active region before it fetches the index.
+    // Without this, init() races the auth callback: it loads usec_south data
+    // (the URL/default fallback), the callback then flips REGION_ID to
+    // usec_md, and the page keeps showing usec_south frames inside the
+    // Mid-Atlantic BBOX — looking like "stuck loading".
+    window.__profileReady = new Promise((resolve) => {
+      window.__profileReadyResolve = resolve;
+    });
+
     (async function initAuth() {
       // Auth: check session first (handles page refresh with existing session),
       // then listen for changes (handles magic link redirect with new session).
@@ -1071,6 +1081,12 @@ body.combined-mode #combined-menu-btn{
             setActiveRegion(activeRegion);
             initializeData();
           }
+          // Resolve the profile-ready promise so init() can proceed with the
+          // correct REGION_ID already set (no race with the URL/default fallback).
+          if (window.__profileReadyResolve) {
+            window.__profileReadyResolve(activeRegion);
+            window.__profileReadyResolve = null;
+          }
 
           // Persist active region to profile if it drifted (URL ?region= case)
           if (activeRegion && profile && profile.selected_region !== activeRegion) {
@@ -1101,6 +1117,17 @@ body.combined-mode #combined-menu-btn{
             });
           }
         }).catch(() => {});
+      }
+      // Safety net: if for any reason the profile fetch chain never resolves
+      // (e.g., profile backend hangs), unblock init() so the page still loads
+      // the default region rather than staying on the splash forever.
+      if (window.__profileReadyResolve) {
+        setTimeout(() => {
+          if (window.__profileReadyResolve) {
+            window.__profileReadyResolve(REGION_ID);
+            window.__profileReadyResolve = null;
+          }
+        }, 5000);
       }
       sb.auth.onAuthStateChange(async (event, session) => {
         if (event === 'SIGNED_IN' && session) {
@@ -8880,6 +8907,14 @@ async function loadCaptainBriefing() {
 (async function init() {
   try {
     installRegionSelector();
+    // Wait for the auth callback to determine the correct active region
+    // before fetching the index. Without this, init() races the profile
+    // fetch and may end up loading usec_south frames while the BBOX is
+    // usec_md (the "stuck loading dashboard" symptom).
+    if (window.__profileReady) {
+      const safeTimeout = new Promise(r => setTimeout(() => r(null), 4000));
+      await Promise.race([window.__profileReady, safeTimeout]);
+    }
     await Promise.all([ loadIndex(), prepareLandMask() ]);
     // Start on the latest frame for each variable (not the oldest)
     for (const v of ["chl","sst","uv"]) {
