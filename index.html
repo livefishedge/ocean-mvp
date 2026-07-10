@@ -1058,65 +1058,50 @@ body.combined-mode #combined-menu-btn{
           fetch(`${SUPABASE_URL}/rest/v1/user_regions?user_id=eq.${userId}&select=region_id`,
                 { headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${session.access_token}` } }).then(r => r.json()),
         ]).then(([profiles, granted]) => {
-          const profile = (profiles && profiles.length > 0) ? profiles[0] : null;
-          const grantedIds = new Set((granted || []).map(g => g.region_id));
-          const urlRegion = QUERY_PARAMS.get('region');
-
-          // Pick active region by priority:
-          //   1) URL ?region= if granted
-          //   2) profile.selected_region if granted
-          //   3) first granted region (by sort_order) or fallback
-          let activeRegion = null;
-          if (urlRegion && grantedIds.has(urlRegion) && REGIONS[urlRegion]) {
-            activeRegion = urlRegion;
-          } else if (profile && profile.selected_region && grantedIds.has(profile.selected_region)) {
-            activeRegion = profile.selected_region;
-          } else if (grantedIds.size > 0) {
-            // Pick first granted by REGIONS sort order
-            const grantedList = Object.keys(REGIONS).filter(k => grantedIds.has(k));
-            activeRegion = grantedList[0] || 'usec_south';
+          // CRITICAL: delegate to window.__applyAuthRegion, which is defined
+          // by the body <script> AFTER it parses. The head <script> lives in
+          // a DIFFERENT lexical scope, so `let`/`const`/`function` declared
+          // in the body script are NOT visible here. Trying to read REGION_ID,
+          // REGIONS, QUERY_PARAMS, or call setActiveRegion() directly from
+          // this head IIFE throws ReferenceError and silently kills the
+          // entire region-switch chain — which is exactly what was
+          // happening to Mike: profile.selected_region=usec_md was being
+          // ignored and the page fell back to default usec_south.
+          //
+          // If the body script hasn't run yet (the auth .then() can fire
+          // before the body <script> finishes parsing), defer the call until
+          // the body script's bridge is ready. This avoids a race.
+          const delegate = () => {
+            try {
+              window.__applyAuthRegion(profiles, granted, session, userId);
+            } catch (e) {
+              console.error('[auth] __applyAuthRegion threw:', e);
+            }
+            if (window.__profileReadyResolve) {
+              window.__profileReadyResolve(window.__applyAuthRegionLastResult || null);
+              window.__profileReadyResolve = null;
+            }
+          };
+          if (typeof window.__applyAuthRegion === 'function') {
+            delegate();
+          } else {
+            // Body script hasn't run yet — wait for it. Poll briefly, then
+            // fall back to a DOMContentLoaded listener, then to a 5s safety net.
+            let waited = 0;
+            const poll = setInterval(() => {
+              waited += 50;
+              if (typeof window.__applyAuthRegion === 'function') {
+                clearInterval(poll);
+                delegate();
+              } else if (waited >= 2000) {
+                clearInterval(poll);
+                console.error('[auth] body script did not expose __applyAuthRegion within 2s');
+              }
+            }, 50);
           }
-
-          if (activeRegion && REGIONS[activeRegion] && REGION_ID !== activeRegion) {
-            setActiveRegion(activeRegion);
-            initializeData();
-          }
-          // Resolve the profile-ready promise so init() can proceed with the
-          // correct REGION_ID already set (no race with the URL/default fallback).
-          if (window.__profileReadyResolve) {
-            window.__profileReadyResolve(activeRegion);
-            window.__profileReadyResolve = null;
-          }
-
-          // Persist active region to profile if it drifted (URL ?region= case)
-          if (activeRegion && profile && profile.selected_region !== activeRegion) {
-            fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`, {
-              method: 'PATCH',
-              headers: {
-                'apikey': SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${session.access_token}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal',
-              },
-              body: JSON.stringify({ selected_region: activeRegion }),
-            }).catch(() => {});
-          }
-
-          if (profile) {
-            posthog.identify(session.user.email, {
-              email: session.user.email,
-              name: profile.name || undefined,
-              phone: profile.phone || undefined,
-              selected_region: activeRegion || profile.selected_region,
-              region_count: grantedIds.size,
-            });
-            posthog.capture('account_viewed', {
-              email: session.user.email,
-              region: activeRegion || profile.selected_region,
-              source: urlRegion && grantedIds.has(urlRegion) ? 'url' : 'profile',
-            });
-          }
-        }).catch(() => {});
+        }).catch((err) => {
+          console.error('[auth] profile fetch chain failed:', err);
+        });
       }
       // Safety net: if for any reason the profile fetch chain never resolves
       // (e.g., profile backend hangs), unblock init() so the page still loads
@@ -1505,27 +1490,35 @@ window.__VIEW_BUILD_THERMAL = Object.assign(window.__VIEW_BUILD_THERMAL || {}, {
   v4RefineHoverTip: true,
   v4RefineHoverTipFormat: "YYYY-MM-DD HH:MM UTC · N det"
 });
-const QUERY_PARAMS = new URLSearchParams(location.search);
-const REGIONS = {
+// CRITICAL: declare QUERY_PARAMS, REGIONS, REGION_ID, REGION_FALLBACKS, BBOX,
+// BATHY_JSON_URL with `var` (not `const`/`let`). The auth/profile IIFE in the
+// head <script> lives in a DIFFERENT lexical scope from this body <script>.
+// `let`/`const` in body are NOT visible from head and NOT on `window`, so
+// referencing `QUERY_PARAMS` from the head .then() callback throws
+// `ReferenceError: QUERY_PARAMS is not defined`, silently killing the
+// entire region-switch chain. Declaring as `var` makes them script-global
+// (i.e., accessible to the head script's lexical environment).
+var QUERY_PARAMS = new URLSearchParams(location.search);
+var REGIONS = {
   usec_md:    { label: "US East Coast - Mid-Atlantic",   index: "index-usec_md.json"    },
   usec_south: { label: "US East Coast - South-Atlantic", index: "index-usec_south.json" },
 };
 
 // Per-region fallback metadata used by setActiveRegion()
-const REGION_FALLBACKS = {
+var REGION_FALLBACKS = {
   usec_md:    { bbox: [-76.5, 35.5, -71.5, 40.5] },
   usec_south: { bbox: [-81,   31.0, -73.0, 36.0] },
 };
 
-let REGION_ID = QUERY_PARAMS.get("region") || "usec_south";
+var REGION_ID = QUERY_PARAMS.get("region") || "usec_south";
 if (!REGIONS[REGION_ID]) REGION_ID = "usec_south";
 
 // Bounding Box (LonMin, LatMin, LonMax, LatMax) — set by setActiveRegion()
-let BBOX = [...(REGION_FALLBACKS[REGION_ID]?.bbox ?? REGION_FALLBACKS.usec_south.bbox)];
+var BBOX = [...(REGION_FALLBACKS[REGION_ID]?.bbox ?? REGION_FALLBACKS.usec_south.bbox)];
 
 // Declared before setActiveRegion() so the initial call can assign to it
 // without hitting a Temporal Dead Zone ReferenceError.
-let BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
+var BATHY_JSON_URL = `data/${REGION_ID}/gebco_bath_latest/gebco_bathy.json`;
 
 /**
  * Centralised region-state setter. Call whenever the active region changes
@@ -1579,6 +1572,114 @@ async function initializeData() {
     console.error("initializeData failed:", e);
   }
 }
+
+// =========================================================================
+// Auth callback bridge — called by the head <script> IIFE.
+//
+// Why this lives in the body script:
+//   The auth .then() callback in the head <script> cannot reference
+//   REGION_ID / REGIONS / QUERY_PARAMS / setActiveRegion() directly,
+//   because `let`/`const`/`function` declarations in the body <script>
+//   are in a different lexical scope. Trying to read them from the head
+//   IIFE throws `ReferenceError: ... is not defined`, which silently
+//   kills the entire .then() chain. The .then() can also fire BEFORE the
+//   body script finishes parsing, so even `var` redeclarations wouldn't
+//   be reliable. The robust fix is to expose a single function on
+//   `window` from the body script, and have the head IIFE wait for it
+//   to exist before invoking it.
+//
+// Behavior:
+//   1. Reads profiles.selected_region (the user's saved preference).
+//   2. Reads user_regions if the table exists; tolerates 404 / non-array
+//      responses by treating the missing table as "no entitlement gating".
+//   3. Picks the active region by priority (URL ?region= > profile > first
+//      granted), tolerates the missing-table case by trusting the profile.
+//   4. Calls setActiveRegion() + initializeData() if the active region
+//      differs from the current REGION_ID.
+//   5. PATCHes profiles.selected_region ONLY when the user explicitly chose
+//      a region (URL or saved profile). NEVER PATCH on entitlement-gated
+//      fallback — that would silently overwrite a saved preference.
+//   6. Stores the resolved region in window.__applyAuthRegionLastResult so
+//      the head IIFE can pass it to __profileReadyResolve.
+// =========================================================================
+window.__applyAuthRegion = function(profiles, granted, session, userId) {
+  const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+
+  const profile = (profiles && profiles.length > 0) ? profiles[0] : null;
+
+  // Normalize `granted` defensively. If the `user_regions` table is
+  // missing (PGRST205 404 — table not in schema cache), Supabase
+  // returns a JSON error object, NOT an array. Without this guard,
+  // `(granted || []).map(...)` would throw TypeError on the object.
+  const grantedArr = Array.isArray(granted) ? granted : [];
+  const grantedIds = new Set(grantedArr.map(g => g && g.region_id).filter(Boolean));
+  // `entitlementGated` is true only when the user_regions query returned
+  // a real array (even empty). When the table is missing, we trust the
+  // profile preference directly — no entitlement gating.
+  const entitlementGated = Array.isArray(granted);
+
+  const urlRegion = QUERY_PARAMS.get('region');
+
+  // Pick active region by priority:
+  //   1) URL ?region= if valid (and granted, if entitlement is gated)
+  //   2) profile.selected_region if valid (and granted, if entitlement is gated)
+  //   3) first granted region (by sort_order) or fallback to usec_south
+  let activeRegion = null;
+  if (urlRegion && REGIONS[urlRegion] && (!entitlementGated || grantedIds.has(urlRegion))) {
+    activeRegion = urlRegion;
+  } else if (profile && profile.selected_region && REGIONS[profile.selected_region] && (!entitlementGated || grantedIds.has(profile.selected_region))) {
+    activeRegion = profile.selected_region;
+  } else if (grantedIds.size > 0) {
+    const grantedList = Object.keys(REGIONS).filter(k => grantedIds.has(k));
+    activeRegion = grantedList[0] || 'usec_south';
+  }
+  window.__applyAuthRegionLastResult = activeRegion;
+
+  if (activeRegion && REGIONS[activeRegion] && REGION_ID !== activeRegion) {
+    setActiveRegion(activeRegion);
+    if (typeof initializeData === 'function') initializeData();
+  }
+
+  // Persist active region to profile ONLY when the user explicitly chose
+  // it (URL ?region= or the saved profile preference). Never PATCH on
+  // entitlement-gated fallback — that would silently overwrite the saved
+  // preference the moment it drifted from grants.
+  const fromExplicitUserIntent =
+    (urlRegion && activeRegion === urlRegion) ||
+    (profile && profile.selected_region && activeRegion === profile.selected_region);
+  if (fromExplicitUserIntent && activeRegion && profile && profile.selected_region !== activeRegion) {
+    fetch(`${SUPABASE_URL}/rest/v1/profiles?user_id=eq.${userId}`, {
+      method: 'PATCH',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ selected_region: activeRegion }),
+    }).catch(() => {});
+  }
+
+  if (profile && typeof posthog !== 'undefined') {
+    try {
+      posthog.identify(session.user.email, {
+        email: session.user.email,
+        name: profile.name || undefined,
+        phone: profile.phone || undefined,
+        selected_region: activeRegion || profile.selected_region,
+        region_count: grantedIds.size,
+      });
+      posthog.capture('account_viewed', {
+        email: session.user.email,
+        region: activeRegion || profile.selected_region,
+        source: urlRegion && grantedIds.has(urlRegion) ? 'url' : 'profile',
+      });
+    } catch (e) {
+      console.warn('[auth] posthog identify failed:', e);
+    }
+  }
+};
 
 // UV product contains currents vectors over SSH/ADT background.
 const VAR_LABELS = {
