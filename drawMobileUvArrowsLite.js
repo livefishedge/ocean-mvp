@@ -14,8 +14,10 @@ function drawMobileUvArrowsLite(ctx, dataObj, z, xAxis, yAxis, xAscending, yAsce
   const sx = ctx.canvas.width  / Math.max(1, nx - 1);
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
 
-  // Doubled density: step halved vs. prior (was /14), minimum lowered to 3.
-  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 28));
+  // Issue #4: arrow density reduced to ~1/3 of the May 17 /14 baseline.
+  // Step was bumped /14 → /28 (Jul 9, halved density), now /42 (1/3 of /14).
+  // Net effect: density is now ~67% of post-Jul-9 and 33% of the /14 baseline.
+  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 42));
   const maxSpeed = 1.2;
   const minSpeed = 0.035;
   const minLen = 0.55 * Math.min(sx, sy);

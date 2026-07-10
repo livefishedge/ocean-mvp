@@ -8274,6 +8274,28 @@ async function setCurrentVar(v, keepTime = true, keepRange = true) {
     }
   }
 
+  // Issue #3 fix: clear thermal-fronts pointer cache + readout DOM on mode change.
+  // The thermal map stores the last hover coord/pixel in module-level state so
+  // unit-toggle handlers can re-render the readout. When the user navigates
+  // away (or back into) thermal_fronts, that cache must not leak — otherwise
+  // a stale lat/lon or thermal gradient shows on a non-thermal page, or a
+  // new thermal page starts with the previous page's last hover. The hover
+  // tip DOM is also cleared because pointermove no longer fires for it once
+  // currentVar leaves thermal_fronts.
+  const wasThermal = prevVar === "thermal_fronts";
+  const isThermal = v === "thermal_fronts";
+  if (wasThermal || isThermal) {
+    lastThermalCoord = null;
+    lastThermalPixel = null;
+    if (wasThermal || isThermal) {
+      const tipEl = document.getElementById("thermal-hover-tip");
+      if (tipEl) tipEl.style.display = "none";
+    }
+    if (wasThermal && !isThermal && typeof setReadout === "function") {
+      setReadout("");
+    }
+  }
+
   document.body.classList.toggle("combined-mode", v === "combined");
   document.body.classList.toggle("thermal-fronts-mode", v === "thermal_fronts");
 
