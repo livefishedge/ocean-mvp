@@ -525,10 +525,10 @@
     @media (max-width:720px){
       /* Mobile: move feedback button to top-right, away from bottom map gestures. */
       body.mobile-device #feedback-float{
-        top: calc(6px + env(safe-area-inset-top, 0px)) !important;
-        bottom: auto !important;
-        right: calc(6px + env(safe-area-inset-right, 0px)) !important;
-        left: auto !important;
+        bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+        top: auto !important;
+        left: calc(12px + env(safe-area-inset-left, 0px)) !important;
+        right: auto !important;
         z-index: 1300 !important;
       }
       #toolbar{ gap:6px; padding-right:58px; }
