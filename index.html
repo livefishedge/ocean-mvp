@@ -523,6 +523,14 @@
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
+      /* Mobile: move feedback button to top-right, away from bottom map gestures. */
+      body.mobile-device #feedback-float{
+        top: calc(6px + env(safe-area-inset-top, 0px)) !important;
+        bottom: auto !important;
+        right: calc(6px + env(safe-area-inset-right, 0px)) !important;
+        left: auto !important;
+        z-index: 1300 !important;
+      }
       #toolbar{ gap:6px; padding-right:58px; }
       #nav-bar{ order:1; flex-basis:100%; }
       #toolbar-status{ order:2; flex:1 1 100%; white-space:normal; }
@@ -2482,8 +2490,9 @@ function syncFloatingViewportUi() {
       margin: 8
     });
   }
+  // On mobile, CSS takes over (top-right via @media); skip JS clamping.
   const feedback = document.getElementById("feedback-float");
-  if (feedback) clampRectToVisualViewport(feedback, { margin: 8 });
+  if (feedback && !isMobileDevice()) clampRectToVisualViewport(feedback, { margin: 8 });
 }
 
 if (window.visualViewport) {
