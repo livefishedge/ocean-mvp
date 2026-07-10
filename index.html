@@ -1556,6 +1556,7 @@ function setActiveRegion(regionId, regionMeta) {
     window._bathyContourSource = null;
     window._combinedBathyLayer = null;
     window._combinedUvLayer = null;
+    gridCache.__bathy_json = null; // invalidate stale bathy cache for new region
   }
 }
 
