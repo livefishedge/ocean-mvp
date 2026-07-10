@@ -2561,6 +2561,7 @@ if (hApply) {
     const vmin = Number(hVmin?.value);
     const vmax = Number(hVmax?.value);
     if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+    if (!userRanges[currentVar]) userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
     userRanges[currentVar].vmin = vmin;
     userRanges[currentVar].vmax = vmax;
     showFrame();
@@ -3602,8 +3603,22 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
   if (!targetDiv) return;
 
   const unit = varKey === "sst" ? tempUnitLabel() : (DEFAULT_RANGES[varKey]?.unit || "");
+  // CRITICAL: fall back to DEFAULT_RANGES when userRanges[varKey] is missing
+  // or has invalid vmin/vmax. Without this, NaN tickvals / constant arrays
+  // trigger Plotly "axis scaling" errors during doAutoRange.
   let cmin = userRanges[varKey]?.vmin;
   let cmax = userRanges[varKey]?.vmax;
+  if (!Number.isFinite(cmin) || !Number.isFinite(cmax) || cmax <= cmin) {
+    const def = DEFAULT_RANGES[varKey];
+    if (def) {
+      cmin = def.vmin;
+      cmax = def.vmax;
+    } else {
+      // Unknown varKey — bail rather than render garbage.
+      console.warn('[colorbar] no range for varKey=', varKey, '— skipping render');
+      return;
+    }
+  }
 
   let chosenScale = "Viridis";
   let tickmode = undefined;
@@ -3639,6 +3654,18 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
     cValues = [cmin, cmax];
   } else if (varKey === "bathy") {
     chosenScale = BATHY_SCALE;
+    cValues = [cmin, cmax];
+  }
+
+  // CRITICAL: enforce a non-zero range so Plotly's doAutoRange doesn't
+  // fail with "axis scaling" errors when cmin === cmax (e.g. user sets a
+  // degenerate range, or the varKey's range happens to collapse). Pad
+  // by 1% on each side, with a small absolute floor for very small ranges.
+  if (cmax - cmin < 1e-9) {
+    console.warn('[colorbar] degenerate range for varKey=', varKey, '— padding');
+    const mid = cmin || 0;
+    cmin = mid - 0.5;
+    cmax = mid + 0.5;
     cValues = [cmin, cmax];
   }
 
@@ -6900,9 +6927,12 @@ function syncRangeInputsToVar() {
   const hVmin = document.getElementById("hamburger-vmin");
   const hVmax = document.getElementById("hamburger-vmax");
   const hTitle = document.getElementById("hamburger-range-title");
+  // CRITICAL: ensure userRanges[currentVar] exists before reading .vmin/.vmax.
+  // If currentVar is unknown or got cleared, fall back to DEFAULT_RANGES.
+  if (!userRanges[currentVar]) userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
   if (hVmin) hVmin.value = userRanges[currentVar].vmin;
   if (hVmax) hVmax.value = userRanges[currentVar].vmax;
-  if (hTitle) hTitle.textContent = VAR_LABELS[currentVar];
+  if (hTitle) hTitle.textContent = VAR_LABELS[currentVar] || currentVar;
   syncProductSelectors();
   if (hamburgerRegionSelect) hamburgerRegionSelect.value = REGION_ID;
   updateTempUnitUI();
@@ -8890,6 +8920,7 @@ hApply.addEventListener("click", () => {
   const vmin = Number(hVmin.value);
   const vmax = Number(hVmax.value);
   if (!isFinite(vmin) || !isFinite(vmax) || vmax <= vmin) return;
+  if (!userRanges[currentVar]) userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
   userRanges[currentVar].vmin = vmin;
   userRanges[currentVar].vmax = vmax;
   showFrame();
@@ -8897,10 +8928,12 @@ hApply.addEventListener("click", () => {
 });
 
 hReset.addEventListener("click", () => {
-  userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
-  syncRangeInputsToVar();
-  showFrame();
-  hamburgerPanel?.classList.remove("open");
+  if (DEFAULT_RANGES[currentVar]) {
+    userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
+    syncRangeInputsToVar();
+    showFrame();
+    hamburgerPanel?.classList.remove("open");
+  }
 });
 
 window.addEventListener("resize", () => {
