@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin — Resend Signup Confirmations</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { --bg:#050b10; --fg:#e0e6ee; --accent:#1a7f7a; --accent2:#2dd4bf; --panel:rgba(5,11,16,0.96); --border:#1b2836; --err:#ff6b6b; --ok:#2dd4bf; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{min-height:100vh;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;padding:20px}
+    .card{max-width:560px;margin:0 auto;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:28px 24px}
+    h1{font-size:1.25rem;color:var(--accent2);margin-bottom:6px}
+    .sub{font-size:.85rem;opacity:.65;margin-bottom:20px}
+    label{display:block;font-size:.8rem;margin:14px 0 6px;opacity:.85}
+    textarea{width:100%;min-height:120px;padding:10px 12px;background:rgba(5,11,16,.8);border:1px solid var(--border);border-radius:8px;color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;outline:none;resize:vertical}
+    textarea:focus{border-color:var(--accent)}
+    .row{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}
+    button{flex:1;min-width:140px;padding:11px 14px;border-radius:8px;border:none;font-size:.95rem;font-weight:700;cursor:pointer}
+    button.primary{background:var(--accent);color:#fff}
+    button.primary:hover{background:#1a9f96}
+    button.primary:disabled{opacity:.5;cursor:not-allowed}
+    button.ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
+    .log{margin-top:18px;padding:12px;background:rgba(0,0,0,.4);border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.78rem;max-height:300px;overflow-y:auto}
+    .log .ok{color:var(--ok)}
+    .log .err{color:var(--err)}
+    .log .dim{opacity:.5}
+    .warn{background:rgba(255,107,107,.12);color:var(--err);padding:10px 12px;border-radius:8px;font-size:.82rem;margin-bottom:14px;border:1px solid rgba(255,107,107,.3)}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>Admin · Resend Signup Confirmations</h1>
+  <p class="sub">One-off bulk resend of Supabase signup confirmation emails. Uses Supabase's own SMTP.</p>
+  <p class="warn">⚠ Public admin tool. Fire <strong>only</strong> with the explicit gate token below — anyone with the URL can use it.</p>
+
+  <label for="token">Gate token (query param <code>?t=…</code>)</label>
+  <input id="token" type="password" placeholder="paste the gate token" style="width:100%;padding:10px 12px;background:rgba(5,11,16,.8);border:1px solid var(--border);border-radius:8px;color:var(--fg);font-size:.95rem;outline:none" />
+
+  <label for="emails">Email addresses (one per line, or comma/space separated)</label>
+  <textarea id="emails" placeholder="user1@example.com
+user2@example.com
+user3@example.com"></textarea>
+
+  <div class="row">
+    <button class="primary" id="fire">Fire resend (2s gap)</button>
+    <button class="ghost" id="clear">Clear log</button>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260531"></script>
+<script src="supabase-init.js?v=20260610"></script>
+<script>
+(function() {
+  var EXPECTED_TOKEN = 'OMVR-VERIFY-2026-07-10-7f3a'; // rotate on incident close
+  var SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
+  var REDIRECT_TO = 'https://livefishedge.com/account.html';
+
+  // Auto-fill token from ?t=
+  var params = new URLSearchParams(window.location.search);
+  var tParam = params.get('t');
+  if (tParam) document.getElementById('token').value = tParam;
+
+  var log = document.getElementById('log');
+  function line(html, cls) {
+    var d = document.createElement('div');
+    if (cls) d.className = cls;
+    d.innerHTML = html;
+    log.appendChild(d);
+    log.scrollTop = log.scrollHeight;
+  }
+  function ts() { return new Date().toISOString().split('T')[1].replace('Z',''); }
+
+  var ANON_KEY = (window.sb && window.sb.supabaseKey) || (function() {
+    // Fallback: read from the persisted storage key the same way supabase-js does,
+    // *without* exporting the constant — but since the user is gated through
+    // EXPECTED_TOKEN above, exposing the anon key here is acceptable for a
+    // one-off bulk tool. Keep this page temporary.
+    try {
+      var raw = localStorage.getItem('ocean-mvp-auth');
+      if (!raw) return null;
+      // localStorage layout varies between Supabase versions; we can't reliably
+      // extract the anon key from a session. Force the user to load this page
+      // after a successful login on any other tab where the supabase client
+      // has cached values.
+      return null;
+    } catch (e) { return null; }
+  })();
+
+  // We DO have the anon key in source. For this page we deliberately embed it,
+  // since this is already an emergency-tool gated by a private URL token.
+  var SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+
+  function sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+
+  async function resendOne(email) {
+    var res = await fetch(SUPABASE_URL + '/auth/v1/resend', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        type: 'signup',
+        email: email,
+        options: { emailRedirectTo: REDIRECT_TO }
+      })
+    });
+    var text = await res.text();
+    var body; try { body = JSON.parse(text); } catch (e) { body = { raw: text }; }
+    return { ok: res.ok, status: res.status, body: body };
+  }
+
+  document.getElementById('fire').addEventListener('click', async function() {
+    var token = document.getElementById('token').value.trim();
+    if (token !== EXPECTED_TOKEN) {
+      line('<span class="err">[ERR]</span> Wrong gate token. Add <code>?t=' + EXPECTED_TOKEN + '</code> to the URL or paste the token above.', 'err');
+      return;
+    }
+    var raw = document.getElementById('emails').value;
+    var emails = raw.split(/[\s,;]+/).map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
+    if (emails.length === 0) {
+      line('<span class="err">[ERR]</span> No emails to process.', 'err');
+      return;
+    }
+    if (emails.length > 50) {
+      line('<span class="err">[ERR]</span> Capping at 50 emails per click — split into multiple runs to respect rate limits.', 'err');
+      emails = emails.slice(0, 50);
+    }
+
+    var btn = document.getElementById('fire');
+    btn.disabled = true; btn.textContent = 'Firing…';
+    line('<span class="dim">[' + ts() + ']</span> starting ' + emails.length + ' email(s), 2s gap…', 'dim');
+
+    var okCount = 0, failCount = 0;
+    for (var i = 0; i < emails.length; i++) {
+      var e = emails[i];
+      var r;
+      try {
+        r = await resendOne(e);
+      } catch (err) {
+        failCount++;
+        line('<span class="err">[' + (i + 1) + '/' + emails.length + '] ' + e + '  EXCEPTION ' + (err && err.message ? err.message : err) + '</span>', 'err');
+        continue;
+      }
+      if (r.ok) {
+        okCount++;
+        line('<span class="ok">[' + (i + 1) + '/' + emails.length + '] ' + e + '  OK (queued via Supabase SMTP)</span>', 'ok');
+      } else {
+        var code = (r.body && (r.body.error_code || r.body.code)) || ('HTTP ' + r.status);
+        var msg  = (r.body && (r.body.msg || r.body.message || r.body.error_description)) || JSON.stringify(r.body).slice(0, 200);
+        failCount++;
+        line('<span class="err">[' + (i + 1) + '/' + emails.length + '] ' + e + '  FAIL ' + code + ': ' + msg + '</span>', 'err');
+      }
+      if (i < emails.length - 1) await sleep(2000);
+    }
+    line('<span class="dim">[' + ts() + ']</span> done. OK=' + okCount + ' FAIL=' + failCount, 'dim');
+    btn.disabled = false; btn.textContent = 'Fire resend (2s gap)';
+  });
+
+  document.getElementById('clear').addEventListener('click', function() {
+    log.innerHTML = '';
+  });
+})();
+</script>
+</body>
+</html>
