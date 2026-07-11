@@ -2223,7 +2223,7 @@ function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
   return { value, row, col };
 }
 
-function renderDesktopReadout(lon, lat) {
+function renderDesktopReadout(lon, lat, pixel) {
   // The desktop non-combined map's view is EPSG:3857 (Web Mercator), so
   // ev.coordinate from pointermove/click is in meters. The readout text
   // and the raster sampler both need EPSG:4326. The caller transforms
@@ -2235,23 +2235,52 @@ function renderDesktopReadout(lon, lat) {
   }
   const gridInfo = desktopMapState.currentGridInfo;
   const dataObj = desktopMapState.currentDataObj;
+  const base = formatReadoutCoords(lon, lat);
+  // Bathy contour-line priority: if the click pixel is on (or near) a purple
+  // bathy contour feature, show that contour's level instead of the raster
+  // depth at the click pixel. The raster value at the exact line is rarely
+  // equal to the contour level (it's the cell's own depth), so showing it
+  // would be misleading. (Combined view has the same depth property on its
+  // contour features since 0558ccb9ce; this ports the priority to the
+  // single-product bathy view that Mike was missing.)
+  if (currentVar === "bathy" && pixel && desktopMapState.bathyContourLayer) {
+    const contourDepth = bathyContourDepthAtPixel(desktopMapState.map, pixel);
+    if (contourDepth !== null) {
+      setReadout(`${base}, ${contourDepth}m (contour)`);
+      return;
+    }
+  }
   const sample = sampleRasterValueAt(currentVar, gridInfo, dataObj, lon, lat);
   if (!sample) {
-    setReadout(formatReadoutCoords(lon, lat));
+    setReadout(base);
     return;
   }
   const { value, row, col } = sample;
-  const base = formatReadoutCoords(lon, lat);
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(value)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${value.toFixed(0)}m`);
   else if (currentVar === "uv") {
     const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
     const adt = Number(d?.adt?.[row]?.[col]);
     if (Number.isFinite(adt)) setReadout(`${base}, SSH ${formatSshValue(adt)}`);
-    else setReadout(formatReadoutCoords(lon, lat));
+    else setReadout(base);
   } else {
     setReadout(`${base} ${formatChlValue(value)}`);
   }
+}
+
+// Returns the depth (in metres) of the bathy contour feature under `pixel`,
+// or null if no contour is hit. Mirrors the combined view's hit test
+// (line ~5356) but returns a plain number so the caller can plug it into
+// the corner readout. `hitTolerance: 6` matches the combined view.
+function bathyContourDepthAtPixel(map, pixel) {
+  if (!map || !pixel) return null;
+  let found = null;
+  map.forEachFeatureAtPixel(pixel, feature => {
+    if (found !== null) return;
+    const d = feature.get("depth");
+    if (Number.isFinite(d)) found = d;
+  }, { hitTolerance: 6 });
+  return found;
 }
 
 function installDesktopReadoutHandlersOnce(map) {
@@ -2266,12 +2295,12 @@ function installDesktopReadoutHandlersOnce(map) {
   map.on("pointermove", (ev) => {
     const xy = to4326(ev);
     if (!xy) return;
-    renderDesktopReadout(xy[0], xy[1]);
+    renderDesktopReadout(xy[0], xy[1], ev.pixel);
   });
   map.on("click", (ev) => {
     const xy = to4326(ev);
     if (!xy) return;
-    renderDesktopReadout(xy[0], xy[1]);
+    renderDesktopReadout(xy[0], xy[1], ev.pixel);
   });
 }
 
