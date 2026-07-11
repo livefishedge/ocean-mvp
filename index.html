@@ -1023,12 +1023,12 @@ body.combined-mode #combined-menu-btn{
 
     async function enforceEmailVerification(session) {
       if (!session || session.user.email_confirmed_at) return true;
-      // Fresh signups are auto-confirmed by a local ops watchdog. Until it
-      // runs, send them back to login with a short activation-pending message.
+      // The legacy full-screen gate has been removed; unverified users are
+      // sent to the login page with a banner explaining what to do.
       setAccountLinkVisible(false);
       try { sessionStorage.setItem('email_verification_required', 'true'); } catch(e) {}
       await sb.auth.signOut();
-      window.location.replace('login.html?reason=activating');
+      window.location.replace('login.html?reason=verify');
       return false;
     }
 
