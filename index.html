@@ -9984,10 +9984,81 @@ function installCaptainToolHandler(map) {
     const xy4326 = ol.proj.transform(ev.coordinate, "EPSG:3857", "EPSG:4326");
     const lon = xy4326[0];
     const lat = xy4326[1];
-    if (captainDistTool.active) { addDistPoint(lon, lat, map); }
-    else if (captainAddTool.active) { addWaypoint(lon, lat, map); }
+    if (captainDistTool.active) { addDistPoint(lon, lat, map); return; }
+    if (captainAddTool.active) { addWaypoint(lon, lat, map); return; }
+    // ── Feature readout (Captain's Dashboard click → bottom-right box) ──
+    // Priority: bathy contour line > thermal front gradient > UV arrow > raster
+    const base = formatReadoutCoords(lon, lat);
+    const pixel = ev.pixel;
+
+    // 1. Bathy contour depth
+    let found = null;
+    map.forEachFeatureAtPixel(pixel, feature => {
+      if (found !== null) return;
+      const d = feature.get("depth");
+      if (Number.isFinite(d)) found = d;
+    }, { hitTolerance: 6 });
+    if (found !== null) { setReadout(`${base}, ${found}m (contour)`); return; }
+
+    // 2. Thermal front gradient + ΔSST (from front hover points)
+    const frontInfo = combinedFrontClickInfo(map, ev.coordinate, pixel);
+    if (frontInfo) { setReadout(`${base}  ${frontInfo}`); return; }
+
+    // 3. UV arrow current speed
+    let arrowSpeed = null;
+    if (window._combinedUvLayer) {
+      map.forEachFeatureAtPixel(pixel, feature => {
+        if (arrowSpeed !== null) return;
+        const s = feature.get("speed");
+        if (Number.isFinite(s)) arrowSpeed = s;
+      }, { hitTolerance: 8 });
+    }
+    if (arrowSpeed !== null) { setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (current)`); return; }
+
+    // 4. CHL + SST raster sample as fallback
+    const parts = [base];
+    const chlSample = sampleRasterValueAt("chl", window._combinedChlGrid, window._combinedChlData, lon, lat);
+    if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
+    const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
+    if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
+    setReadout(parts.join("  "));
   };
   map.on('click', _captainMapClickHandler);
+}
+
+// thermal-front click helper for the combined view. Reuses the same
+// _combinedFrontHoverPoints pixel-cache that the pointermove hover uses,
+// but formats output for the persistent #readout box instead of the
+// hover tooltip. Returns null if no front point is within 14 px of the click.
+function combinedFrontClickInfo(map, coord, pixel) {
+  const points = window._combinedFrontHoverPoints || [];
+  if (!map || !coord || !pixel || !points.length) return null;
+  const nearby = [];
+  for (const pt of points) {
+    const ptPixel = map.getPixelFromCoordinate([pt.lon, pt.lat]);
+    if (!ptPixel) continue;
+    const d = Math.hypot(ptPixel[0] - pixel[0], ptPixel[1] - pixel[1]);
+    if (d <= 14) nearby.push(pt);
+  }
+  if (!nearby.length) return null;
+  const gradVals = [], sstVals = [];
+  for (const pt of nearby) {
+    if (pt.grad !== null && pt.grad !== undefined && Number.isFinite(pt.grad)) gradVals.push(pt.grad);
+    if (pt.deltaSst && Number.isFinite(pt.deltaSst.value)) sstVals.push(pt.deltaSst.value);
+  }
+  const parts = [];
+  if (gradVals.length) {
+    const avg = gradVals.reduce((a, b) => a + b, 0) / gradVals.length;
+    const displayGrad = thermalDistUnit === "nm" ? kmToNm(avg * (tempUnit === "F" ? 9 / 5 : 1)) : avg * (tempUnit === "F" ? 9 / 5 : 1);
+    const unit = tempUnit + (thermalDistUnit === "nm" ? "/nm" : "/km");
+    parts.push(`${displayGrad.toFixed(3)} °${unit}`);
+  }
+  if (sstVals.length) {
+    const avg = sstVals.reduce((a, b) => a + b, 0) / sstVals.length;
+    const deltaVal = tempUnit === "F" ? avg * 9 / 5 : avg;
+    parts.push(`ΔSST ${deltaVal.toFixed(2)} ${tempUnitLabel()}`);
+  }
+  return parts.length ? parts.join("  ") : null;
 }
 
 // ── Button wiring ───────────────────────────────────────────────────────
