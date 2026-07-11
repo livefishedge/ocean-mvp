@@ -103,7 +103,7 @@
       if (!user.email_confirmed_at) {
         try { sessionStorage.setItem('email_verification_required', 'true'); } catch(e) {}
         await sb.auth.signOut();
-        window.location.replace('login.html');
+        window.location.replace('login.html?reason=activating');
         return;
       }
       // Fetch profile

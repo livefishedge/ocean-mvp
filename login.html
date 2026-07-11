@@ -69,7 +69,7 @@
     <p class="subtitle">Sign in to access your marine intelligence dashboard.</p>
 
     <div id="verify-banner" style="display:none;margin-bottom:14px;padding:10px 12px;border:1px solid #f59e0b;background:rgba(245,158,11,0.08);color:#fbbf24;border-radius:8px;font-size:12.5px;line-height:1.4;">
-      <div>Please verify your email before accessing the dashboard. Check your inbox for the confirmation link, then sign in.</div>
+      <div>Account activation is still finishing. Wait 60 seconds, then try signing in again.</div>
       <div id="resend-wrap" style="margin-top:8px;font-size:12px;color:#9fb0c2">
         Didn't get the email?
         <button type="button" id="resend-btn" style="all:unset;color:var(--accent2);font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0 2px">Resend confirmation</button>
@@ -139,15 +139,26 @@
       async function enforceEmailVerification(session) {
         if (!session || session.user.email_confirmed_at) return true;
         await sb.auth.signOut();
-        showMsg('Please verify your email before signing in.', 'error');
+        showMsg('Account is still activating. Wait 60 seconds and try again.', 'error');
         return false;
       }
 
       // Redirect if already logged in
       try {
+        const params = new URLSearchParams(window.location.search);
+        const reason = params.get('reason');
+        const emailParam = params.get('email');
+        if (emailParam) {
+          document.getElementById('email').value = emailParam;
+        }
+        if (reason === 'created') {
+          showMsg('Account created. If sign-in is not ready yet, wait 60 seconds and try again.', 'success');
+        } else if (reason === 'activating') {
+          showMsg('Account is still activating. Wait 60 seconds and try again.', 'error');
+        }
         if (sessionStorage.getItem('email_verification_required') === 'true') {
           sessionStorage.removeItem('email_verification_required');
-          showMsg('Please verify your email before signing in.', 'error');
+          showMsg('Account is still activating. Wait 60 seconds and try again.', 'error');
         }
       } catch(e) {}
 
@@ -227,7 +238,7 @@
           var reason = params.get('reason');
           var sticky = sessionStorage.getItem('email_verification_required') === 'true';
           var emailInForm = (document.getElementById('email').value || '').trim();
-          if (reason === 'verify' || sticky) {
+          if (reason === 'verify' || reason === 'activating' || sticky) {
             banner.style.display = 'block';
           } else if (emailInForm) {
             // user typed an email but hasn't submitted yet — keep banner hidden until
@@ -291,7 +302,11 @@
         const { data, error } = await sb.auth.signInWithPassword({ email, password });
 
         if (error) {
-          showMsg(error.message || 'Sign in failed.', 'error');
+          var msg = error.message || 'Sign in failed.';
+          if (/email not confirmed/i.test(msg)) {
+            msg = 'Account is still activating. Wait 60 seconds and try again.';
+          }
+          showMsg(msg, 'error');
           btn.disabled = false;
           btn.textContent = 'Sign in';
           return;

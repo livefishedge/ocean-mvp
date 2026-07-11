@@ -54,7 +54,7 @@
 <body>
 <div id="reg-card">
   <h1>Create Account</h1>
-  <p class="subtitle">Enter your info to create an account. We'll send a verification email — confirm it before signing in.</p>
+  <p class="subtitle">Enter your info to create an account. Activation usually finishes within a minute.</p>
 
   <form id="reg-form" novalidate>
     <div class="field">
@@ -190,7 +190,11 @@
       await sb.auth.signOut();
     }
 
-    window.location.replace('verify-email.html?email=' + encodeURIComponent(email));
+    showMsg('Account created. Opening sign in…', 'success');
+    btn.textContent = 'Account created';
+    setTimeout(function() {
+      window.location.replace('login.html?reason=created&email=' + encodeURIComponent(email));
+    }, 700);
   });
 
   // Password visibility toggle
