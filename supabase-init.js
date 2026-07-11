@@ -31,6 +31,7 @@
 
   const SUPABASE_URL = 'https://wfdpfeptmyiqifgwqpzu.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_W6wnJkT70jb69JUZgM1dow_nabPZycR';
+  const APP_BASE_URL = 'https://livefishedge.github.io/view/';
   const STORAGE_KEY = 'ocean-mvp-auth'; // stable, app-wide
   const ACTIVITY_REFRESH_MIN_MS = 30 * 60 * 1000; // 30 min
   const EXPIRY_WARN_MS = 5 * 60 * 1000; // 5 min before JWT exp
@@ -53,6 +54,10 @@
     },
   });
   window.sb = sb;
+  window.OMV_APP_BASE_URL = APP_BASE_URL;
+  window.omvAuthRedirectUrl = function (path) {
+    return new URL(path, APP_BASE_URL).href;
+  };
 
   // ---------- Tab coordination ----------
   // Only the leader tab does network refreshes; others piggyback on

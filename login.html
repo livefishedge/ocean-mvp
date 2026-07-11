@@ -250,7 +250,9 @@
           btn.disabled = true;
           setStatus('Sending…', '');
 
-          var redirectTo = new URL('account.html', window.location.href).href;
+          var redirectTo = window.omvAuthRedirectUrl
+            ? window.omvAuthRedirectUrl('account.html')
+            : new URL('account.html', 'https://livefishedge.github.io/view/').href;
           var res = await sb.auth.resend({
             type: 'signup',
             email: email,

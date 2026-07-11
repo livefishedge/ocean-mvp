@@ -151,7 +151,8 @@
   }
 
   function authRedirectUrl(path) {
-    return new URL(path, window.location.href).href;
+    if (window.omvAuthRedirectUrl) return window.omvAuthRedirectUrl(path);
+    return new URL(path, 'https://livefishedge.github.io/view/').href;
   }
 
   document.getElementById('reg-form').addEventListener('submit', async function(e) {
