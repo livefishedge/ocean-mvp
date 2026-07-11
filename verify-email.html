@@ -61,6 +61,33 @@
       font-size: 0.95rem;
     }
     a.button:hover { background: #1a9f96; }
+    .resend {
+      margin-top: 20px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      font-size: 0.85rem;
+      color: #9fb0c2;
+      text-align: center;
+    }
+    .resend button {
+      all: unset;
+      cursor: pointer;
+      color: var(--accent2);
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      padding: 0 2px;
+    }
+    .resend button:hover { color: #5eead4; }
+    .resend button:disabled,
+    .resend button[aria-disabled="true"] {
+      color: #7a8fa6;
+      cursor: not-allowed;
+      text-decoration: none;
+    }
+    .resend .status { display: block; margin-top: 8px; font-size: 0.8rem; }
+    .resend .status.sent { color: var(--success); }
+    .resend .status.err  { color: var(--err); }
   </style>
 </head>
 <body>
@@ -75,15 +102,98 @@
     <p>We sent a verification link<span id="email-line"></span>. Open that email and confirm your account before signing in.</p>
     <p>The dashboard stays locked until your email is verified.</p>
     <a class="button" href="login.html">Back to sign in</a>
+
+    <div class="resend" id="resend" hidden>
+      <span>Didn't get the email? </span>
+      <button id="resend-btn" type="button">Resend confirmation</button>
+      <span id="resend-cooldown" hidden></span>
+      <span class="status" id="resend-status" role="status" aria-live="polite"></span>
+    </div>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js?v=20260531"></script>
+  <script src="supabase-init.js?v=20260610"></script>
   <script>
+    // --- show the user's email in the headline ---
     (function() {
       var email = new URLSearchParams(window.location.search).get('email');
       if (!email) return;
       var el = document.getElementById('email-line');
       el.innerHTML = ' to <span class="email"></span>';
       el.querySelector('.email').textContent = email;
+
+      // --- resend widget ---
+      var wrap = document.getElementById('resend');
+      var btn = document.getElementById('resend-btn');
+      var cooldownEl = document.getElementById('resend-cooldown');
+      var statusEl = document.getElementById('resend-status');
+
+      // Only show resend if supabase is actually available.
+      if (!window.sb) {
+        // Page is still useful as informational; just hide the resend affordance.
+        return;
+      }
+      wrap.hidden = false;
+
+      // LocalStorage key for the per-email cooldown (1 resend / 60s, then 1/min cap).
+      var COOLDOWN_MS = 60 * 1000;
+      function key(k) { return 'omv:verify-email:' + k; }
+
+      function tickCooldown(remaining) {
+        if (remaining <= 0) {
+          cooldownEl.hidden = true;
+          cooldownEl.textContent = '';
+          btn.disabled = false;
+          btn.removeAttribute('aria-disabled');
+          return;
+        }
+        var s = Math.ceil(remaining / 1000);
+        cooldownEl.hidden = false;
+        cooldownEl.textContent = ' (try again in ' + s + 's)';
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        setTimeout(function() {
+          tickCooldown(remaining - 1000);
+        }, 1000);
+      }
+
+      function setStatus(text, cls) {
+        statusEl.textContent = text || '';
+        statusEl.className = 'status' + (cls ? ' ' + cls : '');
+      }
+
+      // If a cooldown is already in flight when the page loads, reflect it.
+      var lastSent = parseInt(localStorage.getItem(key(email)) || '0', 10);
+      if (lastSent && (Date.now() - lastSent) < COOLDOWN_MS) {
+        tickCooldown(COOLDOWN_MS - (Date.now() - lastSent));
+      }
+
+      btn.addEventListener('click', async function() {
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        setStatus('Sending…', '');
+
+        var redirectTo = new URL('account.html', window.location.href).href;
+        var res = await sb.auth.resend({
+          type: 'signup',
+          email: email,
+          options: { emailRedirectTo: redirectTo }
+        });
+
+        if (res && res.error) {
+          // Common cases: rate-limited (over_email_send_rate_limit) or
+          // already-confirmed (email_exists). Show the message verbatim so
+          // the user knows whether to wait or just sign in.
+          setStatus(res.error.message || 'Could not resend. Try again in a minute.', 'err');
+          // Re-enable after a short delay so we don't enable an instant retry-storm.
+          setTimeout(function() { tickCooldown(COOLDOWN_MS); }, 500);
+          return;
+        }
+
+        localStorage.setItem(key(email), String(Date.now()));
+        setStatus('Sent. Check your inbox (and spam folder) in the next minute or two.', 'sent');
+        tickCooldown(COOLDOWN_MS);
+      });
     })();
   </script>
 </body>
