@@ -1557,6 +1557,26 @@ function setActiveRegion(regionId, regionMeta) {
     window._combinedBathyLayer = null;
     window._combinedUvLayer = null;
     gridCache.__bathy_json = null; // invalidate stale bathy cache for new region
+    // Drop OL land layers so the next render rebuilds them with the new region's
+    // bathy. Without this, ensureMobileLandLayer / ensureDesktopLandLayer early-return
+    // on `if (landLayer) return;` and the old region's beige land canvas is painted
+    // over the new region's data — making contours look "wrong" relative to the map.
+    // (mobileMapState / desktopMapState are `let` declarations further down; this branch
+    //  only runs on a real region switch, never on the boot-time call, so TDZ is not hit.)
+    try {
+      if (mobileMapState && mobileMapState.landLayer) {
+        if (mobileMapState.map) mobileMapState.map.removeLayer(mobileMapState.landLayer);
+        mobileMapState.landLayer = null;
+        mobileMapState.landLayerBBox = null;
+        mobileMapState.landLayerURL = null;
+      }
+      if (desktopMapState && desktopMapState.landLayer) {
+        if (desktopMapState.map) desktopMapState.map.removeLayer(desktopMapState.landLayer);
+        desktopMapState.landLayer = null;
+        desktopMapState.landLayerBBox = null;
+        desktopMapState.landLayerURL = null;
+      }
+    } catch (_) { /* TDZ-safe: ignore on first-boot edge case */ }
   }
 }
 
@@ -1980,6 +2000,8 @@ let mobileMapState = {
   fittedRegion: null,
   disabled: false,
   landLayer: null,
+  landLayerBBox: null,    // bbox the current land canvas was built for (forces rebuild on region switch)
+  landLayerURL: null,     // bathy URL the current land canvas was built for
   arrowLayer: null,
   placeLayer: null,
   cursorLayer: null,
@@ -1993,6 +2015,8 @@ let desktopMapState = {
   map: null,
   imageLayer: null,
   landLayer: null,
+  landLayerBBox: null,    // bbox the current land canvas was built for
+  landLayerURL: null,     // bathy URL the current land canvas was built for
   placeLayer: null,
   arrowLayer: null,
   bathyContourLayer: null,
@@ -4413,7 +4437,17 @@ function makeMobileLandCanvas(bathy) {
 }
 
 async function ensureDesktopLandLayer(map) {
-  if (!map || desktopMapState.landLayer) return;
+  if (!map) return;
+  // Region-switch safety: if the cached landLayer was built for a different
+  // bbox or bathy URL, tear it down so it gets rebuilt against the new region.
+  const curBBox = BBOX.join(",");
+  if (desktopMapState.landLayer && (desktopMapState.landLayerBBox !== curBBox || desktopMapState.landLayerURL !== BATHY_JSON_URL)) {
+    map.removeLayer(desktopMapState.landLayer);
+    desktopMapState.landLayer = null;
+    desktopMapState.landLayerBBox = null;
+    desktopMapState.landLayerURL = null;
+  }
+  if (desktopMapState.landLayer) return;
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
   const canvas = makeMobileLandCanvas(bathy);
   if (!canvas) return;
@@ -4425,6 +4459,8 @@ async function ensureDesktopLandLayer(map) {
     interpolate: false
   });
   desktopMapState.landLayer = new ol.layer.Image({ source, zIndex: 20 });
+  desktopMapState.landLayerBBox = curBBox;
+  desktopMapState.landLayerURL = BATHY_JSON_URL;
   map.addLayer(desktopMapState.landLayer);
 }
 
@@ -4588,6 +4624,17 @@ function extractContourSegments(bd, level, sx, sy, extent) {
 }
 
 async function ensureMobileLandLayer(map) {
+  if (!map) return;
+  // Region-switch safety: rebuild land canvas when BBOX or bathy URL changed
+  // (Friday's gridCache.__bathy_json fix cleared the contour data cache but left
+  // the OL ImageStatic land layer pinned to the previous region's beige canvas).
+  const curBBox = BBOX.join(",");
+  if (mobileMapState.landLayer && (mobileMapState.landLayerBBox !== curBBox || mobileMapState.landLayerURL !== BATHY_JSON_URL)) {
+    map.removeLayer(mobileMapState.landLayer);
+    mobileMapState.landLayer = null;
+    mobileMapState.landLayerBBox = null;
+    mobileMapState.landLayerURL = null;
+  }
   if (mobileMapState.landLayer) return;
   const bathy = await loadBathymetryJson(BATHY_JSON_URL);
   const canvas = makeMobileLandCanvas(bathy);
@@ -4600,6 +4647,8 @@ async function ensureMobileLandLayer(map) {
     interpolate: false
   });
   mobileMapState.landLayer = new ol.layer.Image({ source, zIndex: 20 });
+  mobileMapState.landLayerBBox = curBBox;
+  mobileMapState.landLayerURL = BATHY_JSON_URL;
   map.addLayer(mobileMapState.landLayer);
 }
 
