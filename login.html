@@ -69,7 +69,13 @@
     <p class="subtitle">Sign in to access your marine intelligence dashboard.</p>
 
     <div id="verify-banner" style="display:none;margin-bottom:14px;padding:10px 12px;border:1px solid #f59e0b;background:rgba(245,158,11,0.08);color:#fbbf24;border-radius:8px;font-size:12.5px;line-height:1.4;">
-      Please verify your email before accessing the dashboard. Check your inbox for the confirmation link, then sign in.
+      <div>Please verify your email before accessing the dashboard. Check your inbox for the confirmation link, then sign in.</div>
+      <div id="resend-wrap" style="margin-top:8px;font-size:12px;color:#9fb0c2">
+        Didn't get the email?
+        <button type="button" id="resend-btn" style="all:unset;color:var(--accent2);font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px;padding:0 2px">Resend confirmation</button>
+        <span id="resend-cooldown" style="display:none;color:#7a8fa6"></span>
+        <span id="resend-status" style="display:block;margin-top:6px;font-size:11.5px" role="status" aria-live="polite"></span>
+      </div>
     </div>
 
     <form id="login-form" novalidate>
@@ -181,6 +187,86 @@
         }
         pw.focus();
       });
+
+      // ----- Resend confirmation (login-page mirror of verify-email.html) -----
+      (function() {
+        var btn       = document.getElementById('resend-btn');
+        var wrap      = document.getElementById('resend-wrap');
+        var banner    = document.getElementById('verify-banner');
+        var cooldownEl = document.getElementById('resend-cooldown');
+        var statusEl  = document.getElementById('resend-status');
+        if (!btn) return;
+
+        var COOLDOWN_MS = 60 * 1000;
+        function key(k){ return 'omv:verify-email:' + k; }
+
+        function setStatus(text, cls){
+          statusEl.textContent = text || '';
+          statusEl.className   = (cls ? cls : '');
+          statusEl.style.display = text ? 'block' : 'none';
+        }
+
+        function tickCooldown(remaining){
+          if (remaining <= 0){
+            cooldownEl.style.display = 'none';
+            cooldownEl.textContent = '';
+            btn.disabled = false;
+            return;
+          }
+          var s = Math.ceil(remaining/1000);
+          cooldownEl.style.display = 'inline';
+          cooldownEl.textContent = ' (try again in ' + s + 's)';
+          btn.disabled = true;
+          setTimeout(function(){ tickCooldown(remaining - 1000); }, 1000);
+        }
+
+        // Auto-show the banner+resend if the page was reached with reason=verify,
+        // or if the email field already has a value (sticky from prior attempt).
+        try {
+          var params = new URLSearchParams(window.location.search);
+          var reason = params.get('reason');
+          var sticky = sessionStorage.getItem('email_verification_required') === 'true';
+          var emailInForm = (document.getElementById('email').value || '').trim();
+          if (reason === 'verify' || sticky) {
+            banner.style.display = 'block';
+          } else if (emailInForm) {
+            // user typed an email but hasn't submitted yet — keep banner hidden until
+            // they sign in once; this guards against showing the resend widget
+            // preemptively on cold page loads.
+          }
+        } catch(e) {}
+
+        btn.addEventListener('click', async function(){
+          var email = (document.getElementById('email').value || '').trim();
+          if (!email){
+            setStatus('Enter your email above first, then tap Resend.', '');
+            document.getElementById('email').focus();
+            return;
+          }
+          if (!window.sb){
+            setStatus('Auth not ready — refresh and try again.', 'error');
+            return;
+          }
+          btn.disabled = true;
+          setStatus('Sending…', '');
+
+          var redirectTo = new URL('account.html', window.location.href).href;
+          var res = await sb.auth.resend({
+            type: 'signup',
+            email: email,
+            options: { emailRedirectTo: redirectTo }
+          });
+
+          if (res && res.error) {
+            setStatus(res.error.message || 'Could not resend. Try again in a minute.', 'error');
+            setTimeout(function(){ tickCooldown(COOLDOWN_MS); }, 500);
+            return;
+          }
+          localStorage.setItem(key(email), String(Date.now()));
+          setStatus('Sent. Check your inbox (and spam folder) in the next minute or two.', 'success');
+          tickCooldown(COOLDOWN_MS);
+        });
+      })();
 
       document.getElementById('login-form').addEventListener('submit', async (e) => {
         e.preventDefault();
