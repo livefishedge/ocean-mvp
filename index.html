@@ -1570,6 +1570,12 @@ function setActiveRegion(regionId, regionMeta) {
         mobileMapState.landLayerBBox = null;
         mobileMapState.landLayerURL = null;
       }
+      if (mobileMapState && mobileMapState.bathyContourLayer) {
+        if (mobileMapState.map) mobileMapState.map.removeLayer(mobileMapState.bathyContourLayer);
+        mobileMapState.bathyContourLayer = null;
+        mobileMapState.bathyContourLayerBBox = null;
+        mobileMapState.bathyContourLayerURL = null;
+      }
       if (desktopMapState && desktopMapState.landLayer) {
         if (desktopMapState.map) desktopMapState.map.removeLayer(desktopMapState.landLayer);
         desktopMapState.landLayer = null;
@@ -2002,6 +2008,9 @@ let mobileMapState = {
   landLayer: null,
   landLayerBBox: null,    // bbox the current land canvas was built for (forces rebuild on region switch)
   landLayerURL: null,     // bathy URL the current land canvas was built for
+  bathyContourLayer: null,        // purple bathy contour OL Vector layer (mobile single-product)
+  bathyContourLayerBBox: null,    // bbox the contour layer was last built for
+  bathyContourLayerURL: null,     // bathy URL the contour layer was last built for
   arrowLayer: null,
   placeLayer: null,
   cursorLayer: null,
@@ -2247,6 +2256,13 @@ function renderDesktopReadout(lon, lat, pixel) {
     const contourDepth = bathyContourDepthAtPixel(desktopMapState.map, pixel);
     if (contourDepth !== null) {
       setReadout(`${base}, ${contourDepth}m (contour)`);
+      return;
+    }
+  }
+  if (currentVar === "uv" && pixel && desktopMapState.arrowLayer) {
+    const arrowSpeed = uvArrowSpeedAtPixel(desktopMapState.map, pixel);
+    if (arrowSpeed !== null) {
+      setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (arrow)`);
       return;
     }
   }
@@ -4543,25 +4559,37 @@ async function ensureDesktopBathyContourLayer(map, bathyData, gridInfo) {
   window._bathyLayer = layer;
 
   // Update contours for current viewport
-  updateBathyContours(map);
+  updateBathyContours(map, bd, layer);
 
   // Re-draw on every pan/zoom
   map.on("moveend", () => {
     if (desktopMapState.bathyContourLayer?.getVisible()) {
-      updateBathyContours(map);
+      updateBathyContours(map, bd, desktopMapState.bathyContourLayer);
     }
   });
 }
 
-function updateBathyContours(map) {
-  const bd = window._bathyData;
-  const layer = window._bathyLayer;
+function updateBathyContours(map, bd, layer) {
+  // bd/layer are optional: fall back to desktop's globals (set by
+  // ensureDesktopBathyContourLayer). Pass them explicitly when the layer
+  // belongs to a different state object (e.g. mobileMapState.bathyContourLayer).
+  bd = bd || window._bathyData;
+  layer = layer || window._bathyLayer;
   if (!bd || !layer) return;
   const source = layer.getSource();
   source.clear();
 
-  const extent = map.getView().calculateExtent(map.getSize());
-  const [vx0, vy0, vx1, vy1] = extent;
+  // The OL view is in EPSG:3857 (Web Mercator) but bd.xAxis/yAxis are 4326.
+  // Previously this function compared lat/lon (degrees) directly against the
+  // 3857 extent (meters), which made `lat < vy0` true for every row and
+  // culled all of them — so desktop single-product bathy silently rendered
+  // zero contours while the combined view (which has this transform) did.
+  // (See combined's updateBathyContoursForMap for the reference impl.)
+  const viewExtent = map.getView().calculateExtent(map.getSize());
+  const viewProjCode = map.getView().getProjection().getCode();
+  const extent = viewProjCode === "EPSG:4326"
+    ? viewExtent
+    : ol.proj.transformExtent(viewExtent, viewProjCode, "EPSG:4326");
 
   const maxW = 800, maxH = 1200;
   const sx = Math.max(1, Math.floor(bd.nx / maxW));
@@ -4681,6 +4709,58 @@ async function ensureMobileLandLayer(map) {
   map.addLayer(mobileMapState.landLayer);
 }
 
+// Bathy contour rendering for mobile. Previously the mobile single-product
+// bathy view only painted the raster — no contour lines were added to the
+// map, so users had nothing to click on to get a depth readout. This ports
+// the desktop+combined contour rendering to mobile (purple stroke matches
+// the combined dashboard legend at .dot-bathy). Region-switch safety uses
+// the same bbox/URL-tracker pattern as ensureMobileLandLayer so the layer
+// rebuilds when the user changes regions.
+async function ensureMobileBathyContourLayer(map, bathyData /*, gridInfo */) {
+  if (!map) return;
+  const curBBox = BBOX.join(",");
+  if (mobileMapState.bathyContourLayer
+      && (mobileMapState.bathyContourLayerBBox !== curBBox
+          || mobileMapState.bathyContourLayerURL !== BATHY_JSON_URL)) {
+    map.removeLayer(mobileMapState.bathyContourLayer);
+    mobileMapState.bathyContourLayer = null;
+    mobileMapState.bathyContourLayerBBox = null;
+    mobileMapState.bathyContourLayerURL = null;
+  }
+  if (mobileMapState.bathyContourLayer) return;
+  const source = new ol.source.Vector({ wrapX: false, projection: "EPSG:4326" });
+  const layer = new ol.layer.Vector({
+    source,
+    style: feature => new ol.style.Style({
+      stroke: new ol.style.Stroke({
+        color: "#b25cff",
+        width: feature.get("depth") >= 1000 ? 1.3 : 1.0
+      })
+    }),
+    zIndex: 15
+  });
+  mobileMapState.bathyContourLayer = layer;
+  mobileMapState.bathyContourLayerBBox = curBBox;
+  mobileMapState.bathyContourLayerURL = BATHY_JSON_URL;
+  map.addLayer(layer);
+  const bd = {
+    xAxis: bathyData.xAxis,
+    yAxis: bathyData.yAxis,
+    depth: bathyData.depth,
+    nx: bathyData.xAxis.length,
+    ny: bathyData.yAxis.length
+  };
+  // updateBathyContours now takes explicit (bd, layer) and transforms the
+  // 3857 viewport extent to 4326 before comparing against bd.yAxis — this
+  // is the same fix the combined view already had.
+  updateBathyContours(map, bd, layer);
+  map.on("moveend", () => {
+    if (mobileMapState.bathyContourLayer?.getVisible()) {
+      updateBathyContours(map, bd, mobileMapState.bathyContourLayer);
+    }
+  });
+}
+
 function mobilePlaceStyle(feature) {
   const type = feature.get("type");
   const isPort = type === "port";
@@ -4780,9 +4860,27 @@ function renderMobileReadout(lon, lat) {
   renderMobileReadoutFromLonLat(lon, lat);
 }
 
-function renderMobileReadoutFromLonLat(lon, lat) {
+function renderMobileReadoutFromLonLat(lon, lat, pixel) {
   if (!isFinite(lon) || !isFinite(lat)) return;
   const base = formatReadoutCoords(lon, lat);
+  // Feature priority (mirror of desktop + combined):
+  //   - bathy contour (depth) — requires mobile bathy contour layer to exist
+  //   - UV arrow (current speed) — the arrows carry a per-arrow speed
+  // Fall through to the raster sample otherwise.
+  if (pixel && mobileMapState.bathyContourLayer && currentVar === "bathy") {
+    const contourDepth = bathyContourDepthAtPixel(mobileMapState.map, pixel);
+    if (contourDepth !== null) {
+      setReadout(`${base}, ${contourDepth}m (contour)`);
+      return;
+    }
+  }
+  if (pixel && mobileMapState.arrowLayer && currentVar === "uv") {
+    const arrowSpeed = uvArrowSpeedAtPixel(mobileMapState.map, pixel);
+    if (arrowSpeed !== null) {
+      setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (arrow)`);
+      return;
+    }
+  }
   const val = sampleMobileValueAt(lon, lat);
   if (val === null || val === undefined) {
     setReadout(base);
@@ -4799,19 +4897,37 @@ function renderMobileReadoutFromLonLat(lon, lat) {
   else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
+// Hit-test a UV arrow feature at `pixel`. UV arrows are built by
+// buildMobileUvArrowLayer with `speed: <m/s>` per feature, so we look up
+// that property. Slightly larger hitTolerance (8 px) than bathy contours
+// because arrows are small glyphs and the arrowhead is the click target.
+function uvArrowSpeedAtPixel(map, pixel) {
+  if (!map || !pixel) return null;
+  let found = null;
+  map.forEachFeatureAtPixel(pixel, feature => {
+    if (found !== null) return;
+    const s = feature.get("speed");
+    if (Number.isFinite(s)) found = s;
+  }, { hitTolerance: 8 });
+  return found;
+}
+
 function installMobileReadoutOnce(map) {
   if (map.__mobileReadoutInstalled) return;
   map.__mobileReadoutInstalled = true;
   ensureMobileCursorLayer(map);
   // The mobile map's view is EPSG:3857 — ev.coordinate is in meters. The
   // readout text and raster sampler need 4326; the cursor feature geometry
-  // (already in the view's projection) needs the 3857 coord.
+  // (already in the view's projection) needs the 3857 coord. ev.pixel is
+  // passed through so the readout can hit-test against Vector features
+  // (bathy contours / UV arrows) and prefer their semantic value over
+  // the raster sample at the click point.
   function handle(ev) {
     if (!ev.coordinate) return;
     const xy3857 = ev.coordinate;
     const xy4326 = ol.proj.transform(xy3857, "EPSG:3857", "EPSG:4326");
     updateMobileCursor(xy3857[0], xy3857[1]);
-    renderMobileReadoutFromLonLat(xy4326[0], xy4326[1]);
+    renderMobileReadoutFromLonLat(xy4326[0], xy4326[1], ev.pixel);
   }
   map.on("pointermove", handle);
   map.on("click", handle);
@@ -6822,6 +6938,9 @@ async function renderMobileFrame(frameMeta) {
   }
   await ensureMobileLandLayer(map);
   ensureMobilePlaceLayer(map);
+  if (currentVar === "bathy") {
+    await ensureMobileBathyContourLayer(map, dataObj, gridInfo);
+  }
   installMobileReadoutOnce(map);
   map.updateSize();
 
