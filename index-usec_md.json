@@ -1,6 +1,6 @@
 {
   "region": "usec_md",
-  "last_updated": "2026-07-13T00:39:17.855729Z",
+  "last_updated": "2026-07-13T01:14:16.388614Z",
   "vars": [
     "chl",
     "sst",
@@ -1163,14 +1163,6 @@
       }
     ],
     "sst": [
-      {
-        "var": "sst",
-        "id": "sst_usec_md_2026163_20260612_01_g19",
-        "label": "2026-06-12 01:00 UTC",
-        "time_iso": "2026-06-12T01:00:00Z",
-        "json_path": "data/usec_md/sst/sst_usec_md_2026163_20260612_01_g19.json",
-        "grid_file": "goes_sst_1000_grid.json"
-      },
       {
         "var": "sst",
         "id": "sst_usec_md_2026163_20260612_02_g19",
@@ -5778,6 +5770,38 @@
         "time_iso": "2026-07-12T19:00:00Z",
         "json_path": "data/usec_md/sst/sst_usec_md_2026193_20260712_19_g19.json",
         "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_md_2026193_20260712_20_g19",
+        "label": "2026-07-12 20:00 UTC",
+        "time_iso": "2026-07-12T20:00:00Z",
+        "json_path": "data/usec_md/sst/sst_usec_md_2026193_20260712_20_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_md_2026193_20260712_21_g19",
+        "label": "2026-07-12 21:00 UTC",
+        "time_iso": "2026-07-12T21:00:00Z",
+        "json_path": "data/usec_md/sst/sst_usec_md_2026193_20260712_21_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_md_2026193_20260712_22_g19",
+        "label": "2026-07-12 22:00 UTC",
+        "time_iso": "2026-07-12T22:00:00Z",
+        "json_path": "data/usec_md/sst/sst_usec_md_2026193_20260712_22_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
+      },
+      {
+        "var": "sst",
+        "id": "sst_usec_md_2026193_20260712_23_g19",
+        "label": "2026-07-12 23:00 UTC",
+        "time_iso": "2026-07-12T23:00:00Z",
+        "json_path": "data/usec_md/sst/sst_usec_md_2026193_20260712_23_g19.json",
+        "grid_file": "goes_sst_1000_grid.json"
       }
     ],
     "uv": [
@@ -6023,14 +6047,6 @@
       }
     ],
     "sst_front": [
-      {
-        "var": "sst_front",
-        "id": "sstfront_usec_md_2026163_20260612_01_g19",
-        "label": "2026-06-12 01:00 UTC",
-        "time_iso": "2026-06-12T01:00:00Z",
-        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026163_20260612_01_g19.json",
-        "grid_file": "frame_bbox"
-      },
       {
         "var": "sst_front",
         "id": "sstfront_usec_md_2026163_20260612_02_g19",
@@ -10637,6 +10653,38 @@
         "label": "2026-07-12 19:00 UTC",
         "time_iso": "2026-07-12T19:00:00Z",
         "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026193_20260712_19_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_md_2026193_20260712_20_g19",
+        "label": "2026-07-12 20:00 UTC",
+        "time_iso": "2026-07-12T20:00:00Z",
+        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026193_20260712_20_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_md_2026193_20260712_21_g19",
+        "label": "2026-07-12 21:00 UTC",
+        "time_iso": "2026-07-12T21:00:00Z",
+        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026193_20260712_21_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_md_2026193_20260712_22_g19",
+        "label": "2026-07-12 22:00 UTC",
+        "time_iso": "2026-07-12T22:00:00Z",
+        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026193_20260712_22_g19.json",
+        "grid_file": "frame_bbox"
+      },
+      {
+        "var": "sst_front",
+        "id": "sstfront_usec_md_2026193_20260712_23_g19",
+        "label": "2026-07-12 23:00 UTC",
+        "time_iso": "2026-07-12T23:00:00Z",
+        "json_path": "data/usec_md/sst_front/sstfront_usec_md_2026193_20260712_23_g19.json",
         "grid_file": "frame_bbox"
       }
     ]
