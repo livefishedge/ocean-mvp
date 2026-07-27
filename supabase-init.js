@@ -191,10 +191,30 @@
   }
   // Watch session expiry and toggle toast.
   sb.auth.onAuthStateChange((_event, session) => {
-    if (!session) { hideToast(); return; }
+    if (!session) {
+      hideToast();
+      // Clear the cross-subdomain login marker so fishedge.live falls back
+      // to the "Join the Pilot" landing CTAs.
+      try {
+        document.cookie = 'fishedge_logged_in=; Path=/; Domain=.fishedge.live; Max-Age=0; SameSite=Lax';
+      } catch (_) {}
+      return;
+    }
     const msToExp = (session.expires_at ? session.expires_at * 1000 : 0) - Date.now();
     if (msToExp > 0 && msToExp < EXPIRY_WARN_MS) showToast();
     else hideToast();
+
+    // Cross-subdomain login marker.
+    // Localstorage is per-origin: app.fishedge.live tokens aren't visible on
+    // fishedge.live.  Set a cookie on the PARENT domain so the marketing
+    // landing (fishedge.live) can adapt its CTAs to the captain's signed-in
+    // state.  Cookie is HttpOnly=false (must be readable by JS on the landing
+    // page), SameSite=Lax (allows cross-subdomain nav), Secure (HTTPS only),
+    // 7-day Max-Age (matches supabase refresh-token default).
+    try {
+      var oneWeek = 7 * 24 * 60 * 60;
+      document.cookie = 'fishedge_logged_in=1; Path=/; Domain=.fishedge.live; Max-Age=' + oneWeek + '; Secure; SameSite=Lax';
+    } catch (_) {}
   });
 
   // ---------- Public helpers ----------
