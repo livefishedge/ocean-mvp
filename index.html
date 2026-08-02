@@ -4499,7 +4499,7 @@ function makeMobileLandCanvas(bathy) {
         img.data[k + 2] = 178;
         img.data[k + 3] = 245;
       } else {
-        img.data[k + 3] = 0;
+        img.data[k] = 0; img.data[k + 1] = 0; img.data[k + 2] = 0; img.data[k + 3] = 0; // Bug fix 2026-08-02: explicitly zero RGB for missing pixels (OLCI swath corners)
       }
     }
   }
@@ -4968,8 +4968,6 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
   canvas.width = nx;
   canvas.height = ny;
   const ctx = canvas.getContext("2d", { willReadFrequently: false });
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, nx, ny);
   const img = ctx.createImageData(nx, ny);
   const xAxis = gridInfo.xAxis || [];
   const yAxis = gridInfo.yAxis || [];
@@ -5026,7 +5024,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
       const numericValue = Number(value);
       if (isMobileMissingValue(varKey, value, numericValue)) {
         // All missing data (including land/no-data-on-land) → fully transparent
-        img.data[k + 3] = 0;
+        img.data[k] = 0; img.data[k + 1] = 0; img.data[k + 2] = 0; img.data[k + 3] = 0; // Bug fix 2026-08-02: explicitly zero RGB for missing pixels (OLCI swath corners)
         continue;
       }
       const t = (cfg.transform(numericValue) - cfg.lo) / denom;
@@ -7241,14 +7239,16 @@ function thermalDateKey(ms) {
 }
 
 function thermalFrameTimeLabel(ms) {
+  // Bug fix 2026-08-02: was hardcoding timeZone: "UTC" and appending " UTC",
+  // which forced thermal-fronts-mode labels to UTC regardless of user's tz.
+  // Now uses browser local time (same convention as fmtLocalDateTime).
   return new Date(ms).toLocaleString(undefined, {
-    timeZone: "UTC",
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hour12: false
-  }) + " UTC";
+  });
 }
 
 function thermalColorForAge(ms, latestMs, oldestMs) {
