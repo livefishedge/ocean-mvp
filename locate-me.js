@@ -448,6 +448,72 @@
       onLocateClick: function () {
         handleLocateClick({ navigator: nav, location: loc, storage: storage, ol: ol, ui: ui });
       },
+    });
+    // Add a second mount inside the captain tools palette (upper-left, only
+    // visible in combined-mode via CSS) so the button reaches the captain's
+    // dashboard next to the existing captain-tool icons.
+    
+  // Locate-me button: 48x48 SVG icon, always visible at upper-left.
+  // Mounts into a fixed-position host (#fishedge-locate-host) so it's visible
+  // in ALL dashboard modes (regular + combined/captain), not gated by
+  // #captain-tools' display:none. Compass-needle SVG icon — clearly
+  // different from the waypoint crosshair.
+  function buildLocateButton(doc, hooks) {
+    hooks = hooks || {};
+    if (!doc || !doc.body) return null;
+
+    // Idempotent: if the button is already mounted, return early.
+    if (doc.getElementById('captain-locate-btn')) {
+      return { button: doc.getElementById('captain-locate-btn'), host: doc.getElementById('captain-tools') };
+    }
+
+    // Remove any stale fallback host from the previous version so we don't
+    // leave an empty floating div sitting at top:64px left:8px.
+    const staleHost = doc.getElementById('fishedge-locate-host');
+    if (staleHost && staleHost.parentNode) staleHost.parentNode.removeChild(staleHost);
+
+    // Primary mount: append as the LAST child of #captain-tools so the
+    // compass icon sits to the right of captain-add-tool (waypoint) in
+    // the same container row. Matches Mike's 2026-08-02 16:48 ask:
+    // 'compass icon to the right of waypoint icon, in the same
+    // container box.'
+    let host = doc.getElementById('captain-tools');
+    if (!host) {
+      // Fallback: if #captain-tools doesn't exist (rare — only on pages
+      // without the captain tools palette), create a fixed-position row
+      // at upper-left so the button is still reachable.
+      host = doc.createElement('div');
+      host.id = 'fishedge-locate-host';
+      host.style.cssText = 'position:fixed; top:8px; left:8px; z-index:1150; display:flex; flex-direction:row; gap:8px;';
+      doc.body.appendChild(host);
+    }
+
+    const btn = doc.createElement('button');
+    btn.id = 'captain-locate-btn';
+    btn.type = 'button';
+    btn.className = 'captain-tool-btn';
+    btn.title = 'Locate me';
+    btn.setAttribute('aria-label', 'Locate me');
+    btn.setAttribute('data-tool', 'locate');
+    // Compass needle: outer circle + north/south diamond halves + center dot.
+    // Distinctive from the waypoint crosshair (concentric circles + cross arms).
+    btn.innerHTML = '<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">'
+      + '<circle cx="11" cy="11" r="9" stroke="currentColor" stroke-width="1.6" fill="none"/>'
+      + '<path d="M11 3 L13.5 11 L11 9.5 L8.5 11 Z" fill="currentColor"/>'
+      + '<path d="M11 19 L13.5 11 L11 12.5 L8.5 11 Z" fill="currentColor" opacity="0.35"/>'
+      + '<circle cx="11" cy="11" r="1.2" fill="currentColor"/>'
+      + '</svg>';
+    btn.addEventListener('click', hooks.onLocateClick || function () {});
+    host.appendChild(btn);
+
+    console.info('[fishedge-locate] button mounted at #fishedge-locate-host');
+    return { button: btn, host: host };
+  }
+
+const captainUi = buildLocateButton(doc, {
+      onLocateClick: function () {
+        handleLocateClick({ navigator: nav, location: loc, storage: storage, ol: ol, ui: ui });
+      },
       onAutoFollowChange: function (checked) {
         STATE.autoFollow = checked;
         if (storage) {
@@ -584,6 +650,9 @@
     classifyError: classifyError,
     buildPositionFeatures: function (lat, lon, accuracyM) {
       return buildPositionFeatures(api.__ol || (typeof window !== 'undefined' ? window.ol : null), lat, lon, accuracyM);
+    },
+    buildLocateButton: function (doc, hooks) {
+      return buildLocateButton(doc || (typeof document !== 'undefined' ? document : null), hooks || {});
     },
     loadStoredPosition: function () { return loadStoredPosition(typeof localStorage !== 'undefined' ? localStorage : null, STORAGE_ENABLED_KEY, STORAGE_KEY); },
     clearStoredPosition: function () { return clearStoredPosition(typeof localStorage !== 'undefined' ? localStorage : null, STORAGE_KEY); },
