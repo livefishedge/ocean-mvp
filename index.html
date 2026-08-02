@@ -9,6 +9,28 @@
 
   <script src="https://cdn.plot.ly/plotly-2.34.0.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/ol@10.4.0/dist/ol.js"></script>
+<script>
+/* Instrumentation shim for locate-me.js (same pattern as the dashboard).
+   The viewer's map state is module-scoped, not on window. Patch the
+   OL Map constructor to track every created instance globally. */
+(function instrumentOlMap() {
+  if (typeof window === 'undefined') return;
+  if (!window.ol || !window.ol.Map) {
+    setTimeout(instrumentOlMap, 50);
+    return;
+  }
+  var OrigMap = window.ol.Map;
+  function TrackedMap(opts) {
+    var map = new OrigMap(opts);
+    (window.__fishedgeMaps = window.__fishedgeMaps || []).push(map);
+    return map;
+  }
+  try { Object.keys(OrigMap).forEach(function (k) { TrackedMap[k] = OrigMap[k]; }); } catch (_) {}
+  TrackedMap.prototype = OrigMap.prototype;
+  window.ol.Map = TrackedMap;
+})();
+</script>
+<script src="/locate-me.js?v=20260803"></script>
   <script src="https://cdn.jsdelivr.net/npm/ol-mapbox-style@13.4.1/dist/olms.js"></script>
   <script src="drawMobileUvArrowsLite.js?v=20260517-arrows2"></script>
   <!-- Auth + Analytics -->
@@ -946,6 +968,8 @@ body.combined-mode #combined-menu-btn{
   </style>
 </head>
 <body>
+<!-- host for fishedge-locate-me button (rendered by /locate-me.js) -->
+<div id="fishedge-locate-host" style="position:fixed;top:8px;right:8px;z-index:1100;"></div>
   <!-- Global error overlay: catches 'The string did not match the expected
        pattern' and any other uncaught errors on iOS Safari. Shows the
        actual error message + stack in a fixed div at the top of the page
@@ -6878,6 +6902,16 @@ async function renderMobileFrame(frameMeta) {
   }
   mobileMapState.currentGridInfo = gridInfo;
   mobileMapState.currentDataObj = dataObj;
+
+  // Defensive: currentVar can flip to a multi-layer value (e.g. 'combined')
+  // during the async fetch above, AFTER the early-return at the top of
+  // this function ran. The mobile raster canvas only handles single-variable
+  // 2-D rasters, so bail out cleanly for any non-raster view.
+  if (currentVar !== "chl" && currentVar !== "sst" && currentVar !== "uv" && currentVar !== "bathy") {
+    console.info("[OL mobile] renderMobileFrame: skipping — currentVar=" + currentVar + " has no 2-D mobile raster");
+    document.body.classList.remove("mobile-map-ready");
+    return false;
+  }
 
   const canvas = makeMobileRasterCanvas(currentVar, gridInfo, dataObj);
   // toBlob + createObjectURL: try first; fall back to toDataURL on iOS Safari
