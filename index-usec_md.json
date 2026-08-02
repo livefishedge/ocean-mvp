@@ -1,6 +1,6 @@
 {
   "region": "usec_md",
-  "last_updated": "2026-08-02T03:18:15.950820Z",
+  "last_updated": "2026-08-02T03:51:59.878734Z",
   "vars": [
     "chl",
     "sst",
@@ -10533,11 +10533,12 @@
     "id": "usec_md",
     "label": "US East Coast \u2014 Mid-Atlantic",
     "bbox": [
-      "-76.5",
-      "35.5",
-      "-71.5",
-      "40.5"
+      -76.5,
+      35.5,
+      -71.5,
+      40.5
     ],
-    "online_retention_days": 31
+    "online_retention_days": 31,
+    "bathy_path": "gebco_bath_latest/gebco_bathy.json"
   }
 }
