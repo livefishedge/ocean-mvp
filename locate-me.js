@@ -449,9 +449,14 @@
         handleLocateClick({ navigator: nav, location: loc, storage: storage, ol: ol, ui: ui });
       },
     });
-    // Add a second mount inside the captain tools palette (upper-left, only
-    // visible in combined-mode via CSS) so the button reaches the captain's
-    // dashboard next to the existing captain-tool icons.
+    // The script is loaded in <head>, before document.body exists, so the
+    // top-level buildLocateButton call below cannot mount anything. Build it
+    // here, after DOM-ready boot, alongside the toolbar UI.
+    buildLocateButton(doc, {
+      onLocateClick: function () {
+        handleLocateClick({ navigator: nav, location: loc, storage: storage, ol: ol, ui: ui });
+      },
+    });
     
   // Locate-me button: 48x48 SVG icon, always visible at upper-left.
   // Mounts into a fixed-position host (#fishedge-locate-host) so it's visible
