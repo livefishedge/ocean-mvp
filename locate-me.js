@@ -717,10 +717,12 @@ const captainUi = buildLocateButton(doc, {
       if (!doc) return false;
       boot();
       mountedWrap = doc.getElementById('fishedge-locate-wrap');
-      if (mountedWrap && mountObserver) {
-        mountObserver.observe(mountedWrap.parentNode || doc.body, {
+      if (mountObserver && doc.body) {
+        // Observe the whole body, not just the toolbar parent. The dashboard
+        // can replace/clear fixed overlays after map/auth initialization.
+        mountObserver.observe(doc.body, {
           childList: true,
-          subtree: false,
+          subtree: true,
         });
       }
       // Visible mount indicator for QA / DevTools
@@ -750,20 +752,18 @@ const captainUi = buildLocateButton(doc, {
     }, 0);
   }
 
-  // Watch for the button being removed (defensive — dashboard might re-render).
+  // Watch for the host/button being removed (defensive — dashboard map/auth
+  // initialization can re-render body descendants after our first mount).
   if (typeof MutationObserver === 'function') {
     mountObserver = new MutationObserver(function (mutations) {
-      if (!mountedWrap) return;
-      for (let i = 0; i < mutations.length; i++) {
-        const m = mutations[i];
-        for (let j = 0; j < m.removedNodes.length; j++) {
-          if (m.removedNodes[j] === mountedWrap) {
-            // Re-mount. Skip if boot isn't ready.
-            try { boot(); mountedWrap = document.getElementById('fishedge-locate-wrap'); } catch (_) {}
-            return;
-          }
-        }
-      }
+      const doc = (typeof document !== 'undefined') ? document : null;
+      if (!doc || !doc.body || doc.getElementById('captain-locate-btn')) return;
+      // Re-mount if another script removed the host or its button. boot() is
+      // idempotent and now independently repairs the fixed locate surface.
+      try {
+        boot();
+        mountedWrap = doc.getElementById('fishedge-locate-wrap');
+      } catch (_) {}
     });
   }
 
