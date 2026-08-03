@@ -467,24 +467,18 @@
       return { button: doc.getElementById('captain-locate-btn'), host: doc.getElementById('captain-tools') };
     }
 
-    // Remove any stale fallback host from the previous version so we don't
-    // leave an empty floating div sitting at top:64px left:8px.
-    const staleHost = doc.getElementById('fishedge-locate-host');
-    if (staleHost && staleHost.parentNode) staleHost.parentNode.removeChild(staleHost);
-
-    // Primary mount: append as the LAST child of #captain-tools so the
-    // compass icon sits to the right of captain-add-tool (waypoint) in
-    // the same container row. Matches Mike's 2026-08-02 16:48 ask:
-    // 'compass icon to the right of waypoint icon, in the same
-    // container box.'
-    let host = doc.getElementById('captain-tools');
+    // Bug fix 2026-08-02: mount into the always-visible #fishedge-locate-host
+    // (position:fixed; top:8px; right:8px; z-index:1100) instead of
+    // #captain-tools, which has CSS display:none outside body.combined-mode.
+    // The icon was present in the DOM but invisible in normal dashboard mode.
+    // The pre-existing #fishedge-locate-host div is already in index.html
+    // (line 975) and is always rendered.
+    let host = doc.getElementById('fishedge-locate-host');
     if (!host) {
-      // Fallback: if #captain-tools doesn't exist (rare — only on pages
-      // without the captain tools palette), create a fixed-position row
-      // at upper-left so the button is still reachable.
+      // Fallback: if the host div is missing (rare), create it.
       host = doc.createElement('div');
       host.id = 'fishedge-locate-host';
-      host.style.cssText = 'position:fixed; top:8px; left:8px; z-index:1150; display:flex; flex-direction:row; gap:8px;';
+      host.style.cssText = 'position:fixed; top:8px; right:8px; z-index:1100; display:flex; flex-direction:row; gap:8px;';
       doc.body.appendChild(host);
     }
 
