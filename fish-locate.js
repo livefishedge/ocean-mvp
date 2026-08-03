@@ -411,15 +411,17 @@
   // BOOT
   // =========================================================================
 
-  // Idempotency guard: boot() is called from multiple paths (DOMContentLoaded,
+    // Idempotency guard: boot() is called from multiple paths (DOMContentLoaded,
   // setTimeout retry, rAF retry, MutationObserver). Make it safe to call repeatedly
   // by short-circuiting if the button is already in the DOM.
   function boot(env) {
     env = env || {};
     const doc = env.document || (typeof document !== 'undefined' ? document : null);
-    if (doc && doc.getElementById('fishedge-locate-wrap')) {
-      // Already mounted — don't re-create.
-      return doc.getElementById('fishedge-locate-wrap');
+    const existingWrap = doc && doc.getElementById('fishedge-locate-wrap');
+    const existingLocate = doc && doc.getElementById('captain-locate-btn');
+    if (existingWrap && existingLocate) {
+      // Both UI surfaces are present — don't re-create either one.
+      return existingWrap;
     }
     const nav = env.navigator || (typeof navigator !== 'undefined' ? navigator : null);
     const ol = env.ol || (typeof window !== 'undefined' ? window.ol : null);
@@ -444,7 +446,7 @@
     STATE.persistEnabled = persistEnabled;
     STATE.autoFollow = autoFollowEnabled;
 
-    const ui = buildToolbarButton(doc, {
+    const ui = existingWrap ? null : buildToolbarButton(doc, {
       onLocateClick: function () {
         handleLocateClick({ navigator: nav, location: loc, storage: storage, ol: ol, ui: ui });
       },
@@ -467,11 +469,6 @@
     hooks = hooks || {};
     if (!doc || !doc.body) return null;
 
-    // Idempotent: if the button is already mounted, return early.
-    if (doc.getElementById('captain-locate-btn')) {
-      return { button: doc.getElementById('captain-locate-btn'), host: doc.getElementById('captain-tools') };
-    }
-
     // Bug fix 2026-08-02: mount into the always-visible #fishedge-locate-host
     // (position:fixed; top:8px; right:8px; z-index:1100) instead of
     // #captain-tools, which has CSS display:none outside body.combined-mode.
@@ -487,23 +484,33 @@
       doc.body.appendChild(host);
     }
 
-    const btn = doc.createElement('button');
-    btn.id = 'captain-locate-btn';
-    btn.type = 'button';
-    btn.className = 'captain-tool-btn';
-    btn.title = 'Locate me';
-    btn.setAttribute('aria-label', 'Locate me');
-    btn.setAttribute('data-tool', 'locate');
-    // Compass needle: outer circle + north/south diamond halves + center dot.
-    // Distinctive from the waypoint crosshair (concentric circles + cross arms).
-    btn.innerHTML = '<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">'
-      + '<circle cx="11" cy="11" r="9" stroke="currentColor" stroke-width="1.6" fill="none"/>'
-      + '<path d="M11 3 L13.5 11 L11 9.5 L8.5 11 Z" fill="currentColor"/>'
-      + '<path d="M11 19 L13.5 11 L11 12.5 L8.5 11 Z" fill="currentColor" opacity="0.35"/>'
-      + '<circle cx="11" cy="11" r="1.2" fill="currentColor"/>'
-      + '</svg>';
-    btn.addEventListener('click', hooks.onLocateClick || function () {});
-    host.appendChild(btn);
+    // Normalize an already-created button as well. Earlier boot paths could
+    // leave it in the wrong parent or omit the Combined-mode clone.
+    let btn = doc.getElementById('captain-locate-btn');
+    if (btn) {
+      if (btn.parentNode !== host) host.appendChild(btn);
+      if (!btn.getAttribute('data-fishedge-locate-wired')) {
+        btn.addEventListener('click', hooks.onLocateClick || function () {});
+        btn.setAttribute('data-fishedge-locate-wired', '1');
+      }
+    } else {
+      btn = doc.createElement('button');
+      btn.id = 'captain-locate-btn';
+      btn.type = 'button';
+      btn.className = 'captain-tool-btn';
+      btn.title = 'Locate me';
+      btn.setAttribute('aria-label', 'Locate me');
+      btn.setAttribute('data-tool', 'locate');
+      btn.innerHTML = '<svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        + '<circle cx="11" cy="11" r="9" stroke="currentColor" stroke-width="1.6" fill="none"/>'
+        + '<path d="M11 3 L13.5 11 L11 9.5 L8.5 11 Z" fill="currentColor"/>'
+        + '<path d="M11 19 L13.5 11 L11 12.5 L8.5 11 Z" fill="currentColor" opacity="0.35"/>'
+        + '<circle cx="11" cy="11" r="1.2" fill="currentColor"/>'
+        + '</svg>';
+      btn.addEventListener('click', hooks.onLocateClick || function () {});
+      btn.setAttribute('data-fishedge-locate-wired', '1');
+      host.appendChild(btn);
+    }
 
     // Combined-mode clone: also append a separate button instance to
     // #captain-tools so the compass icon sits next to the waypoint tool
@@ -512,7 +519,7 @@
     // Uses a sibling DOM node (not appendChild on the same element) because
     // appendChild would move the button out of #fishedge-locate-host.
     const captainTools = doc.getElementById('captain-tools');
-    if (captainTools) {
+    if (captainTools && !doc.getElementById('captain-locate-btn-combined')) {
       const btnCombined = doc.createElement('button');
       btnCombined.id = 'captain-locate-btn-combined';
       btnCombined.type = 'button';
