@@ -500,7 +500,28 @@
     btn.addEventListener('click', hooks.onLocateClick || function () {});
     host.appendChild(btn);
 
-    console.info('[fishedge-locate] button mounted at #fishedge-locate-host');
+    // Combined-mode clone: also append a separate button instance to
+    // #captain-tools so the compass icon sits next to the waypoint tool
+    // when body.combined-mode is active (the host is display:none outside
+    // that mode, so the clone is harmless in normal dashboard mode).
+    // Uses a sibling DOM node (not appendChild on the same element) because
+    // appendChild would move the button out of #fishedge-locate-host.
+    const captainTools = doc.getElementById('captain-tools');
+    if (captainTools) {
+      const btnCombined = doc.createElement('button');
+      btnCombined.id = 'captain-locate-btn-combined';
+      btnCombined.type = 'button';
+      btnCombined.className = 'captain-tool-btn';
+      btnCombined.title = 'Locate me';
+      btnCombined.setAttribute('aria-label', 'Locate me');
+      btnCombined.setAttribute('data-tool', 'locate');
+      btnCombined.innerHTML = btn.innerHTML;
+      btnCombined.addEventListener('click', hooks.onLocateClick || function () {});
+      captainTools.appendChild(btnCombined);
+    }
+
+    console.info('[fishedge-locate] button mounted at #fishedge-locate-host' +
+                 (captainTools ? ' (clone at #captain-tools for Combined mode)' : ''));
     return { button: btn, host: host };
   }
 
