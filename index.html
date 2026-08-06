@@ -5508,6 +5508,13 @@ async function renderCombinedMode() {
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
     const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon4326, lat4326);
     if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
+    // If the cursor is within 14px of a thermal-front hit point, also show
+    // gradient + ΔSST in the persistent readout — same format as the
+    // hover-tip, but lives in the visible bottom-right box. Mike wants the
+    // gradient + ΔSST info "at cursor position" so the user doesn't have
+    // to mouse-track a tiny floating tooltip.
+    const frontHover = combinedNearestFrontHover(map, ev.coordinate, ev.pixel);
+    if (frontHover) parts.push(frontHover);
     if (readoutEl) readoutEl.textContent = parts.join("  ");
     console.log("[combined:pointermove]", parts.join("  "), "| grid:", !!window._combinedChlGrid, "| data:", !!window._combinedChlData);
     const bathyFeature = map.forEachFeatureAtPixel(ev.pixel, feature => (
@@ -5543,6 +5550,11 @@ async function renderCombinedMode() {
     const parts = [`${lat4326.toFixed(4)}, ${lon4326.toFixed(4)}`];
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
     if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
+    // Mirror pointermove: include front info on click so the persistent
+    // readout doesn't fall back to lat/lon+CHL+SST only and hide the
+    // gradient/ΔSST the user came for.
+    const frontHover = combinedNearestFrontHover(map, ev.coordinate, ev.pixel);
+    if (frontHover) parts.push(frontHover);
     if (readoutEl) readoutEl.textContent = parts.join("  ");
   });
   map.getTargetElement()?.addEventListener("pointerleave", () => {
@@ -9954,18 +9966,18 @@ function installCaptainToolHandler(map) {
   if (_captainMapClickHandler) { map.un('click', _captainMapClickHandler); _captainMapClickHandler = null; }
   // Captain's Dashboard has its own persistent readout (#combined-readout,
   // z-index 1120) sitting on top of #readout (z-index 950) at the same
-  // bottom-right position. setReadout() targets #readout, so anything we
-  // write through it is hidden behind #combined-readout in combined mode —
-  // that's why thermal-fronts gradient + ΔSST click readout vanished on
-  // mobile. Route click readouts to #combined-readout (with #readout as a
-  // fallback so non-combined callers keep working).
+  // bottom-right position. setReadout() targets #readout, so writing
+  // through it would put a duplicate readout *behind* the combined one
+  // and visually leak out of its bounds when the click text was wider
+  // than the lat/lon+CHL+SST text — that's the "double readouts
+  // overlapping" Mike reported after the v1 fix. Only write to the
+  // visible #combined-readout; #readout is left alone.
   const capReadoutEl = document.getElementById("combined-readout");
   const capSetReadout = (txt) => {
     if (capReadoutEl) {
       capReadoutEl.textContent = txt || "—, —";
       capReadoutEl.style.display = "inline-block";
     }
-    setReadout(txt);
   };
   _captainMapClickHandler = (ev) => {
     if (!ev.coordinate) return;
