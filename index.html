@@ -597,6 +597,8 @@ body.combined-mode #combined-menu-btn{
     body.combined-mode #plot{ display:none !important; }
     body.combined-mode #map{ display:block !important; position:absolute; top:0; left:0; right:0; bottom:0; z-index:1000; width:100%; height:100%; cursor:crosshair; }
     body.combined-mode #combined-readout{ display:block !important; }
+    body.combined-mode #readout{ display:none !important; }
+    body:not(.combined-mode) #combined-readout{ display:none !important; }
     body.combined-mode #status{ display:none !important; }
 
     body.combined-mode .combined-mode-row button{
@@ -6611,7 +6613,7 @@ function combinedNearestFrontHover(map, coord, pixel) {
   // Collect all front points within 14px radius
   const nearby = [];
   for (const point of points) {
-    const pointPixel = map.getPixelFromCoordinate([point.lon, point.lat]);
+    const pointPixel = map.getPixelFromCoordinate(toMapProjection([point.lon, point.lat]));
     if (!pointPixel) continue;
     const d = Math.hypot(pointPixel[0] - pixel[0], pointPixel[1] - pixel[1]);
     if (d <= 14) nearby.push(point);
@@ -7795,7 +7797,7 @@ function thermalRenderReadout(coord, pixel) {
     // Animation mode: find nearest front point within 14px
     const hit = thermalNearestGradient(coord);
     if (pixel && hit.point && Number.isFinite(hit.gradient)) {
-      const hitPixel = thermalFrontState.map?.getPixelFromCoordinate(hit.point);
+      const hitPixel = thermalFrontState.map?.getPixelFromCoordinate(toMapProjection([...hit.point]));
       if (hitPixel && Math.hypot(hitPixel[0] - pixel[0], hitPixel[1] - pixel[1]) <= 14) {
         cursorCoord = hit.point;
         readoutCoord = hit.point;
@@ -9964,6 +9966,7 @@ let _captainMapClickHandler = null;
 
 function installCaptainToolHandler(map) {
   if (_captainMapClickHandler) { map.un('click', _captainMapClickHandler); _captainMapClickHandler = null; }
+  if (currentVar !== "combined") return;
   // Captain's Dashboard has its own persistent readout (#combined-readout,
   // z-index 1120) sitting on top of #readout (z-index 950) at the same
   // bottom-right position. setReadout() targets #readout, so writing
@@ -9980,6 +9983,7 @@ function installCaptainToolHandler(map) {
     }
   };
   _captainMapClickHandler = (ev) => {
+    if (currentVar !== "combined") return;
     if (!ev.coordinate) return;
     // Combined map is EPSG:3857; transform to 4326 before treating as lon/lat.
     const xy4326 = ol.proj.transform(ev.coordinate, "EPSG:3857", "EPSG:4326");
@@ -10036,7 +10040,7 @@ function combinedFrontClickInfo(map, coord, pixel) {
   if (!map || !coord || !pixel || !points.length) return null;
   const nearby = [];
   for (const pt of points) {
-    const ptPixel = map.getPixelFromCoordinate([pt.lon, pt.lat]);
+    const ptPixel = map.getPixelFromCoordinate(toMapProjection([pt.lon, pt.lat]));
     if (!ptPixel) continue;
     const d = Math.hypot(ptPixel[0] - pixel[0], ptPixel[1] - pixel[1]);
     if (d <= 14) nearby.push(pt);
