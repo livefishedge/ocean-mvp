@@ -672,7 +672,8 @@ body.combined-mode #combined-menu-btn{
     #captain-save-btn{
       display:none;
       position:fixed;
-      top:44px; left:8px;
+      left:8px;
+      top:0;
       z-index:1150;
       background:#1d4f91;
       border:1px solid #4d7dff;
@@ -684,7 +685,6 @@ body.combined-mode #combined-menu-btn{
       font-size:12px;
       font-weight:700;
     }
-    body.combined-mode #captain-save-btn{ display:flex; }
     #captain-dist-panel.visible, #captain-pts-panel.visible{ display:block !important; }
     #combined-readout{
       display:none;
@@ -1214,7 +1214,7 @@ body.combined-mode #combined-menu-btn{
       </svg>
     </button>
   </div>
-  <button id="captain-save-btn" title="Save waypoints" style="display:none;position:fixed;left:8px;top:44px;z-index:1150;background:#1d4f91;border:1px solid #4d7dff;border-radius:8px;color:#fff;padding:0 10px;height:28px;cursor:pointer;font-size:12px;font-weight:700;">
+  <button id="captain-save-btn" title="Save waypoints" style="display:none;position:fixed;left:8px;top:0;z-index:1150;background:#1d4f91;border:1px solid #4d7dff;border-radius:8px;color:#fff;padding:0 10px;height:28px;cursor:pointer;font-size:12px;font-weight:700;">
     Save Waypoints
   </button>
   <div id="captain-pts-panel" style="display:none;position:fixed;top:80px;left:8px;z-index:1150;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 14px;width:280px;max-height:320px;overflow-y:auto;font-size:12px;color:var(--fg);">
@@ -9808,6 +9808,7 @@ function applyLoadedWaypoints(pts) {
   if (map) renderPtsLayer(map);
   updatePtsPanel();
   document.getElementById('captain-save-btn')?.style.setProperty('display', 'flex');
+  requestAnimationFrame(positionSaveBtnBelowPanel);
 }
 
 // ── Distance tool ────────────────────────────────────────────────────────
@@ -9931,6 +9932,7 @@ function toggleAddTool(map) {
     document.getElementById('captain-add-tool')?.classList.add('active');
     document.getElementById('captain-pts-panel')?.classList.add('visible');
     updatePtsPanel();
+    requestAnimationFrame(positionSaveBtnBelowPanel);
     map.getTargetElement().style.cursor = 'crosshair';
   }
 }
@@ -9954,6 +9956,7 @@ function updatePtsPanel() {
   if (!list) return;
   if (captainAddTool.points.length === 0) {
     list.innerHTML = '<div style="color:#7a8fa8;font-size:11px;">Click map to drop waypoints</div>';
+    requestAnimationFrame(positionSaveBtnBelowPanel);
     return;
   }
   list.innerHTML = captainAddTool.points.map((p, i) => {
@@ -9967,7 +9970,22 @@ function updatePtsPanel() {
       <div style="color:#9fb0c3;font-size:11px;">CHL ${chlStr} &nbsp;|&nbsp; SST ${sstStr}${p.freshness !== null ? ` &nbsp;|&nbsp; ${p.freshness}h ago` : ''}</div>
     </div>`;
   }).join('');
+  requestAnimationFrame(positionSaveBtnBelowPanel);
 }
+
+// Position the Save Waypoints button directly below the waypoints dropdown menu.
+// The button stays visible while waypoints exist; no close/dismiss control.
+function positionSaveBtnBelowPanel() {
+  const btn = document.getElementById('captain-save-btn');
+  const panel = document.getElementById('captain-pts-panel');
+  if (!btn || !panel) return;
+  if (btn.style.display === 'none' || getComputedStyle(btn).display === 'none') return;
+  if (!panel.classList.contains('visible')) return;
+  const panelRect = panel.getBoundingClientRect();
+  if (panelRect.height === 0) return;
+  btn.style.top = (panelRect.bottom + 8) + 'px';
+}
+window.addEventListener('resize', positionSaveBtnBelowPanel);
 
 function renderPtsLayer(map) {
   if (captainAddTool.markerLayer) map.removeLayer(captainAddTool.markerLayer);
@@ -9998,6 +10016,7 @@ function addWaypoint(lon, lat, map) {
   renderPtsLayer(map);
   updatePtsPanel();
   document.getElementById('captain-save-btn')?.style.setProperty('display', 'flex');
+  requestAnimationFrame(positionSaveBtnBelowPanel);
 }
 
 window.removeWaypoint = function(idx) {
