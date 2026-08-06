@@ -6564,7 +6564,7 @@ function buildThermalHoursComposite(map, hours) {
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
       const props = sf?.properties || {};
-      const deltaSst = thermalDeltaSstForFeature(props);
+      const deltaSst = thermalDeltaSstForFeature(props, i);
       for (let i = 0; i < coords.length; i++) {
         const pt = coords[i];
         if (!Array.isArray(pt) || pt.length < 2) continue;
@@ -7377,21 +7377,18 @@ function thermalGradientForFeaturePoint(props, index) {
   const gradMap = Array.isArray(props?.gradient_map) ? props.gradient_map : null;
   if (gradMap && index < gradMap.length) {
     const exact = Number(gradMap[index]);
-    if (Number.isFinite(exact)) return exact;
-    for (let offset = 1; offset < gradMap.length; offset++) {
-      const left = index - offset;
-      const right = index + offset;
-      const leftValue = left >= 0 ? Number(gradMap[left]) : NaN;
-      if (Number.isFinite(leftValue)) return leftValue;
-      const rightValue = right < gradMap.length ? Number(gradMap[right]) : NaN;
-      if (Number.isFinite(rightValue)) return rightValue;
-    }
+    return Number.isFinite(exact) && exact > 0 ? exact : null;
   }
   const g = Number(props?.gradient_per_km);
-  return Number.isFinite(g) ? g : null;
+  return Number.isFinite(g) && g > 0 ? g : null;
 }
 
-function thermalDeltaSstForFeature(props) {
+function thermalDeltaSstForFeature(props, index) {
+  const deltaMap = Array.isArray(props?.delta_sst_map) ? props.delta_sst_map : null;
+  if (deltaMap && Number.isInteger(index) && index < deltaMap.length) {
+    const exact = Number(deltaMap[index]);
+    return Number.isFinite(exact) && exact > 0 ? { label: "ΔSST", value: exact } : null;
+  }
   const median = Number(props?.strength_median);
   const max = Number(props?.strength_max);
   if (Number.isFinite(median)) return { label: "ΔSST", value: median };
@@ -7739,7 +7736,7 @@ function thermalNearestGradient(coord) {
           bestDist = d;
           bestPoint = [ptLon, ptLat];
           bestGrad = thermalGradientForFeaturePoint(props, i);
-          bestDelta = thermalDeltaSstForFeature(props);
+          bestDelta = thermalDeltaSstForFeature(props, i);
         }
       }
     }
@@ -7766,7 +7763,7 @@ function thermalRadiusMean(coord) {
         if (d > RADIUS_KM) continue;
         const g = thermalGradientForFeaturePoint(props, i);
         if (g !== null && Number.isFinite(g)) gradVals.push(g);
-        const ds = thermalDeltaSstForFeature(props);
+        const ds = thermalDeltaSstForFeature(props, i);
         if (ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
       }
     }
@@ -7881,7 +7878,7 @@ function thermalDailyStats() {
         const g = thermalGradientForFeaturePoint(props, i);
         if (g !== null && Number.isFinite(g)) gradVals.push(g);
       }
-      const ds = thermalDeltaSstForFeature(props);
+      const ds = thermalDeltaSstForFeature(props, i);
       if (ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
     }
   }
