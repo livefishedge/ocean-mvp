@@ -6616,13 +6616,13 @@ function buildThermalHoursComposite(map, hours) {
 function combinedNearestFrontHover(map, coord, pixel) {
   const points = window._combinedFrontHoverPoints || [];
   if (!map || !coord || !pixel || !points.length) return null;
-  // Collect all front points within 14px radius
+  // Zoom-independent hit radius — Haversine in km rather than the old
+  // 14-px screen-pixel radius that became effectively zero-area at high zoom.
+  // Clicking near (not exactly on) a front line still counts.
   const nearby = [];
   for (const point of points) {
-    const pointPixel = map.getPixelFromCoordinate(toMapProjection([point.lon, point.lat]));
-    if (!pointPixel) continue;
-    const d = Math.hypot(pointPixel[0] - pixel[0], pointPixel[1] - pixel[1]);
-    if (d <= 14) nearby.push(point);
+    const d = thermalHaversineKm(coord, [point.lon, point.lat]);
+    if (d <= MAX_THERMAL_HIT_DISTANCE_KM) nearby.push(point);
   }
   if (!nearby.length) return null;
   // Average valid gradient and SST values across nearby points
@@ -7622,6 +7622,116 @@ function thermalFeatureStyle(feature, resolution, map) {
 // Mike, 2026-06-12: "When hovered upon, should show the time or
 // date of the points." Renders a small floating tip with a colored
 // dot (matches the point's rainbow color) + the date/hour label.
+// Zoom-independent hit radius for thermal fronts. Daily mode already
+// uses 5 km for its 5-km-radius mean; 8 km is the hourly-mode hit
+// radius — generous enough that clicking near (not exactly on) a
+// front line always counts, regardless of zoom level.
+const MAX_THERMAL_HIT_DISTANCE_KM = 8;
+
+// Snap-to-segment proximity for thermal fronts. Unlike
+// thermalNearestGradient (which finds the closest vertex), this
+// measures distance to the closest point on any front line segment.
+// Clicking between two vertices on the same line still snaps to it.
+// Uses Haversine so the result is in real-world km regardless of zoom.
+// When the click is mid-segment, gradient + ΔSST are interpolated
+// linearly between the two endpoint vertices.
+function thermalNearestFrontHit(coord) {
+  const lon = coord[0];
+  const lat = coord[1];
+  let bestDist = Infinity;
+  let bestPoint = null;
+  let bestGrad = null;
+  let bestDelta = null;
+  // Also track nearest valid (non-null gradient) separately for fallback.
+  let validDist = Infinity;
+  let validPoint = null;
+  let validGrad = null;
+  let validDelta = null;
+  const toRad = Math.PI / 180;
+  const R = 6371;
+  for (const item of thermalDisplayedFrontItems()) {
+    const features = Array.isArray(item.data?.features) ? item.data.features : [];
+    for (const feature of features) {
+      const coords = feature?.geometry?.coordinates || [];
+      const props = feature?.properties || {};
+      if (!Array.isArray(coords) || coords.length < 1) continue;
+      for (let i = 0; i < coords.length; i++) {
+        const a = coords[i];
+        if (!Array.isArray(a) || a.length < 2) continue;
+        const aLon = Number(a[0]);
+        const aLat = Number(a[1]);
+        if (!Number.isFinite(aLon) || !Number.isFinite(aLat)) continue;
+        // Snap to vertex
+        let candDist = thermalHaversineKm([lon, lat], [aLon, aLat]);
+        let candLon = aLon, candLat = aLat;
+        let candSegT = 0;
+        // Snap to segment between this vertex and the next
+        if (i + 1 < coords.length) {
+          const b = coords[i + 1];
+          if (Array.isArray(b) && b.length >= 2) {
+            const bLon = Number(b[0]);
+            const bLat = Number(b[1]);
+            if (Number.isFinite(bLon) && Number.isFinite(bLat)) {
+              const meanLat = (aLat + bLat) * 0.5 * toRad;
+              const cosLat = Math.cos(meanLat);
+              const ax = aLon * toRad * R * cosLat;
+              const ay = aLat * toRad * R;
+              const bx = bLon * toRad * R * cosLat;
+              const by = bLat * toRad * R;
+              const px = lon * toRad * R * cosLat;
+              const py = lat * toRad * R;
+              const dx = bx - ax, dy = by - ay;
+              const lenSq = dx * dx + dy * dy;
+              let t = lenSq > 0 ? ((px - ax) * dx + (py - ay) * dy) / lenSq : 0;
+              t = Math.max(0, Math.min(1, t));
+              const projLon = aLon + t * (bLon - aLon);
+              const projLat = aLat + t * (bLat - aLat);
+              const segDist = thermalHaversineKm([lon, lat], [projLon, projLat]);
+              if (segDist < candDist) {
+                candDist = segDist;
+                candLon = projLon;
+                candLat = projLat;
+                candSegT = t;
+              }
+            }
+          }
+        }
+        const grad = thermalGradientForFeaturePoint(props, i);
+        const delta = thermalDeltaSstForFeature(props, i);
+        let useGrad = grad, useDelta = delta;
+        if (candSegT > 0 && candSegT < 1 && i + 1 < coords.length) {
+          const nextG = thermalGradientForFeaturePoint(props, i + 1);
+          const nextD = thermalDeltaSstForFeature(props, i + 1);
+          if (Number.isFinite(grad) && Number.isFinite(nextG)) {
+            useGrad = grad + (nextG - grad) * candSegT;
+          }
+          if (delta && nextD && Number.isFinite(delta.value) && Number.isFinite(nextD.value)) {
+            useDelta = { label: delta.label, value: delta.value + (nextD.value - delta.value) * candSegT };
+          }
+        }
+        if (candDist < bestDist) {
+          bestDist = candDist;
+          bestPoint = [candLon, candLat];
+          bestGrad = useGrad;
+          bestDelta = useDelta;
+        }
+        if (Number.isFinite(useGrad)) {
+          if (candDist < validDist) {
+            validDist = candDist;
+            validPoint = [candLon, candLat];
+            validGrad = useGrad;
+            validDelta = useDelta;
+          }
+        }
+      }
+    }
+  }
+  if (validGrad !== null) {
+    return { dist: validDist, gradient: validGrad, point: validPoint, deltaSst: validDelta };
+  }
+  return { dist: bestDist, gradient: bestGrad, point: bestPoint, deltaSst: bestDelta };
+}
+
 function thermalFrontHoverTip(coord, pixel) {
   const tipEl = document.getElementById("thermal-hover-tip");
   if (!tipEl || !thermalFrontState.frontLayer) return;
@@ -7641,40 +7751,28 @@ function thermalFrontHoverTip(coord, pixel) {
   if (!map || !pixel) { tipEl.style.display = "none"; return; }
   const source = thermalFrontState.frontLayer.getSource();
   if (!source) { tipEl.style.display = "none"; return; }
-  // 14px square around the cursor in coord space
-  const halfSize = 14;
-  const minPx = [pixel[0] - halfSize, pixel[1] - halfSize];
-  const maxPx = [pixel[0] + halfSize, pixel[1] + halfSize];
-  let minCoord, maxCoord;
-  try {
-    minCoord = map.getCoordinateFromPixel(minPx);
-    maxCoord = map.getCoordinateFromPixel(maxPx);
-  } catch (_) { tipEl.style.display = "none"; return; }
-  if (!Number.isFinite(minCoord?.[0]) || !Number.isFinite(maxCoord?.[0])) {
-    tipEl.style.display = "none";
-    return;
-  }
-  const extent = [
-    Math.min(minCoord[0], maxCoord[0]),
-    Math.min(minCoord[1], maxCoord[1]),
-    Math.max(minCoord[0], maxCoord[0]),
-    Math.max(minCoord[1], maxCoord[1])
-  ];
-  const candidates = source.getFeaturesInExtent(extent);
+  // Zoom-independent bounding box (~0.1° lon/lat covers ~11 km at mid
+  // latitudes), superseding the old 14-px box that became effectively
+  // zero-area at high zoom and made hover tips vanish.
+  const hitDeg = 0.1;
+  const candidates = source.getFeaturesInExtent([
+    coord[0] - hitDeg, coord[1] - hitDeg,
+    coord[0] + hitDeg, coord[1] + hitDeg
+  ]);
   if (!candidates.length) { tipEl.style.display = "none"; return; }
-  // Pick nearest by screen-pixel distance (handles map projection well)
+  // Pick nearest by Haversine (zoom-independent, supersedes the old
+  // 14-px screen-pixel nearest-by-distance step).
   let best = null;
   let bestDist = Infinity;
   for (const f of candidates) {
     const geom = f.getGeometry();
     if (!(geom instanceof ol.geom.Point)) continue;
     const p = geom.getCoordinates();
-    const px = map.getPixelFromCoordinate(p);
-    if (!Number.isFinite(px?.[0])) continue;
-    const d = Math.hypot(px[0] - pixel[0], px[1] - pixel[1]);
+    if (!Number.isFinite(p?.[0])) continue;
+    const d = thermalHaversineKm(coord, p);
     if (d < bestDist) { bestDist = d; best = f; }
   }
-  if (!best || bestDist > 14) { tipEl.style.display = "none"; return; }
+  if (!best || bestDist > MAX_THERMAL_HIT_DISTANCE_KM) { tipEl.style.display = "none"; return; }
   const color = best.get("color") || "hsl(282, 92%, 52%)";
   const label = best.get("hoverLabel") || best.get("dayDate") || "";
   tipEl.innerHTML = `<span class="tip-dot" style="background:${color};border-color:${color}"></span>${label}`;
@@ -7818,16 +7916,15 @@ function thermalRenderReadout(coord, pixel) {
     const mean = thermalRadiusMean(coord);
     if (mean) { gradient = mean.gradient; deltaSst = mean.deltaSst; }
   } else {
-    // Animation mode: find nearest front point within 14px
-    const hit = thermalNearestGradient(coord);
-    if (pixel && hit.point && Number.isFinite(hit.gradient)) {
-      const hitPixel = thermalFrontState.map?.getPixelFromCoordinate(toMapProjection([...hit.point]));
-      if (hitPixel && Math.hypot(hitPixel[0] - pixel[0], hitPixel[1] - pixel[1]) <= 14) {
-        cursorCoord = hit.point;
-        readoutCoord = hit.point;
-        gradient = hit.gradient;
-        deltaSst = hit.deltaSst;
-      }
+    // Animation mode: snap to the nearest point on any front line segment
+    // (not just the nearest vertex) with a zoom-independent 8 km hit radius.
+    // Clicking between two vertices on the same line still snaps to it.
+    const hit = thermalNearestFrontHit(coord);
+    if (pixel && hit.point && Number.isFinite(hit.gradient) && hit.dist <= MAX_THERMAL_HIT_DISTANCE_KM) {
+      cursorCoord = hit.point;
+      readoutCoord = hit.point;
+      gradient = hit.gradient;
+      deltaSst = hit.deltaSst;
     }
   }
   if (thermalFrontState.cursorFeature) thermalFrontState.cursorFeature.getGeometry().setCoordinates(cursorCoord);
@@ -9990,7 +10087,6 @@ let _captainMapClickHandler = null;
 
 function installCaptainToolHandler(map) {
   if (_captainMapClickHandler) { map.un('click', _captainMapClickHandler); _captainMapClickHandler = null; }
-  if (currentVar !== "combined") return;
   // Captain's Dashboard has its own persistent readout (#combined-readout,
   // z-index 1120) sitting on top of #readout (z-index 950) at the same
   // bottom-right position. setReadout() targets #readout, so writing
@@ -10007,7 +10103,10 @@ function installCaptainToolHandler(map) {
     }
   };
   _captainMapClickHandler = (ev) => {
-    if (currentVar !== "combined") return;
+    // On single-product pages this handler exists only to service the
+    // distance/waypoint tools. Ordinary clicks remain with product readouts.
+    const toolsActive = captainDistTool.active || captainAddTool.active;
+    if (currentVar !== "combined" && !toolsActive) return;
     if (!ev.coordinate) return;
     // Combined map is EPSG:3857; transform to 4326 before treating as lon/lat.
     const xy4326 = ol.proj.transform(ev.coordinate, "EPSG:3857", "EPSG:4326");
@@ -10062,12 +10161,13 @@ function installCaptainToolHandler(map) {
 function combinedFrontClickInfo(map, coord, pixel) {
   const points = window._combinedFrontHoverPoints || [];
   if (!map || !coord || !pixel || !points.length) return null;
+  // Zoom-independent hit radius — Haversine in km, matching the
+  // pointermove hover. Clicking near (not exactly on) a front line
+  // still counts regardless of zoom level.
   const nearby = [];
   for (const pt of points) {
-    const ptPixel = map.getPixelFromCoordinate(toMapProjection([pt.lon, pt.lat]));
-    if (!ptPixel) continue;
-    const d = Math.hypot(ptPixel[0] - pixel[0], ptPixel[1] - pixel[1]);
-    if (d <= 14) nearby.push(pt);
+    const d = thermalHaversineKm(coord, [pt.lon, pt.lat]);
+    if (d <= MAX_THERMAL_HIT_DISTANCE_KM) nearby.push(pt);
   }
   if (!nearby.length) return null;
   const gradVals = [], sstVals = [];
