@@ -2263,6 +2263,11 @@ function renderDesktopReadout(lon, lat, pixel) {
   // ev.coordinate from pointermove/click is in meters. The readout text
   // and the raster sampler both need EPSG:4326. The caller transforms
   // first and passes (lon4326, lat4326) — this function just trusts them.
+  // thermal_fronts has its own dedicated readout path (thermalRenderReadout
+  // in thermalInitMap); if we let this fall through it would overwrite
+  // gradient + ΔSST with a meaningless CHL sample, so bail out and let
+  // thermalRenderReadout own the readout.
+  if (currentVar === "thermal_fronts") return;
   // Guard: if no grid/data yet, show just coordinates
   if (!desktopMapState.map || !desktopMapState.currentGridInfo || !desktopMapState.currentDataObj) {
     setReadout(formatReadoutCoords(lon, lat));
@@ -9947,6 +9952,21 @@ let _captainMapClickHandler = null;
 
 function installCaptainToolHandler(map) {
   if (_captainMapClickHandler) { map.un('click', _captainMapClickHandler); _captainMapClickHandler = null; }
+  // Captain's Dashboard has its own persistent readout (#combined-readout,
+  // z-index 1120) sitting on top of #readout (z-index 950) at the same
+  // bottom-right position. setReadout() targets #readout, so anything we
+  // write through it is hidden behind #combined-readout in combined mode —
+  // that's why thermal-fronts gradient + ΔSST click readout vanished on
+  // mobile. Route click readouts to #combined-readout (with #readout as a
+  // fallback so non-combined callers keep working).
+  const capReadoutEl = document.getElementById("combined-readout");
+  const capSetReadout = (txt) => {
+    if (capReadoutEl) {
+      capReadoutEl.textContent = txt || "—, —";
+      capReadoutEl.style.display = "inline-block";
+    }
+    setReadout(txt);
+  };
   _captainMapClickHandler = (ev) => {
     if (!ev.coordinate) return;
     // Combined map is EPSG:3857; transform to 4326 before treating as lon/lat.
@@ -9967,11 +9987,11 @@ function installCaptainToolHandler(map) {
       const d = feature.get("depth");
       if (Number.isFinite(d)) found = d;
     }, { hitTolerance: 6 });
-    if (found !== null) { setReadout(`${base}, ${found}m (contour)`); return; }
+    if (found !== null) { capSetReadout(`${base}, ${found}m (contour)`); return; }
 
     // 2. Thermal front gradient + ΔSST (from front hover points)
     const frontInfo = combinedFrontClickInfo(map, ev.coordinate, pixel);
-    if (frontInfo) { setReadout(`${base}  ${frontInfo}`); return; }
+    if (frontInfo) { capSetReadout(`${base}  ${frontInfo}`); return; }
 
     // 3. UV arrow current speed
     let arrowSpeed = null;
@@ -9982,7 +10002,7 @@ function installCaptainToolHandler(map) {
         if (Number.isFinite(s)) arrowSpeed = s;
       }, { hitTolerance: 8 });
     }
-    if (arrowSpeed !== null) { setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (current)`); return; }
+    if (arrowSpeed !== null) { capSetReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (current)`); return; }
 
     // 4. CHL + SST raster sample as fallback
     const parts = [base];
@@ -9990,7 +10010,7 @@ function installCaptainToolHandler(map) {
     if (chlSample?.value !== undefined) parts.push(formatChlValue(chlSample.value));
     const sstSample = sampleRasterValueAt("sst", window._combinedSstGrid, window._combinedSstData, lon, lat);
     if (sstSample?.value !== undefined) parts.push(formatSstValue(sstSample.value));
-    setReadout(parts.join("  "));
+    capSetReadout(parts.join("  "));
   };
   map.on('click', _captainMapClickHandler);
 }
