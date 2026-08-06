@@ -6565,13 +6565,18 @@ function buildThermalHoursComposite(map, hours) {
     for (const sf of sourceFeatures) {
       const coords = sf?.geometry?.coordinates || [];
       const props = sf?.properties || {};
-      const deltaSst = thermalDeltaSstForFeature(props, i);
       for (let i = 0; i < coords.length; i++) {
         const pt = coords[i];
         if (!Array.isArray(pt) || pt.length < 2) continue;
         const lon = Number(pt[0]);
         const lat = Number(pt[1]);
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+        // Pointwise ΔSST — must read it INSIDE the inner loop so `i` is the
+        // vertex index, not undefined. Previously this was computed once per
+        // feature with `i` undefined, which fell through to the feature-wide
+        // strength_median fallback — every vertex on the same front showed
+        // the same ΔSST value.
+        const deltaSst = thermalDeltaSstForFeature(props, i);
         hoverPoints.push({ lon, lat, grad: thermalGradientForFeaturePoint(props, i), deltaSst });
         const cx = Math.round((lon - west) / cellDeg);
         const cy = Math.round((north - lat) / cellDeg);
@@ -7721,6 +7726,14 @@ function thermalNearestGradient(coord) {
   let bestGrad = null;
   let bestPoint = null;
   let bestDelta = null;
+  // Track the nearest point that actually has valid gradient + ΔSST data.
+  // Sparse fronts (some vertices have null gradient because the producer's
+  // per-point SST scan didn't have a valid ΔSST there) would otherwise pick a
+  // nearest point whose grad/delta are null and show no readout at all.
+  let validDist = Infinity;
+  let validGrad = null;
+  let validPoint = null;
+  let validDelta = null;
   for (const item of thermalDisplayedFrontItems()) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
@@ -7733,14 +7746,27 @@ function thermalNearestGradient(coord) {
         const ptLat = Number(pt[1]);
         if (!Number.isFinite(ptLon) || !Number.isFinite(ptLat)) continue;
         const d = thermalHaversineKm([lon, lat], [ptLon, ptLat]);
+        const grad = thermalGradientForFeaturePoint(props, i);
+        const delta = thermalDeltaSstForFeature(props, i);
         if (d < bestDist) {
           bestDist = d;
           bestPoint = [ptLon, ptLat];
-          bestGrad = thermalGradientForFeaturePoint(props, i);
-          bestDelta = thermalDeltaSstForFeature(props, i);
+          bestGrad = grad;
+          bestDelta = delta;
+        }
+        if (Number.isFinite(grad)) {
+          if (d < validDist) {
+            validDist = d;
+            validPoint = [ptLon, ptLat];
+            validGrad = grad;
+            validDelta = delta;
+          }
         }
       }
     }
+  }
+  if (validGrad !== null) {
+    return { dist: validDist, gradient: validGrad, point: validPoint, deltaSst: validDelta };
   }
   return { dist: bestDist, gradient: bestGrad, point: bestPoint, deltaSst: bestDelta };
 }
