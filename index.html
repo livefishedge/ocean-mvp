@@ -7395,10 +7395,9 @@ function thermalDeltaSstForFeature(props, index) {
     const exact = Number(deltaMap[index]);
     return Number.isFinite(exact) && exact > 0 ? { label: "ΔSST", value: exact } : null;
   }
-  const median = Number(props?.strength_median);
-  const max = Number(props?.strength_max);
-  if (Number.isFinite(median)) return { label: "ΔSST", value: median };
-  if (Number.isFinite(max)) return { label: "ΔSST max", value: max };
+  // Do not fall back to strength_median/strength_max. Those are detector
+  // window contrasts, not the per-point cross-front ΔSST metric. Mixing them
+  // creates a false historical discontinuity when old frames are present.
   return null;
 }
 
@@ -8001,9 +8000,9 @@ function thermalDailyStats() {
       for (let i = 0; i < coords.length; i++) {
         const g = thermalGradientForFeaturePoint(props, i);
         if (g !== null && Number.isFinite(g)) gradVals.push(g);
+        const ds = thermalDeltaSstForFeature(props, i);
+        if (ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
       }
-      const ds = thermalDeltaSstForFeature(props, i);
-      if (ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
     }
   }
   if (!gradVals.length && !sstVals.length) return null;
