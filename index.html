@@ -7338,6 +7338,23 @@ function thermalDisplayedFrontItems() {
   return item ? [item] : [];
 }
 
+// Interaction data is narrower than the rendered overlay. When all hours
+// are visible, a readout still belongs to the active slider frame. Daily
+// readouts aggregate the selected day's hourly source frames.
+function thermalReadoutFrontItems() {
+  if (thermalFrontState.mode === "daily") {
+    const dayItem = thermalFrontState.dailyFrames[thermalFrontState.frameIdx];
+    if (!dayItem) return [];
+    const dates = thermalAllDayCb?.checked
+      ? thermalFrontState.selectedDaySet
+      : new Set([dayItem.date]);
+    return thermalFrontState.frameData.filter(item => dates.has(thermalDateKey(item.t)));
+  }
+  const list = thermalActiveFrameList();
+  const item = list[thermalFrontState.frameIdx];
+  return item ? [item] : [];
+}
+
 function thermalCurrentFrameTime() {
   if (thermalFrontState.mode === "daily") return thermalFrontState.dailyFrames[thermalFrontState.frameIdx]?.t ?? null;
   return thermalActiveFrameList()[thermalFrontState.frameIdx]?.t ?? null;
@@ -7621,11 +7638,11 @@ function thermalFeatureStyle(feature, resolution, map) {
 // Mike, 2026-06-12: "When hovered upon, should show the time or
 // date of the points." Renders a small floating tip with a colored
 // dot (matches the point's rainbow color) + the date/hour label.
-// Zoom-independent hit radius for thermal fronts. Daily mode already
-// uses 5 km for its 5-km-radius mean; 8 km is the hourly-mode hit
-// radius — generous enough that clicking near (not exactly on) a
-// front line always counts, regardless of zoom level.
-const MAX_THERMAL_HIT_DISTANCE_KM = 8;
+// Readouts must be anchored to an actual visible front, not a nearby blank
+// area. Two km tolerates line/cell-center rendering differences while
+// preventing a blank click from borrowing another front's metric.
+const MAX_THERMAL_HIT_DISTANCE_KM = 2;
+const MAX_THERMAL_DAILY_HIT_DISTANCE_KM = 2;
 
 // Snap-to-segment proximity for thermal fronts. Unlike
 // thermalNearestGradient (which finds the closest vertex), this
@@ -7648,7 +7665,7 @@ function thermalNearestFrontHit(coord) {
   let validDelta = null;
   const toRad = Math.PI / 180;
   const R = 6371;
-  for (const item of thermalDisplayedFrontItems()) {
+  for (const item of thermalReadoutFrontItems()) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
       const coords = feature?.geometry?.coordinates || [];
@@ -7831,7 +7848,7 @@ function thermalNearestGradient(coord) {
   let validGrad = null;
   let validPoint = null;
   let validDelta = null;
-  for (const item of thermalDisplayedFrontItems()) {
+  for (const item of thermalReadoutFrontItems()) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
       const coords = feature?.geometry?.coordinates || [];
@@ -7872,7 +7889,8 @@ function thermalNearestGradient(coord) {
 function thermalRadiusMean(coord) {
   const RADIUS_KM = 5;
   const gradVals = [], sstVals = [];
-  for (const item of thermalDisplayedFrontItems()) {
+  let nearestFrontKm = Infinity;
+  for (const item of thermalReadoutFrontItems()) {
     const features = Array.isArray(item.data?.features) ? item.data.features : [];
     for (const feature of features) {
       const coords = feature?.geometry?.coordinates || [];
@@ -7884,6 +7902,7 @@ function thermalRadiusMean(coord) {
         const ptLat = Number(pt[1]);
         if (!Number.isFinite(ptLon) || !Number.isFinite(ptLat)) continue;
         const d = thermalHaversineKm([coord[0], coord[1]], [ptLon, ptLat]);
+        nearestFrontKm = Math.min(nearestFrontKm, d);
         if (d > RADIUS_KM) continue;
         const g = thermalGradientForFeaturePoint(props, i);
         if (g !== null && Number.isFinite(g)) gradVals.push(g);
@@ -7892,6 +7911,7 @@ function thermalRadiusMean(coord) {
       }
     }
   }
+  if (nearestFrontKm > MAX_THERMAL_DAILY_HIT_DISTANCE_KM) return null;
   if (!gradVals.length && !sstVals.length) return null;
   return {
     gradient: gradVals.length ? gradVals.reduce((a, b) => a + b, 0) / gradVals.length : null,
@@ -7926,7 +7946,10 @@ function thermalRenderReadout(coord, pixel) {
       deltaSst = hit.deltaSst;
     }
   }
-  if (thermalFrontState.cursorFeature) thermalFrontState.cursorFeature.getGeometry().setCoordinates(cursorCoord);
+  if (thermalFrontState.cursorFeature && cursorCoord) {
+    // Cursor layer is EPSG:3857; cursorCoord is lon/lat.
+    thermalFrontState.cursorFeature.getGeometry().setCoordinates(toMapProjection(cursorCoord));
+  }
   const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
   if (Number.isFinite(gradient)) {
     const gradC = gradient * (tempUnit === "F" ? 9 / 5 : 1);
