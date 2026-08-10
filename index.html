@@ -7644,10 +7644,10 @@ function thermalFeatureStyle(feature, resolution, map) {
 // date of the points." Renders a small floating tip with a colored
 // dot (matches the point's rainbow color) + the date/hour label.
 // Zoom-independent hit radius for thermal fronts. Daily mode already
-// uses 5 km for its 5-km-radius mean; 8 km is the hourly-mode hit
-// radius — generous enough that clicking near (not exactly on) a
-// front line always counts, regardless of zoom level.
-const MAX_THERMAL_HIT_DISTANCE_KM = 8;
+// Daily mode uses a separate 5-km-radius mean. Hourly hit-testing is kept
+// deliberately tight so a click a few kilometres off a front remains an SST
+// readout instead of snapping back onto the front line.
+const MAX_THERMAL_HIT_DISTANCE_KM = 2;
 
 // Snap-to-segment proximity for thermal fronts. Unlike
 // thermalNearestGradient (which finds the closest vertex), this
@@ -8138,7 +8138,7 @@ function thermalRenderReadout(coord, pixel) {
     if (mean) { gradient = mean.gradient; deltaSst = mean.deltaSst; }
   } else {
     // Animation mode: snap to the nearest point on any front line segment
-    // (not just the nearest vertex) with a zoom-independent 8 km hit radius.
+    // (not just the nearest vertex) with a tight, zoom-independent 2 km hit radius.
     // Clicking between two vertices on the same line still snaps to it.
     const hit = thermalNearestFrontHit(coord);
     if (pixel && hit.point && Number.isFinite(hit.gradient) && hit.dist <= MAX_THERMAL_HIT_DISTANCE_KM) {
