@@ -6909,10 +6909,13 @@ async function renderMobileFrame(frameMeta) {
     document.body.classList.remove("mobile-map-ready");
     showFrame();
   });
-  if (mobileMapState.imageUrl && mobileMapState.imageUrl.startsWith("blob:")) {
-    URL.revokeObjectURL(mobileMapState.imageUrl);
-  }
-  mobileMapState.imageUrl = url;
+  // Note: canvasToOlSource() uses ol.source.ImageCanvas (no blob: round-trip),
+  // so there is no blob URL to revoke here. The previous canvas.toBlob()
+  // path was removed in b13739edcc2 ("route all raster layers through
+  // ImageCanvas"); the trailing imageUrl assignment leaked as a stale
+  // ReferenceError on iOS Safari ("Can't find variable: url") on every
+  // non-Captain var layer. Explicitly clear the field instead.
+  mobileMapState.imageUrl = null;
   if (mobileMapState.imageLayer) {
     mobileMapState.imageLayer.setSource(source);
   } else {
