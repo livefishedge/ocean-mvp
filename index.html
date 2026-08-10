@@ -1792,7 +1792,11 @@ let userRanges = {
   combined: { ...DEFAULT_RANGES.combined }
 };
 
-let tempUnit = localStorage.getItem("sst_temp_unit") === "F" ? "F" : "C";
+// Fahrenheit is the captain-facing default. Keep an explicit C/F choice,
+// but version the preference so existing stale C defaults do not override
+// the new product default on first load.
+const TEMP_UNIT_STORAGE_KEY = "sst_temp_unit_v2";
+let tempUnit = localStorage.getItem(TEMP_UNIT_STORAGE_KEY) === "C" ? "C" : "F";
 let thermalDistUnit = localStorage.getItem("thermal_dist_unit") === "nm" ? "nm" : "km";
 // cToF: converts absolute Celsius temperature to Fahrenheit (used for point values)
 function cToF(c) { return c * 9 / 5 + 32; }
@@ -2044,6 +2048,7 @@ let mobileMapState = {
   placeLayer: null,
   cursorLayer: null,
   cursorFeature: null,
+  cursorEl: null,
   currentGridInfo: null,
   currentDataObj: null
 };
@@ -2449,6 +2454,7 @@ async function renderDesktopFrame(frameMeta) {
   if (desktopMapState.arrowLayer) desktopMapState.arrowLayer.setVisible(currentVar === "uv");
   if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setVisible(false);
   if (thermalFrontState.cursorLayer) thermalFrontState.cursorLayer.setVisible(false);
+  if (thermalFrontState.cursorEl) thermalFrontState.cursorEl.style.display = "none";
   // Mike, 2026-08-10 07:09 ET: also hide the SST underlay when leaving
   // the thermal-fronts page so it doesn't bleed into CHL/SST/etc.
   if (thermalFrontState.sstUnderlayLayer) thermalFrontState.sstUnderlayLayer.setVisible(false);
@@ -2723,7 +2729,7 @@ const tempUnitToggle = document.getElementById("temp-unit-toggle");
 if (tempUnitToggle) {
   tempUnitToggle.addEventListener("click", () => {
     tempUnit = tempUnit === "F" ? "C" : "F";
-    localStorage.setItem("sst_temp_unit", tempUnit);
+    localStorage.setItem(TEMP_UNIT_STORAGE_KEY, tempUnit);
     if (currentVar === "sst") showFrame();
     updateTempUnitToggleLabel();
   });
@@ -2960,13 +2966,13 @@ const combinedSstModeCBtn = document.getElementById("combined-sst-mode-c");
 const combinedSstModeFBtn = document.getElementById("combined-sst-mode-f");
 combinedSstModeCBtn?.addEventListener("click", () => {
   tempUnit = "C";
-  localStorage.setItem("sst_temp_unit", "C");
+  localStorage.setItem(TEMP_UNIT_STORAGE_KEY, "C");
   combinedSstModeCBtn?.classList.add("active");
   combinedSstModeFBtn?.classList.remove("active");
 });
 combinedSstModeFBtn?.addEventListener("click", () => {
   tempUnit = "F";
-  localStorage.setItem("sst_temp_unit", "F");
+  localStorage.setItem(TEMP_UNIT_STORAGE_KEY, "F");
   combinedSstModeFBtn?.classList.add("active");
   combinedSstModeCBtn?.classList.remove("active");
 });
@@ -8000,7 +8006,42 @@ function thermalEnsureCursorLayer(map) {
     declutter: false
   });
   map.addLayer(thermalFrontState.cursorLayer);
-  console.log("[thermal] cursor layer created: zIndex=60 renderBuffer=200 declutter=false");
+  // iOS Safari has repeatedly failed to paint this one-feature OL vector
+  // layer even though the feature and style exist. Keep the OL feature for
+  // hit/render state, but use a DOM overlay for the captain-visible marker.
+  const el = document.createElement("div");
+  el.setAttribute("aria-hidden", "true");
+  el.style.cssText = [
+    "position:absolute", "left:0", "top:0", "width:32px", "height:32px",
+    "border:3.5px solid rgba(0,0,0,0.9)", "border-radius:50%",
+    "background:rgba(255,255,255,0.96)", "box-sizing:border-box",
+    "transform:translate(-50%,-50%)", "z-index:10000",
+    "pointer-events:none", "display:block"
+  ].join(";");
+  const dot = document.createElement("span");
+  dot.style.cssText = [
+    "position:absolute", "left:50%", "top:50%", "width:12px", "height:12px",
+    "border:1.5px solid rgba(0,0,0,0.9)", "border-radius:50%",
+    "background:#ffea00", "box-sizing:border-box",
+    "transform:translate(-50%,-50%)"
+  ].join(";");
+  el.appendChild(dot);
+  const target = map.getTargetElement?.() || document.getElementById("map");
+  target?.appendChild(el);
+  thermalFrontState.cursorEl = el;
+  thermalPositionCursor(map, [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2]);
+  console.log("[thermal] cursor DOM marker created: 32px ring / 12px center");
+}
+
+function thermalPositionCursor(map, coord4326) {
+  const el = thermalFrontState.cursorEl;
+  if (!map || !el || !Array.isArray(coord4326)) return;
+  const xy = toMapProjection(coord4326);
+  const pixel = map.getPixelFromCoordinate?.(xy);
+  if (!pixel || !Number.isFinite(pixel[0]) || !Number.isFinite(pixel[1])) return;
+  el.style.left = `${pixel[0]}px`;
+  el.style.top = `${pixel[1]}px`;
+  el.style.display = "block";
 }
 
 // Haversine distance between two [lon, lat] points in km
@@ -8125,6 +8166,7 @@ function thermalRenderReadout(coord, pixel) {
     }
   }
   if (thermalFrontState.cursorFeature) thermalFrontState.cursorFeature.getGeometry().setCoordinates(cursorCoord);
+  thermalPositionCursor(thermalFrontState.map, cursorCoord);
   const base = formatReadoutCoords(readoutCoord[0], readoutCoord[1]);
   if (Number.isFinite(gradient)) {
     const gradC = gradient * (tempUnit === "F" ? 9 / 5 : 1);
@@ -8162,6 +8204,7 @@ async function thermalInitMap() {
   await ensureDesktopPlaceLayer(map);
   thermalEnsureCursorLayer(map);
   if (thermalFrontState.cursorLayer) thermalFrontState.cursorLayer.setVisible(true);
+  if (thermalFrontState.cursorEl) thermalFrontState.cursorEl.style.display = "block";
   // The SST source_frame is unavailable until thermalLoadData() has loaded
   // the front JSON. renderThermalFrontsNative() installs the underlay after
   // that load; here only restore visibility when returning to this page.
@@ -8186,6 +8229,11 @@ async function thermalInitMap() {
         thermalRenderReadout(x.coord, x.pixel);
         thermalFrontHoverTip(x.coord, x.pixel);
       }
+    });
+    map.on("pointerdrag", ev => {
+      if (currentVar !== "thermal_fronts") return;
+      const x = to4326(ev);
+      if (x) thermalRenderReadout(x.coord, x.pixel);
     });
     map.on("click", ev => {
       if (currentVar === "thermal_fronts") {
@@ -9387,7 +9435,7 @@ const thermalModeKmBtn = document.getElementById("thermal-mode-km");
 const thermalModeNmBtn = document.getElementById("thermal-mode-nm");
 function thermalSetTempUnit(u) {
   tempUnit = u;
-  localStorage.setItem("sst_temp_unit", tempUnit);
+  localStorage.setItem(TEMP_UNIT_STORAGE_KEY, tempUnit);
   thermalModeCBtn?.classList.toggle("active", u === "C");
   thermalModeFBtn?.classList.toggle("active", u === "F");
   updateTempUnitToggleLabel();
