@@ -7840,16 +7840,45 @@ async function thermalFindSstFrame(region, dateKey) {
 async function thermalEnsureSstUnderlay(map, dateKey) {
   if (!map || !dateKey) return;
   if (thermalFrontState.sstUnderlayLoading) return;
-  if (thermalFrontState.sstUnderlayDate === dateKey && thermalFrontState.sstUnderlayLayer) return;
+  if (thermalFrontState.sstUnderlayDate === dateKey && thermalFrontState.sstUnderlayLayer) {
+    // Mike, 2026-08-10 13:58 ET: page-switch fix — renderDesktopFrame
+    // hides sstUnderlayLayer on leaving thermal_fronts, but navigating
+    // back here used to fall into this cache-hit branch and never call
+    // setVisible(true), so the layer stayed hidden until reload.
+    thermalFrontState.sstUnderlayLayer.setVisible(true);
+    return;
+  }
   thermalFrontState.sstUnderlayLoading = true;
   try {
     const region = (typeof REGION_ID !== "undefined" && REGION_ID) || "usec_south";
-    const found = await thermalFindSstFrame(region, dateKey);
-    if (!found) {
-      console.warn("[thermal] no SST frame found for", dateKey, region);
-      return;
+    // Mike, 2026-08-10 13:58 ET: prefer the EXACT source_frame from the
+    // front JSON — the SST that was actually used to compute these
+    // fronts — over the generic date+hour probe. Probe is only a
+    // fallback if the source_frame file is missing.
+    let url = null;
+    let hour = null;
+    const sourceFrame = thermalSourceSstFilenameForDate(dateKey);
+    if (sourceFrame) {
+      const candidate = `data/${region}/sst/${sourceFrame}`;
+      try {
+        const head = await fetch(candidate, { method: "HEAD" });
+        if (head.ok) {
+          url = candidate;
+          const m = sourceFrame.match(/_(\d{2})_g19\.json$/);
+          hour = m ? Number(m[1]) : null;
+        }
+      } catch (_) { /* fall through to probe */ }
     }
-    const res = await fetch(found.url + "?t=" + Date.now());
+    if (!url) {
+      const found = await thermalFindSstFrame(region, dateKey);
+      if (!found) {
+        console.warn("[thermal] no SST frame found for", dateKey, region);
+        return;
+      }
+      url = found.url;
+      hour = found.hour;
+    }
+    const res = await fetch(url + "?t=" + Date.now());
     if (!res.ok) return;
     const data = await res.json();
     const grid = await loadGridForVar("sst", data);
@@ -7866,13 +7895,36 @@ async function thermalEnsureSstUnderlay(map, dateKey) {
     }
     thermalFrontState.sstUnderlayData = data;
     thermalFrontState.sstUnderlayDate = dateKey;
-    thermalFrontState.sstUnderlayHour = found.hour;
-    console.log("[thermal] SST underlay loaded for", dateKey, "hour UTC", found.hour);
+    thermalFrontState.sstUnderlayHour = hour;
+    console.log("[thermal] SST underlay loaded for", dateKey, sourceFrame ? `source=${sourceFrame}` : "fallback-probe", "hour UTC", hour);
   } catch (e) {
     console.warn("[thermal] SST underlay failed:", e);
   } finally {
     thermalFrontState.sstUnderlayLoading = false;
   }
+}
+
+// Mike, 2026-08-10 13:58 ET: read the source_frame field from the front
+// JSON — the SST file the fronts were actually computed from. Daily mode
+// uses the first hourly frame for the date; hourly mode falls back to
+// the currently displayed frame. Returns null if not available so the
+// caller can fall back to the generic date+hour probe.
+function thermalSourceSstFilenameForDate(dateKey) {
+  if (typeof thermalFramesForDate === "function" && dateKey) {
+    const dayFrames = thermalFramesForDate(dateKey);
+    if (dayFrames.length) {
+      const sf = dayFrames[0]?.data?.source_frame;
+      if (sf) return sf;
+    }
+  }
+  if (typeof thermalDisplayedFrontItems === "function") {
+    const items = thermalDisplayedFrontItems();
+    if (items.length) {
+      const sf = items[0]?.data?.source_frame;
+      if (sf) return sf;
+    }
+  }
+  return null;
 }
 
 // Bilinear sample SST (°C) at a lon/lat point from the loaded underlay data.
