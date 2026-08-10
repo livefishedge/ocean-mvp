@@ -2080,6 +2080,7 @@ let thermalFrontState = {
   sstUnderlayLayer: null,
   sstUnderlayData: null,
   sstUnderlayDate: null,
+  sstUnderlaySourceFrame: null,
   sstUnderlayLoading: false,
   initialized: false,
   loading: false,
@@ -7839,8 +7840,10 @@ async function thermalFindSstFrame(region, dateKey) {
 
 async function thermalEnsureSstUnderlay(map, dateKey) {
   if (!map || !dateKey) return;
+  const sourceFrame = thermalSourceSstFilenameForCurrentView(dateKey);
+  const sourceKey = sourceFrame || `fallback:${dateKey}`;
   if (thermalFrontState.sstUnderlayLoading) return;
-  if (thermalFrontState.sstUnderlayDate === dateKey && thermalFrontState.sstUnderlayLayer) {
+  if (thermalFrontState.sstUnderlaySourceFrame === sourceKey && thermalFrontState.sstUnderlayLayer) {
     // Mike, 2026-08-10 13:58 ET: page-switch fix — renderDesktopFrame
     // hides sstUnderlayLayer on leaving thermal_fronts, but navigating
     // back here used to fall into this cache-hit branch and never call
@@ -7857,9 +7860,10 @@ async function thermalEnsureSstUnderlay(map, dateKey) {
     // fallback if the source_frame file is missing.
     let url = null;
     let hour = null;
-    const sourceFrame = thermalSourceSstFilenameForDate(dateKey);
     if (sourceFrame) {
-      const candidate = `data/${region}/sst/${sourceFrame}`;
+      const candidate = sourceFrame.startsWith("data/")
+        ? sourceFrame
+        : `data/${region}/sst/${sourceFrame}`;
       try {
         const head = await fetch(candidate, { method: "HEAD" });
         if (head.ok) {
@@ -7895,6 +7899,7 @@ async function thermalEnsureSstUnderlay(map, dateKey) {
     }
     thermalFrontState.sstUnderlayData = data;
     thermalFrontState.sstUnderlayDate = dateKey;
+    thermalFrontState.sstUnderlaySourceFrame = sourceFrame || url;
     thermalFrontState.sstUnderlayHour = hour;
     console.log("[thermal] SST underlay loaded for", dateKey, sourceFrame ? `source=${sourceFrame}` : "fallback-probe", "hour UTC", hour);
   } catch (e) {
@@ -7906,23 +7911,23 @@ async function thermalEnsureSstUnderlay(map, dateKey) {
 
 // Mike, 2026-08-10 13:58 ET: read the source_frame field from the front
 // JSON — the SST file the fronts were actually computed from. Daily mode
-// uses the first hourly frame for the date; hourly mode falls back to
-// the currently displayed frame. Returns null if not available so the
-// caller can fall back to the generic date+hour probe.
-function thermalSourceSstFilenameForDate(dateKey) {
-  if (typeof thermalFramesForDate === "function" && dateKey) {
+// Daily mode uses the first hourly frame for the selected day. Hourly mode
+// uses the currently displayed frame. Returns null only when front data has
+// no source_frame, allowing the legacy probe fallback.
+function thermalSourceSstFilenameForCurrentView(dateKey) {
+  if (!dateKey) return null;
+  // In hourly mode, the underlay must match the exact front frame currently
+  // selected by the slider. In "all hours" mode we still use the selected
+  // frame as the anchor raster; the vector overlay may contain other hours.
+  if (typeof thermalFramesForDate === "function") {
     const dayFrames = thermalFramesForDate(dateKey);
-    if (dayFrames.length) {
-      const sf = dayFrames[0]?.data?.source_frame;
-      if (sf) return sf;
-    }
-  }
-  if (typeof thermalDisplayedFrontItems === "function") {
-    const items = thermalDisplayedFrontItems();
-    if (items.length) {
-      const sf = items[0]?.data?.source_frame;
-      if (sf) return sf;
-    }
+    const current = thermalFrontState.mode === "daily"
+      ? dayFrames[0]
+      : (dayFrames[thermalFrontState.frameIdx] || dayFrames.at(-1));
+    const sf = current?.data?.source_frame;
+    if (sf) return sf;
+    const first = dayFrames.find(item => item?.data?.source_frame);
+    if (first?.data?.source_frame) return first.data.source_frame;
   }
   return null;
 }
@@ -8157,12 +8162,12 @@ async function thermalInitMap() {
   await ensureDesktopPlaceLayer(map);
   thermalEnsureCursorLayer(map);
   if (thermalFrontState.cursorLayer) thermalFrontState.cursorLayer.setVisible(true);
-  // Mike, 2026-08-10 07:09 ET: underlay the actual SST map below the
-  // hourly front map so the captain can verify algorithm validity.
-  const initDate = thermalFrontState.dailyFrames?.length
-    ? thermalFrontState.dailyFrames[thermalFrontState.dailyFrames.length - 1].date
-    : thermalFrontState.selectedDate;
-  if (initDate) thermalEnsureSstUnderlay(map, initDate);
+  // The SST source_frame is unavailable until thermalLoadData() has loaded
+  // the front JSON. renderThermalFrontsNative() installs the underlay after
+  // that load; here only restore visibility when returning to this page.
+  if (thermalFrontState.sstUnderlayLayer) {
+    thermalFrontState.sstUnderlayLayer.setVisible(true);
+  }
   if (!map.__thermalReadoutInstalled) {
     map.__thermalReadoutInstalled = true;
     // The thermal-fronts map is in EPSG:3857 (Web Mercator). ev.coordinate
@@ -8732,6 +8737,10 @@ async function renderThermalFrontsNative() {
   const list = thermalActiveFrameList();
   thermalFrontState.frameIdx = Math.max(0, Math.min(thermalFrontState.frameIdx, Math.max(0, list.length - 1)));
   thermalRenderFrontLayer();
+  // Must run after thermalLoadData() and after frameIdx is clamped: this is
+  // where the exact front item's source_frame is available. Await it so a
+  // rapid page/frame switch cannot leave the old generic raster cached.
+  await thermalEnsureSstUnderlay(map, thermalFrontState.selectedDate);
   updateThermalFrontsNav();
   thermalUpdateLegendAndStatus();
   map.updateSize();
