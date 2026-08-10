@@ -1797,7 +1797,8 @@ let userRanges = {
 // the new product default on first load.
 const TEMP_UNIT_STORAGE_KEY = "sst_temp_unit_v2";
 let tempUnit = localStorage.getItem(TEMP_UNIT_STORAGE_KEY) === "C" ? "C" : "F";
-let thermalDistUnit = localStorage.getItem("thermal_dist_unit") === "nm" ? "nm" : "km";
+const THERMAL_DIST_UNIT_STORAGE_KEY = "thermal_dist_unit_v2";
+let thermalDistUnit = localStorage.getItem(THERMAL_DIST_UNIT_STORAGE_KEY) === "km" ? "km" : "nm";
 // cToF: converts absolute Celsius temperature to Fahrenheit (used for point values)
 function cToF(c) { return c * 9 / 5 + 32; }
 // kmToNm: converts kilometers to nautical miles (1 nm ≈ 1.852 km, so km → nm divides)
@@ -7410,6 +7411,42 @@ function thermalGradientForFeaturePoint(props, index) {
   return Number.isFinite(g) && g > 0 ? g : null;
 }
 
+// Offshore-fishing working-front threshold. The producer stores gradients in
+// °C/km; 0.3 °C/km × 9/5 × 1.852 = 1.0 °F/nm exactly (within display
+// precision). Weak fronts are excluded from rendering and hit-testing.
+const STRONG_FRONT_MIN_GRADIENT_C_PER_KM = 0.3;
+function thermalIsStrongFrontGradient(gradient) {
+  return Number.isFinite(gradient) && gradient >= STRONG_FRONT_MIN_GRADIENT_C_PER_KM;
+}
+
+function thermalStrongSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
+  const segments = [];
+  let seg = null;
+  let prev = null;
+  for (let i = 0; i < (coords || []).length; i++) {
+    const pt = coords[i];
+    const grad = thermalGradientForFeaturePoint(props, i);
+    if (!Array.isArray(pt) || pt.length < 2 || !thermalIsStrongFrontGradient(grad)) {
+      if (seg && seg.length >= 2) segments.push(seg);
+      seg = null; prev = null; continue;
+    }
+    const lon = Number(pt[0]), lat = Number(pt[1]);
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) {
+      if (seg && seg.length >= 2) segments.push(seg);
+      seg = null; prev = null; continue;
+    }
+    if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) {
+      if (seg && seg.length >= 2) segments.push(seg);
+      seg = null;
+    }
+    if (!seg) seg = [];
+    seg.push([lon, lat]);
+    prev = [lon, lat];
+  }
+  if (seg && seg.length >= 2) segments.push(seg);
+  return segments;
+}
+
 function thermalDeltaSstForFeature(props, index) {
   const deltaMap = Array.isArray(props?.delta_sst_map) ? props.delta_sst_map : null;
   if (deltaMap && Number.isInteger(index) && index < deltaMap.length) {
@@ -7436,7 +7473,9 @@ function thermalCollectFrontPoints(items) {
         const lon = Number(pt[0]);
         const lat = Number(pt[1]);
         if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
-        points.push({ lon, lat, t: item.t, grad: thermalGradientForFeaturePoint(props, i) });
+        const grad = thermalGradientForFeaturePoint(props, i);
+        if (!thermalIsStrongFrontGradient(grad)) continue;
+        points.push({ lon, lat, t: item.t, grad });
       }
     }
   }
@@ -7718,6 +7757,7 @@ function thermalNearestFrontHit(coord) {
           }
         }
         const grad = thermalGradientForFeaturePoint(props, i);
+        if (!thermalIsStrongFrontGradient(grad)) continue;
         const delta = thermalDeltaSstForFeature(props, i);
         let useGrad = grad, useDelta = delta;
         if (candSegT > 0 && candSegT < 1 && i + 1 < coords.length) {
@@ -7730,6 +7770,7 @@ function thermalNearestFrontHit(coord) {
             useDelta = { label: delta.label, value: delta.value + (nextD.value - delta.value) * candSegT };
           }
         }
+        if (!thermalIsStrongFrontGradient(useGrad)) continue;
         if (candDist < bestDist) {
           bestDist = candDist;
           bestPoint = [candLon, candLat];
@@ -8242,10 +8283,10 @@ function thermalDailyStats() {
       const props = feature?.properties || {};
       for (let i = 0; i < coords.length; i++) {
         const g = thermalGradientForFeaturePoint(props, i);
-        if (g !== null && Number.isFinite(g)) gradVals.push(g);
+        if (thermalIsStrongFrontGradient(g)) gradVals.push(g);
+        const ds = thermalDeltaSstForFeature(props, i);
+        if (thermalIsStrongFrontGradient(g) && ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
       }
-      const ds = thermalDeltaSstForFeature(props, i);
-      if (ds && Number.isFinite(ds.value)) sstVals.push(ds.value);
     }
   }
   if (!gradVals.length && !sstVals.length) return null;
@@ -8367,7 +8408,7 @@ function thermalRenderFrontLayer() {
     for (const sourceFeature of sourceFeatures) {
       const coords = sourceFeature?.geometry?.coordinates || [];
       const props = sourceFeature?.properties || {};
-      for (const segment of thermalSegmentedLineStrings(coords)) {
+      for (const segment of thermalStrongSegmentedLineStrings(coords, props)) {
         const segment3857 = toMapProjection(segment);
         const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment3857) });
         feature.setProperties({
@@ -8619,12 +8660,12 @@ function thermalUpdateLegendAndStatus() {
       sourceText = `${totalHourly} hourly frames across ${shownDays} days`;
     }
     const stats = thermalDailyStats();
-    const unitLabel = thermalDistUnit === "nm" ? "°C/nm" : "°C/km";
+    const unitLabel = `°${tempUnit}/${thermalDistUnit}`;
     const sstLabel = tempUnit === "F" ? "°F" : "°C";
     let statsText = ` - ${sourceText}`;
     if (stats && shownDays > 0) {
       if (stats.meanGrad !== null) {
-        const displayGrad = thermalDistUnit === "nm" ? stats.meanGrad * 1.852 : stats.meanGrad;
+        const displayGrad = stats.meanGrad * (tempUnit === "F" ? 9 / 5 : 1) * (thermalDistUnit === "nm" ? 1.852 : 1);
         statsText += ` | mean gradient: ${displayGrad.toFixed(3)} ${unitLabel}`;
       }
       if (stats.meanSst !== null) {
@@ -9437,7 +9478,7 @@ function thermalSetTempUnit(u) {
 }
 function thermalSetDistUnit(u) {
   thermalDistUnit = u;
-  localStorage.setItem("thermal_dist_unit", thermalDistUnit);
+  localStorage.setItem(THERMAL_DIST_UNIT_STORAGE_KEY, thermalDistUnit);
   thermalModeKmBtn?.classList.toggle("active", u === "km");
   thermalModeNmBtn?.classList.toggle("active", u === "nm");
   if (currentVar === "thermal_fronts") {
