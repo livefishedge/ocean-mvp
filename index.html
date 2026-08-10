@@ -7981,22 +7981,13 @@ function thermalEnsureCursorLayer(map) {
   // bullseye (outer white ring + inner yellow dot). The previous
   // single 7 px white dot was reported as "not visible" — too easy
   // to lose against the colorful SST raster underneath.
-  thermalFrontState.cursorFeature.setStyle([
-    new ol.style.Style({
-      image: new ol.style.Circle({
-        radius: 16,
-        fill: new ol.style.Fill({ color: "rgba(255,255,255,0.96)" }),
-        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.9)", width: 3.5 })
-      })
-    }),
-    new ol.style.Style({
-      image: new ol.style.Circle({
-        radius: 6,
-        fill: new ol.style.Fill({ color: "rgba(255,234,0,1.0)" }),
-        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.9)", width: 1.5 })
-      })
+  thermalFrontState.cursorFeature.setStyle(new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: 4,
+      fill: new ol.style.Fill({ color: "rgba(210,210,210,0.68)" }),
+      stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.5)", width: 1 })
     })
-  ]);
+  }));
   thermalFrontState.cursorLayer = new ol.layer.Vector({
     source: new ol.source.Vector({ features: [thermalFrontState.cursorFeature], projection: "EPSG:4326" }),
     zIndex: 60,
@@ -8012,25 +8003,17 @@ function thermalEnsureCursorLayer(map) {
   const el = document.createElement("div");
   el.setAttribute("aria-hidden", "true");
   el.style.cssText = [
-    "position:absolute", "left:0", "top:0", "width:32px", "height:32px",
-    "border:3.5px solid rgba(0,0,0,0.9)", "border-radius:50%",
-    "background:rgba(255,255,255,0.96)", "box-sizing:border-box",
+    "position:absolute", "left:0", "top:0", "width:8px", "height:8px",
+    "border:1px solid rgba(0,0,0,0.5)", "border-radius:50%",
+    "background:rgba(210,210,210,0.68)", "box-sizing:border-box",
     "transform:translate(-50%,-50%)", "z-index:10000",
     "pointer-events:none", "display:block"
   ].join(";");
-  const dot = document.createElement("span");
-  dot.style.cssText = [
-    "position:absolute", "left:50%", "top:50%", "width:12px", "height:12px",
-    "border:1.5px solid rgba(0,0,0,0.9)", "border-radius:50%",
-    "background:#ffea00", "box-sizing:border-box",
-    "transform:translate(-50%,-50%)"
-  ].join(";");
-  el.appendChild(dot);
   const target = map.getTargetElement?.() || document.getElementById("map");
   target?.appendChild(el);
   thermalFrontState.cursorEl = el;
   thermalPositionCursor(map, [(BBOX[0] + BBOX[2]) / 2, (BBOX[1] + BBOX[3]) / 2]);
-  console.log("[thermal] cursor DOM marker created: 32px ring / 12px center");
+  console.log("[thermal] cursor DOM marker created: 8px translucent gray");
 }
 
 function thermalPositionCursor(map, coord4326) {
