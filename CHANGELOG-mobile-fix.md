@@ -1,12 +1,15 @@
-# 2026-08-09 — Mobile OL "Can't find variable: url" fix
+# 2026-08-09 — Mobile OL "Can't find variable url" + NaN-in-JSON fix (v2)
 
 Branch: feature/fix-mobile-ol-url-undefined
-Commit: ce8a4539344
+HEAD: 94148c7c437
 
-Removes the dead `mobileMapState.imageUrl = url;` left over from b13739edcc2
-(Aug 6: route all raster layers through ImageCanvas). That refactor removed
-the canvas.toBlob() path that defined `url` but left the trailing assignment
-behind. iOS Safari throws ReferenceError on every non-Captain var layer.
+Bugs fixed:
+1. mobileMapState.imageUrl = url; ReferenceError at renderMobileFrame:6913
+   (dead code from b13739edcc2's canvas→ImageCanvas refactor)
+2. NaN literals in v2 front JSON (Python allow_nan=True extension) — browsers'
+   JSON.parse() rejected with "The string did not match the expected pattern"
+   at index.html:8474 (await res.json() in thermal-fronts init)
 
-This file exists only to retrigger the git_push webhook; it has no runtime
-impact on the dashboard.
+Files: see sstfront_*.json under data/usec_*/sst_front/
+
+This file is a no-op retrigger; it has no runtime impact.
