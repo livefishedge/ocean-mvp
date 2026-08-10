@@ -6918,10 +6918,15 @@ async function renderMobileFrame(frameMeta) {
     document.body.classList.remove("mobile-map-ready");
     showFrame();
   });
-  if (mobileMapState.imageUrl && mobileMapState.imageUrl.startsWith("blob:")) {
-    URL.revokeObjectURL(mobileMapState.imageUrl);
-  }
-  mobileMapState.imageUrl = url;
+  // Mike, 2026-08-10 07:44 ET: drop the now-orphan URL.revokeObjectURL guard
+  // (no blob: URL exists to revoke since b13739edcc2 switched to
+  // ol.source.ImageCanvas via canvasToOlSource) and replace the dead 'url'
+  // assignment with an explicit null clear that documents the new contract.
+  // Originally fixed in commit ce8a4539344 on
+  // feature/fix-mobile-ol-url-undefined, but that branch was never merged
+  // to main — re-applied here so this branch's preview doesn't break iOS
+  // Safari with "Mobile OL error: Can't find variable: url" on first paint.
+  mobileMapState.imageUrl = null;
   if (mobileMapState.imageLayer) {
     mobileMapState.imageLayer.setSource(source);
   } else {
@@ -7916,24 +7921,29 @@ function thermalEnsureCursorLayer(map) {
   thermalFrontState.cursorFeature.setStyle([
     new ol.style.Style({
       image: new ol.style.Circle({
-        radius: 11,
-        fill: new ol.style.Fill({ color: "rgba(255,255,255,0.95)" }),
-        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.85)", width: 3 })
+        radius: 16,
+        fill: new ol.style.Fill({ color: "rgba(255,255,255,0.96)" }),
+        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.9)", width: 3.5 })
       })
     }),
     new ol.style.Style({
       image: new ol.style.Circle({
-        radius: 3.5,
+        radius: 6,
         fill: new ol.style.Fill({ color: "rgba(255,234,0,1.0)" }),
-        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.85)", width: 1 })
+        stroke: new ol.style.Stroke({ color: "rgba(0,0,0,0.9)", width: 1.5 })
       })
     })
   ]);
   thermalFrontState.cursorLayer = new ol.layer.Vector({
     source: new ol.source.Vector({ features: [thermalFrontState.cursorFeature], projection: "EPSG:4326" }),
-    zIndex: 60
+    zIndex: 60,
+    updateWhileAnimating: true,
+    updateWhileInteracting: true,
+    renderBuffer: 200,
+    declutter: false
   });
   map.addLayer(thermalFrontState.cursorLayer);
+  console.log("[thermal] cursor layer created: zIndex=60 renderBuffer=200 declutter=false");
 }
 
 // Haversine distance between two [lon, lat] points in km
