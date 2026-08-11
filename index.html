@@ -1397,11 +1397,18 @@ body.combined-mode #combined-menu-btn{
           <button id="thermal-mode-km" class="active" type="button">km</button>
           <button id="thermal-mode-nm" type="button">nm</button>
         </div>
+        <label id="thermal-display-metric-row" style="margin-top:6px;">Metric
+          <select id="thermal-display-metric">
+            <option value="delta_sst">Max cross-front ΔSST</option>
+            <option value="gradient">Gradient</option>
+          </select>
+        </label>
         <label id="thermal-display-threshold-row" style="margin-top:6px;">
-          Front strength
+          Minimum strength
           <input id="thermal-display-threshold" type="range" min="0" max="1" step="0.01" value="0" />
           <output id="thermal-display-threshold-value">All fronts</output>
         </label>
+        <div id="thermal-display-window" style="font-size:10px;color:var(--fg-mute,#9aa7b5);">ΔSST sampled 1–5 km across each front</div>
       </div>
       <div class="hamburger-range-block">
         <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
@@ -1808,6 +1815,8 @@ const THERMAL_DISPLAY_THRESHOLD_STORAGE_KEY = "thermal_display_threshold_c_per_k
 let thermalDisplayThresholdCPerKm = Number(localStorage.getItem(THERMAL_DISPLAY_THRESHOLD_STORAGE_KEY));
 if (!Number.isFinite(thermalDisplayThresholdCPerKm)) thermalDisplayThresholdCPerKm = 0;
 thermalDisplayThresholdCPerKm = Math.max(0, Math.min(1, thermalDisplayThresholdCPerKm));
+const THERMAL_DISPLAY_METRIC_STORAGE_KEY = "thermal_display_metric_v1";
+let thermalDisplayMetric = localStorage.getItem(THERMAL_DISPLAY_METRIC_STORAGE_KEY) === "gradient" ? "gradient" : "delta_sst";
 // cToF: converts absolute Celsius temperature to Fahrenheit (used for point values)
 function cToF(c) { return c * 9 / 5 + 32; }
 // kmToNm: converts kilometers to nautical miles (1 nm ≈ 1.852 km, so km → nm divides)
@@ -7420,6 +7429,18 @@ function thermalGradientForFeaturePoint(props, index) {
   return Number.isFinite(g) && g > 0 ? g : null;
 }
 
+function thermalDeltaSstForFeaturePoint(props, index) {
+  const deltaMap = Array.isArray(props?.delta_sst_map) ? props.delta_sst_map : null;
+  if (deltaMap && index < deltaMap.length) {
+    const exact = Number(deltaMap[index]);
+    if (Number.isFinite(exact) && exact > 0) return exact;
+  }
+  // Older frames only have a feature-wide cross-front contrast. This keeps
+  // them usable, but Aug 6 carries the per-vertex map above.
+  const fallback = Number(props?.strength_max);
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : null;
+}
+
 // Offshore-fishing working-front threshold. The producer stores gradients in
 // °C/km; 0.3 °C/km × 9/5 × 1.852 = 1.0 °F/nm exactly (within display
 // precision). Weak fronts are excluded from rendering and hit-testing.
@@ -7472,10 +7493,13 @@ function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
   for (let i = 0; i < (coords || []).length; i++) {
     const pt = coords[i];
     const grad = thermalGradientForFeaturePoint(props, i);
+    const metric = thermalDisplayMetric === "delta_sst"
+      ? thermalDeltaSstForFeaturePoint(props, i)
+      : grad;
     const lon = Number(pt?.[0]), lat = Number(pt?.[1]);
     const passesDisplayThreshold = thermalDisplayThresholdCPerKm <= 0
-      ? Number.isFinite(grad)
-      : Number.isFinite(grad) && grad >= thermalDisplayThresholdCPerKm;
+      ? Number.isFinite(metric)
+      : Number.isFinite(metric) && metric >= thermalDisplayThresholdCPerKm;
     if (!Array.isArray(pt) || pt.length < 2 || !Number.isFinite(lon) || !Number.isFinite(lat) || !passesDisplayThreshold) {
       flush(); prev = null; continue;
     }
@@ -9547,14 +9571,24 @@ const thermalDisplayThresholdInput = document.getElementById("thermal-display-th
 const thermalDisplayThresholdValue = document.getElementById("thermal-display-threshold-value");
 function thermalDisplayThresholdLabel() {
   if (!(thermalDisplayThresholdCPerKm > 0)) return "All fronts";
+  if (thermalDisplayMetric === "delta_sst") {
+    const converted = thermalDisplayThresholdCPerKm * (tempUnit === "F" ? 9 / 5 : 1);
+    return `ΔSST ≥ ${converted.toFixed(2)} °${tempUnit}`;
+  }
   const converted = thermalDisplayThresholdCPerKm
     * (tempUnit === "F" ? 9 / 5 : 1)
     * (thermalDistUnit === "nm" ? 1.852 : 1);
-  return `≥ ${converted.toFixed(2)} °${tempUnit}/${thermalDistUnit}`;
+  return `gradient ≥ ${converted.toFixed(2)} °${tempUnit}/${thermalDistUnit}`;
 }
 function thermalRefreshDisplayThresholdControl() {
   if (thermalDisplayThresholdInput) thermalDisplayThresholdInput.value = String(thermalDisplayThresholdCPerKm);
   if (thermalDisplayThresholdValue) thermalDisplayThresholdValue.textContent = thermalDisplayThresholdLabel();
+  const metricInput = document.getElementById("thermal-display-metric");
+  if (metricInput) metricInput.value = thermalDisplayMetric;
+  const windowEl = document.getElementById("thermal-display-window");
+  if (windowEl) windowEl.textContent = thermalDisplayMetric === "delta_sst"
+    ? "ΔSST sampled 1–5 km across each front"
+    : "Local gradient scorer; units follow the control above";
 }
 function thermalSetDisplayThreshold(value) {
   const numeric = Number(value);
@@ -9570,6 +9604,17 @@ function thermalSetDisplayThreshold(value) {
 }
 thermalDisplayThresholdInput?.addEventListener("input", () => {
   thermalSetDisplayThreshold(thermalDisplayThresholdInput.value);
+});
+document.getElementById("thermal-display-metric")?.addEventListener("change", (event) => {
+  thermalDisplayMetric = event.target.value === "gradient" ? "gradient" : "delta_sst";
+  localStorage.setItem(THERMAL_DISPLAY_METRIC_STORAGE_KEY, thermalDisplayMetric);
+  // Keep the same underlying threshold number when switching modes only if
+  // it is still meaningful; zero remains the safe default for both metrics.
+  thermalRefreshDisplayThresholdControl();
+  if (currentVar === "thermal_fronts") {
+    renderThermalFrontsNative();
+    thermalUpdateLegendAndStatus();
+  }
 });
 thermalRefreshDisplayThresholdControl();
 
