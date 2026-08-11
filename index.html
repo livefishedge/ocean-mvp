@@ -7447,6 +7447,37 @@ function thermalStrongSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
   return segments;
 }
 
+// Visibility is intentionally broader than the offshore working-front
+// threshold. Weak detected fronts remain visible as a quiet baseline; only
+// strong segments are rendered with the high-emphasis style and used for
+// fishing-grade hit testing.
+function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
+  const segments = [];
+  let seg = null;
+  let segStrong = null;
+  let prev = null;
+  const flush = () => {
+    if (seg && seg.length >= 2) segments.push({ coords: seg, strong: !!segStrong });
+    seg = null; segStrong = null;
+  };
+  for (let i = 0; i < (coords || []).length; i++) {
+    const pt = coords[i];
+    const grad = thermalGradientForFeaturePoint(props, i);
+    const lon = Number(pt?.[0]), lat = Number(pt?.[1]);
+    if (!Array.isArray(pt) || pt.length < 2 || !Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(grad)) {
+      flush(); prev = null; continue;
+    }
+    if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) flush();
+    const strong = thermalIsStrongFrontGradient(grad);
+    if (seg && strong !== segStrong) flush();
+    if (!seg) { seg = []; segStrong = strong; }
+    seg.push([lon, lat]);
+    prev = [lon, lat];
+  }
+  flush();
+  return segments;
+}
+
 function thermalDeltaSstForFeature(props, index) {
   const deltaMap = Array.isArray(props?.delta_sst_map) ? props.delta_sst_map : null;
   if (deltaMap && Number.isInteger(index) && index < deltaMap.length) {
@@ -7670,7 +7701,7 @@ function thermalFeatureStyle(feature, resolution, map) {
   }
   return new ol.style.Style({
     stroke: new ol.style.Stroke({
-      color: feature.get("color") || "#111",
+      color: feature.get("lineOpacity") < 1 ? "rgba(190,205,220,0.38)" : (feature.get("color") || "#111"),
       width: feature.get("lineWidth") || 2,
       lineCap: "round",
       lineJoin: "round"
@@ -8408,15 +8439,17 @@ function thermalRenderFrontLayer() {
     for (const sourceFeature of sourceFeatures) {
       const coords = sourceFeature?.geometry?.coordinates || [];
       const props = sourceFeature?.properties || {};
-      for (const segment of thermalStrongSegmentedLineStrings(coords, props)) {
-        const segment3857 = toMapProjection(segment);
+      for (const segment of thermalVisibleSegmentedLineStrings(coords, props)) {
+        const segment3857 = toMapProjection(segment.coords);
         const feature = new ol.Feature({ geometry: new ol.geom.LineString(segment3857) });
         feature.setProperties({
           sourceProps: props,
           sourceCoords: coords,
           frameTime: item.t,
           color,
-          lineWidth: items.length === 1 ? 2.8 : 1.7
+          lineWidth: segment.strong ? (items.length === 1 ? 2.8 : 1.7) : 1.0,
+          lineOpacity: segment.strong ? 1.0 : 0.30,
+          strongFront: segment.strong
         });
         features.push(feature);
       }
