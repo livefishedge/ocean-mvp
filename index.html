@@ -1397,6 +1397,11 @@ body.combined-mode #combined-menu-btn{
           <button id="thermal-mode-km" class="active" type="button">km</button>
           <button id="thermal-mode-nm" type="button">nm</button>
         </div>
+        <label id="thermal-display-threshold-row" style="margin-top:6px;">
+          Front strength
+          <input id="thermal-display-threshold" type="range" min="0" max="1" step="0.01" value="0" />
+          <output id="thermal-display-threshold-value">All fronts</output>
+        </label>
       </div>
       <div class="hamburger-range-block">
         <span class="range-name" id="hamburger-range-title">Chlorophyll</span>
@@ -1799,6 +1804,10 @@ const TEMP_UNIT_STORAGE_KEY = "sst_temp_unit_v2";
 let tempUnit = localStorage.getItem(TEMP_UNIT_STORAGE_KEY) === "C" ? "C" : "F";
 const THERMAL_DIST_UNIT_STORAGE_KEY = "thermal_dist_unit_v2";
 let thermalDistUnit = localStorage.getItem(THERMAL_DIST_UNIT_STORAGE_KEY) === "km" ? "km" : "nm";
+const THERMAL_DISPLAY_THRESHOLD_STORAGE_KEY = "thermal_display_threshold_c_per_km_v1";
+let thermalDisplayThresholdCPerKm = Number(localStorage.getItem(THERMAL_DISPLAY_THRESHOLD_STORAGE_KEY));
+if (!Number.isFinite(thermalDisplayThresholdCPerKm)) thermalDisplayThresholdCPerKm = 0;
+thermalDisplayThresholdCPerKm = Math.max(0, Math.min(1, thermalDisplayThresholdCPerKm));
 // cToF: converts absolute Celsius temperature to Fahrenheit (used for point values)
 function cToF(c) { return c * 9 / 5 + 32; }
 // kmToNm: converts kilometers to nautical miles (1 nm ≈ 1.852 km, so km → nm divides)
@@ -7447,10 +7456,10 @@ function thermalStrongSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
   return segments;
 }
 
-// Visibility is intentionally broader than the offshore working-front
-// threshold. Weak detected fronts remain visible as a quiet baseline; only
-// strong segments are rendered with the high-emphasis style and used for
-// fishing-grade hit testing.
+// Visibility is controlled independently from the offshore working-front
+// classification. A zero display threshold means show every valid detected
+// front vertex; raising it filters weak vertices without changing the stored
+// data or the 1.0°F/nm fishing-grade classification.
 function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
   const segments = [];
   let seg = null;
@@ -7464,13 +7473,16 @@ function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
     const pt = coords[i];
     const grad = thermalGradientForFeaturePoint(props, i);
     const lon = Number(pt?.[0]), lat = Number(pt?.[1]);
-    if (!Array.isArray(pt) || pt.length < 2 || !Number.isFinite(lon) || !Number.isFinite(lat) || !Number.isFinite(grad)) {
+    const passesDisplayThreshold = thermalDisplayThresholdCPerKm <= 0
+      ? Number.isFinite(grad)
+      : Number.isFinite(grad) && grad >= thermalDisplayThresholdCPerKm;
+    if (!Array.isArray(pt) || pt.length < 2 || !Number.isFinite(lon) || !Number.isFinite(lat) || !passesDisplayThreshold) {
       flush(); prev = null; continue;
     }
     if (prev && Math.hypot(lon - prev[0], lat - prev[1]) > maxJumpDeg) flush();
     const strong = thermalIsStrongFrontGradient(grad);
-    if (seg && strong !== segStrong) flush();
     if (!seg) { seg = []; segStrong = strong; }
+    else segStrong = segStrong || strong;
     seg.push([lon, lat]);
     prev = [lon, lat];
   }
@@ -8719,11 +8731,13 @@ function thermalUpdateLegendAndStatus() {
     }
   } else {
     const total = thermalAllDayCb?.checked ? list.length : 1;
-    if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${list.length} hourly frames - ${thermalFrontState.selectedDate || ""} - showing ${total}`;
+    if (toolbarStatus) toolbarStatus.textContent = `${thermalFrontState.frameIdx + 1}/${list.length} hourly frames - ${thermalFrontState.selectedDate || ""} - showing ${total} - ${thermalDisplayThresholdLabel()}`;
     const displayedCount = thermalDisplayedFrontItems().length;
     if (legendEl) {
       legendEl.style.display = displayedCount > 1 ? "" : "none";
-      legendEl.textContent = displayedCount > 1 ? "Color = time: purple oldest -> red newest" : "";
+      legendEl.textContent = displayedCount > 1
+        ? `Color = time: purple oldest -> red newest | ${thermalDisplayThresholdLabel()}`
+        : thermalDisplayThresholdLabel();
     }
   }
 }
@@ -9496,6 +9510,7 @@ function thermalSetTempUnit(u) {
   thermalModeCBtn?.classList.toggle("active", u === "C");
   thermalModeFBtn?.classList.toggle("active", u === "F");
   updateTempUnitToggleLabel();
+  thermalRefreshDisplayThresholdControl?.();
   if (currentVar === "thermal_fronts") {
     console.log("[thermalSetTempUnit] calling showFrame()...");
     showFrame().then(() => {
@@ -9514,6 +9529,7 @@ function thermalSetDistUnit(u) {
   localStorage.setItem(THERMAL_DIST_UNIT_STORAGE_KEY, thermalDistUnit);
   thermalModeKmBtn?.classList.toggle("active", u === "km");
   thermalModeNmBtn?.classList.toggle("active", u === "nm");
+  thermalRefreshDisplayThresholdControl?.();
   if (currentVar === "thermal_fronts") {
     console.log("[thermalSetDistUnit] calling showFrame()...");
     showFrame().then(() => {
@@ -9526,6 +9542,37 @@ thermalModeCBtn?.addEventListener("click", () => thermalSetTempUnit("C"));
 thermalModeFBtn?.addEventListener("click", () => thermalSetTempUnit("F"));
 thermalModeKmBtn?.addEventListener("click", () => thermalSetDistUnit("km"));
 thermalModeNmBtn?.addEventListener("click", () => thermalSetDistUnit("nm"));
+
+const thermalDisplayThresholdInput = document.getElementById("thermal-display-threshold");
+const thermalDisplayThresholdValue = document.getElementById("thermal-display-threshold-value");
+function thermalDisplayThresholdLabel() {
+  if (!(thermalDisplayThresholdCPerKm > 0)) return "All fronts";
+  const converted = thermalDisplayThresholdCPerKm
+    * (tempUnit === "F" ? 9 / 5 : 1)
+    * (thermalDistUnit === "nm" ? 1.852 : 1);
+  return `≥ ${converted.toFixed(2)} °${tempUnit}/${thermalDistUnit}`;
+}
+function thermalRefreshDisplayThresholdControl() {
+  if (thermalDisplayThresholdInput) thermalDisplayThresholdInput.value = String(thermalDisplayThresholdCPerKm);
+  if (thermalDisplayThresholdValue) thermalDisplayThresholdValue.textContent = thermalDisplayThresholdLabel();
+}
+function thermalSetDisplayThreshold(value) {
+  const numeric = Number(value);
+  thermalDisplayThresholdCPerKm = Number.isFinite(numeric)
+    ? Math.max(0, Math.min(1, numeric))
+    : 0;
+  localStorage.setItem(THERMAL_DISPLAY_THRESHOLD_STORAGE_KEY, String(thermalDisplayThresholdCPerKm));
+  thermalRefreshDisplayThresholdControl();
+  if (currentVar === "thermal_fronts") {
+    renderThermalFrontsNative();
+    thermalUpdateLegendAndStatus();
+  }
+}
+thermalDisplayThresholdInput?.addEventListener("input", () => {
+  thermalSetDisplayThreshold(thermalDisplayThresholdInput.value);
+});
+thermalRefreshDisplayThresholdControl();
+
 // Restore active state from localStorage on load
 thermalSetTempUnit(tempUnit);
 thermalSetDistUnit(thermalDistUnit);
