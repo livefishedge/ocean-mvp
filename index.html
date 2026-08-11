@@ -7451,7 +7451,7 @@ function thermalStrongSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
 // threshold. Weak detected fronts remain visible as a quiet baseline; only
 // strong segments are rendered with the high-emphasis style and used for
 // fishing-grade hit testing.
-function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
+function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.30) {
   const segments = [];
   let seg = null;
   let segStrong = null;
@@ -7701,7 +7701,7 @@ function thermalFeatureStyle(feature, resolution, map) {
   }
   return new ol.style.Style({
     stroke: new ol.style.Stroke({
-      color: feature.get("lineOpacity") < 1 ? "rgba(190,205,220,0.38)" : (feature.get("color") || "#111"),
+      color: feature.get("color") || "#111",
       width: feature.get("lineWidth") || 2,
       lineCap: "round",
       lineJoin: "round"
@@ -8447,8 +8447,8 @@ function thermalRenderFrontLayer() {
           sourceCoords: coords,
           frameTime: item.t,
           color,
-          lineWidth: segment.strong ? (items.length === 1 ? 2.8 : 1.7) : 1.0,
-          lineOpacity: segment.strong ? 1.0 : 0.30,
+          lineWidth: items.length === 1 ? 2.8 : 1.7,
+          lineOpacity: 1.0,
           strongFront: segment.strong
         });
         features.push(feature);
