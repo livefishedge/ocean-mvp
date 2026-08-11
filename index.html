@@ -7451,7 +7451,7 @@ function thermalStrongSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
 // threshold. Weak detected fronts remain visible as a quiet baseline; only
 // strong segments are rendered with the high-emphasis style and used for
 // fishing-grade hit testing.
-function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.30) {
+function thermalVisibleSegmentedLineStrings(coords, props, maxJumpDeg = 0.08) {
   const segments = [];
   let seg = null;
   let segStrong = null;
