@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Aug 6 SST Classical Fronts — 24 hours</title>
+  <title>Aug 6 SST Classical Fronts — 24 hours (contour style)</title>
   <style>
     html, body { margin:0; padding:0; background:#0e1117; color:#e6e6e6;
                  font-family:-apple-system, system-ui, sans-serif; }
@@ -15,20 +15,23 @@
     .cell { background:#161b22; border:1px solid #30363d; border-radius:6px; padding:10px; }
     .cell h3 { margin:0 0 6px; font-size:13px; color:#58a6ff; }
     .cell img { width:100%; height:auto; border-radius:4px; cursor:pointer; }
-    .peak { font-size:11px; color:#7d8590; margin-top:4px; }
-    .peak b { color:#ff7b72; }
+    .legend { color:#7d8590; font-size:11px; margin-top:4px; }
+    .legend b.white { color:#e6e6e6; }
+    .legend b.cyan { color:#56d4dd; }
   </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Aug 6 2026 SST Classical Fronts — usec_md</h1>
+  <h1>Aug 6 2026 SST Classical (truth) — usec_md</h1>
   <div class="meta">
-    Detector: NaN-aware central-difference gradient (σ=1.0 smooth, hysteresis p65–p88, skeletonize, ≥8px, ≥2km) ·
-    <b>570 fronts</b> across <b>24 hours</b> · peak <b>3.819 °C/km</b> (h20, front #9)
+    Same rendering style as the 8 AM <code>contour_comparison.png</code>: rainbow (jet) SST underlay,
+    <b class="white">white contours at 0.10 °C/km</b> (strong fronts),
+    <b class="cyan">cyan dashed contours at 0.05 °C/km</b> (weaker fronts) ·
+    <b>24 hours, 570 fronts</b> · peak <b>3.819 °C/km</b> (h20, front #9)
   </div>
 
   <h2 style="font-size:16px; margin:0 0 10px;">All 24 hours (combined 4×6 grid)</h2>
-  <img class="combined" src="classical/aug6_24h_classical.png" alt="Classical fronts — Aug 6, all 24 hours">
+  <img class="combined" src="contour/aug6_24h_contour.png" alt="Classical (truth) — Aug 6, all 24 hours">
 
   <h2 style="font-size:16px; margin:24px 0 10px;">Per-hour (click to enlarge)</h2>
   <div class="grid">
@@ -40,10 +43,10 @@
         document.write(
           '<div class="cell">' +
             '<h3>' + s + ':00 UTC</h3>' +
-            '<a href="classical/aug6_' + s + '_classical.png" target="_blank">' +
-              '<img src="classical/aug6_' + s + '_classical.png" alt="h' + hh + '">' +
+            '<a href="contour/aug6_' + s + '_contour.png" target="_blank">' +
+              '<img src="contour/aug6_' + s + '_contour.png" alt="h' + hh + '">' +
             '</a>' +
-            '<div class="peak">' + counts[hh] + ' fronts · peak <b>' + peaks[hh].toFixed(2) + '</b> °C/km</div>' +
+            '<div class="legend">' + counts[hh] + ' fronts · peak ' + peaks[hh].toFixed(2) + ' °C/km</div>' +
           '</div>'
         );
       }
