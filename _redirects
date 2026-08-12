@@ -1,0 +1,5 @@
+# Aug 6 dev site — bypass dashboard SPA fallback for this subtree.
+# Without this rule, Cloudflare Pages serves the Captain's Dashboard's
+# index.html (the SPA shell) for every path, including our static
+# GeoJSON / PNG / manifest.json files.
+/dev/aug6-fronts/* /dev/aug6-fronts/:splat 200
