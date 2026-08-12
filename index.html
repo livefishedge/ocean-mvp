@@ -1775,7 +1775,7 @@ const DEFAULT_RANGES = {
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   chl_front: { vmin: 1.0, vmax: 3.0, unit: "fold/km" },
   sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
-  uv:    { vmin: 0.0,  vmax: 1.6,  unit: "m" }, /* ADT/SSH range: actual data 0.005-1.625m */
+  uv:    { vmin: -0.5, vmax: 1.5, unit: "m" }, /* ADT/SSH range: -0.5 covers cold slope water (negative ADT clipped at 0 before); 1.5 covers warm Gulf Stream intrusions. Real MidAtl ADT roughly -0.4..+0.7 m. */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" },
   thermal_fronts: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
   combined: { vmin: 0.0, vmax: 1.0, unit: "" }
@@ -3960,7 +3960,24 @@ function buildUv(gridInfo, dataObj) {
     colorscale: UV_SCALE,
     // Colorbar uses the 'uv' key which now has the unit 'm'
     colorbar: colorbarFor("uv"),
-    zsmooth:false
+    zsmooth:false,
+    // ADT contour overlay — 10 cm intervals across the full vmin..vmax range.
+    // The 0-level contour IS the deep frontal location: it marks the line
+    // where ADT crosses the climatological mean (MDT reference), which is
+    // the geostrophic current axis / subsurface thermohaline boundary.
+    // showlabels=true makes the value visible on each line so the captain
+    // can read the front position directly off the map.
+    contours: {
+      start: vmin,
+      end:   vmax,
+      size:  0.1,                 /* 10 cm intervals */
+      coloring: "lines",           /* keep heatmap fill, draw lines on top */
+      showlines: true,
+      color: "rgba(255,255,255,0.92)",
+      width: 1.3,
+      showlabels: true,
+      labelfont: { size: 9, color: "#0c1723", family: "Arial" }
+    }
   };
 
   // UV values are m/s, while the plot axes are lon/lat degrees. Render the
