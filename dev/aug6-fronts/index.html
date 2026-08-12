@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Aug 6 SST Classical Fronts — 24 hours (contour style)</title>
+  <title>Aug 6 SST Skeletonized Fronts — 24 hours</title>
   <style>
     html, body { margin:0; padding:0; background:#0e1117; color:#e6e6e6;
                  font-family:-apple-system, system-ui, sans-serif; }
@@ -22,16 +22,19 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Aug 6 2026 SST Classical (truth) — usec_md</h1>
+  <h1>Aug 6 2026 SST Skeletonized Fronts — usec_md</h1>
   <div class="meta">
-    Same rendering style as the 8 AM <code>contour_comparison.png</code>: rainbow (jet) SST underlay,
+    Skeletonized mean-frontal locations over the Aug 6 SST fields. Rainbow (jet) SST underlay,
     <b class="white">white contours at 0.10 °C/km</b> (strong fronts),
     <b class="cyan">cyan dashed contours at 0.05 °C/km</b> (weaker fronts) ·
     <b>24 hours, 570 fronts</b> · peak <b>3.819 °C/km</b> (h20, front #9)
   </div>
 
-  <h2 style="font-size:16px; margin:0 0 10px;">All 24 hours (combined 4×6 grid)</h2>
-  <img class="combined" src="contour/aug6_24h_contour.png" alt="Classical (truth) — Aug 6, all 24 hours">
+  <h2 style="font-size:16px; margin:0 0 10px;">Skeletonized fronts — all 24 hours</h2>
+  <a href="skeleton/aug6_24h_skeleton.png" target="_blank"><img class="combined" src="skeleton/aug6_24h_skeleton.png" alt="Skeletonized fronts — Aug 6, all 24 hours"></a>
+
+  <h2 style="font-size:16px; margin:24px 0 10px;">Mean frontal locations — thin black lines</h2>
+  <a href="mean_frontal/aug6_24h_mean_frontal.png" target="_blank"><img class="combined" src="mean_frontal/aug6_24h_mean_frontal.png" alt="Mean frontal locations — Aug 6, all 24 hours"></a>
 
   <h2 style="font-size:16px; margin:24px 0 10px;">Per-hour (click to enlarge)</h2>
   <div class="grid">
@@ -43,8 +46,8 @@
         document.write(
           '<div class="cell">' +
             '<h3>' + s + ':00 UTC</h3>' +
-            '<a href="contour/aug6_' + s + '_contour.png" target="_blank">' +
-              '<img src="contour/aug6_' + s + '_contour.png" alt="h' + hh + '">' +
+            '<a href="skeleton/aug6_' + s + '_skeleton.png" target="_blank">' +
+              '<img src="skeleton/aug6_' + s + '_skeleton.png" alt="skeleton h' + hh + '">' +
             '</a>' +
             '<div class="legend">' + counts[hh] + ' fronts · peak ' + peaks[hh].toFixed(2) + ' °C/km</div>' +
           '</div>'
