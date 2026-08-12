@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PR1 Command Receipt — Dev Preview</title>
+  <style>
+    :root { color-scheme: dark; --bg:#0d1117; --panel:#161b22; --line:#30363d; --blue:#58a6ff; --muted:#8b949e; --green:#3fb950; --amber:#d29922; }
+    * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:#e6edf3; font:15px/1.5 system-ui,-apple-system,sans-serif; }
+    main { max-width:1080px; margin:auto; padding:36px 22px 60px; } h1 { margin:0 0 8px; font-size:28px; } h2 { margin:0 0 14px; font-size:18px; color:var(--blue); }
+    .meta { color:var(--muted); margin-bottom:28px; } .meta code { color:#e6edf3; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(430px,1fr)); gap:18px; }
+    .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; } .badge { display:inline-block; border-radius:999px; padding:3px 10px; font-weight:700; font-size:12px; margin-bottom:14px; }
+    .run { color:#0d1117; background:var(--green); } .check { color:#0d1117; background:var(--amber); } pre { white-space:pre-wrap; margin:0; font:14px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace; color:#f0f6fc; }
+    .note { border-left:3px solid var(--blue); padding:12px 14px; background:#111820; color:var(--muted); margin-top:24px; } a { color:var(--blue); }
+  </style>
+</head>
+<body><main>
+  <h1>PR1 Plan A Command Receipt</h1>
+  <div class="meta">Live generator integration preview · commit <code>2f03627</code> · 38/38 PR1 tests · 268/268 product tests</div>
+  <div class="grid">
+    <section class="card"><span class="badge run">FIXTURE: RUN_NOW</span><pre>COMMAND: RUN_NOW
+WHY: Fresh same-morning source, reachable water, and same-lane bait are present.
+PROOF: Tuna-grade mark or bite by 07:10.
+LEASH: STANDARD - 40 min / called edge only.
+EXIT: Flip to Plan B at 07:50 if no proof.
+BACKUP: Ready - Washington 100F inside edge, 20-min verify leash.
+MISSING AUTHORITY: No same-morning last-look.; Water-mass continuity not confirmed.; No fresh subsurface temperature.; 1 additional signal suppressed (see audit log).</pre></section>
+    <section class="card"><span class="badge check">FIXTURE: CHECK_FAST</span><pre>COMMAND: CHECK_FAST
+WHY: Fresh source and reachable vertical, but no same-lane bait yet.
+PROOF: Tuna-grade mark or feed by 07:25.
+LEASH: VERIFY_FAST - 25 min / 3 nm box.
+EXIT: Flip to Plan B verify pass at 07:50.
+BACKUP: No authority - shift to search mode, not a named fallback.
+MISSING AUTHORITY: No same-morning last-look.; Water-mass continuity not confirmed.; No fresh subsurface temperature.; 2 additional signals suppressed (see audit log).</pre></section>
+  </div>
+  <div class="note">This page is a deterministic dev preview of the captain-facing output produced by <code>generate_interpretive_briefing()</code>. It is not a live fishing recommendation.</div>
+</main></body></html>
