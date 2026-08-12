@@ -1,0 +1,1062 @@
+{
+  "source": "sst_usec_md_2026218_20260806_09_g19.json",
+  "bbox": [
+    -76.5,
+    35.5,
+    -71.52000000000099,
+    40.48000000000078
+  ],
+  "ny": 250,
+  "nx": 250,
+  "dx_km": 1.75467,
+  "dy_km": 2.2264,
+  "detector_sigma": 1.0,
+  "high_q": 88.0,
+  "low_q": 65.0,
+  "front_count": 17,
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -74.04,
+            40.0
+          ],
+          [
+            -74.06,
+            39.98
+          ],
+          [
+            -74.06,
+            39.96
+          ],
+          [
+            -74.06,
+            39.94
+          ],
+          [
+            -74.06,
+            39.92
+          ],
+          [
+            -74.06,
+            39.9
+          ],
+          [
+            -74.06,
+            39.88
+          ],
+          [
+            -74.06,
+            39.86
+          ],
+          [
+            -74.08,
+            39.84
+          ],
+          [
+            -74.08,
+            39.82
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 1,
+        "length_km": 21.2,
+        "pixel_count": 10,
+        "strength_median": 0.2352,
+        "strength_max": 0.2919,
+        "strength_p25": 0.2337,
+        "gradient_dir_deg": 188.0,
+        "front_orientation_deg": 98.0,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -75.1,
+            38.84
+          ],
+          [
+            -75.08,
+            38.84
+          ],
+          [
+            -75.06,
+            38.82
+          ],
+          [
+            -75.06,
+            38.8
+          ],
+          [
+            -75.04,
+            38.78
+          ],
+          [
+            -75.04,
+            38.76
+          ],
+          [
+            -75.04,
+            38.74
+          ],
+          [
+            -75.04,
+            38.72
+          ],
+          [
+            -75.04,
+            38.7
+          ],
+          [
+            -75.04,
+            38.68
+          ],
+          [
+            -75.04,
+            38.66
+          ],
+          [
+            -75.06,
+            38.64
+          ],
+          [
+            -75.08,
+            38.62
+          ],
+          [
+            -75.06,
+            38.6
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 6,
+        "length_km": 31.44,
+        "pixel_count": 14,
+        "strength_median": 0.1113,
+        "strength_max": 0.2661,
+        "strength_p25": 0.0961,
+        "gradient_dir_deg": 178.4,
+        "front_orientation_deg": 88.4,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -75.3,
+            39.14
+          ],
+          [
+            -75.3,
+            39.12
+          ],
+          [
+            -75.3,
+            39.1
+          ],
+          [
+            -75.3,
+            39.08
+          ],
+          [
+            -75.3,
+            39.06
+          ],
+          [
+            -75.28,
+            39.04
+          ],
+          [
+            -75.26,
+            39.02
+          ],
+          [
+            -75.26,
+            39.0
+          ],
+          [
+            -75.24,
+            38.98
+          ],
+          [
+            -75.24,
+            38.96
+          ],
+          [
+            -75.22,
+            38.94
+          ],
+          [
+            -75.2,
+            38.92
+          ],
+          [
+            -75.2,
+            38.9
+          ],
+          [
+            -75.18,
+            38.88
+          ],
+          [
+            -75.18,
+            38.86
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 4,
+        "length_km": 34.73,
+        "pixel_count": 15,
+        "strength_median": 0.0768,
+        "strength_max": 0.1389,
+        "strength_p25": 0.0666,
+        "gradient_dir_deg": 183.0,
+        "front_orientation_deg": 93.0,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -76.02,
+            38.32
+          ],
+          [
+            -76.04,
+            38.32
+          ],
+          [
+            -76.06,
+            38.3
+          ],
+          [
+            -76.08,
+            38.3
+          ],
+          [
+            -76.1,
+            38.3
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 9,
+        "length_km": 8.07,
+        "pixel_count": 10,
+        "strength_median": 0.1248,
+        "strength_max": 0.1359,
+        "strength_p25": 0.1237,
+        "gradient_dir_deg": 79.1,
+        "front_orientation_deg": 169.1,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -75.42,
+            37.4
+          ],
+          [
+            -75.42,
+            37.38
+          ],
+          [
+            -75.42,
+            37.36
+          ],
+          [
+            -75.42,
+            37.34
+          ],
+          [
+            -75.42,
+            37.32
+          ],
+          [
+            -75.4,
+            37.32
+          ],
+          [
+            -75.4,
+            37.3
+          ],
+          [
+            -75.4,
+            37.28
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 13,
+        "length_km": 15.13,
+        "pixel_count": 8,
+        "strength_median": 0.0848,
+        "strength_max": 0.1041,
+        "strength_p25": 0.0678,
+        "gradient_dir_deg": 30.1,
+        "front_orientation_deg": 120.1,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -75.5,
+            36.68
+          ],
+          [
+            -75.5,
+            36.66
+          ],
+          [
+            -75.5,
+            36.64
+          ],
+          [
+            -75.5,
+            36.62
+          ],
+          [
+            -75.5,
+            36.6
+          ],
+          [
+            -75.5,
+            36.58
+          ],
+          [
+            -75.5,
+            36.56
+          ],
+          [
+            -75.5,
+            36.54
+          ],
+          [
+            -75.5,
+            36.52
+          ],
+          [
+            -75.5,
+            36.5
+          ],
+          [
+            -75.5,
+            36.48
+          ],
+          [
+            -75.5,
+            36.46
+          ],
+          [
+            -75.48,
+            36.44
+          ],
+          [
+            -75.48,
+            36.42
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 16,
+        "length_km": 29.57,
+        "pixel_count": 14,
+        "strength_median": 0.0718,
+        "strength_max": 0.0948,
+        "strength_p25": 0.0624,
+        "gradient_dir_deg": 0.3,
+        "front_orientation_deg": 90.3,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -75.84,
+            38.1
+          ],
+          [
+            -75.84,
+            38.08
+          ],
+          [
+            -75.84,
+            38.06
+          ],
+          [
+            -75.84,
+            38.04
+          ],
+          [
+            -75.84,
+            38.02
+          ],
+          [
+            -75.82,
+            38.0
+          ],
+          [
+            -75.82,
+            37.98
+          ],
+          [
+            -75.82,
+            37.96
+          ],
+          [
+            -75.82,
+            37.94
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 10,
+        "length_km": 18.42,
+        "pixel_count": 9,
+        "strength_median": 0.0674,
+        "strength_max": 0.0904,
+        "strength_p25": 0.0624,
+        "gradient_dir_deg": 137.2,
+        "front_orientation_deg": 47.2,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -71.76,
+            39.4
+          ],
+          [
+            -71.78,
+            39.4
+          ],
+          [
+            -71.8,
+            39.42
+          ],
+          [
+            -71.82,
+            39.42
+          ],
+          [
+            -71.84,
+            39.42
+          ],
+          [
+            -71.86,
+            39.4
+          ],
+          [
+            -71.88,
+            39.4
+          ],
+          [
+            -71.9,
+            39.4
+          ],
+          [
+            -71.92,
+            39.4
+          ],
+          [
+            -71.94,
+            39.38
+          ],
+          [
+            -71.96,
+            39.38
+          ],
+          [
+            -71.98,
+            39.36
+          ],
+          [
+            -72.0,
+            39.36
+          ],
+          [
+            -72.02,
+            39.36
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 3,
+        "length_km": 26.74,
+        "pixel_count": 14,
+        "strength_median": 0.077,
+        "strength_max": 0.0878,
+        "strength_p25": 0.0699,
+        "gradient_dir_deg": 83.6,
+        "front_orientation_deg": 173.6,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -72.06,
+            37.94
+          ],
+          [
+            -72.08,
+            37.94
+          ],
+          [
+            -72.1,
+            37.92
+          ],
+          [
+            -72.12,
+            37.92
+          ],
+          [
+            -72.14,
+            37.92
+          ],
+          [
+            -72.16,
+            37.92
+          ],
+          [
+            -72.18,
+            37.9
+          ],
+          [
+            -72.2,
+            37.9
+          ],
+          [
+            -72.22,
+            37.9
+          ],
+          [
+            -72.24,
+            37.9
+          ],
+          [
+            -72.26,
+            37.9
+          ],
+          [
+            -72.28,
+            37.9
+          ],
+          [
+            -72.3,
+            37.88
+          ],
+          [
+            -72.32,
+            37.88
+          ],
+          [
+            -72.34,
+            37.88
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 12,
+        "length_km": 27.83,
+        "pixel_count": 15,
+        "strength_median": 0.0717,
+        "strength_max": 0.084,
+        "strength_p25": 0.0641,
+        "gradient_dir_deg": 74.3,
+        "front_orientation_deg": 164.3,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -74.0,
+            39.42
+          ],
+          [
+            -74.02,
+            39.4
+          ],
+          [
+            -74.04,
+            39.4
+          ],
+          [
+            -74.06,
+            39.4
+          ],
+          [
+            -74.08,
+            39.4
+          ],
+          [
+            -74.1,
+            39.42
+          ],
+          [
+            -74.12,
+            39.42
+          ],
+          [
+            -74.14,
+            39.4
+          ],
+          [
+            -74.16,
+            39.4
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 2,
+        "length_km": 17.04,
+        "pixel_count": 9,
+        "strength_median": 0.0743,
+        "strength_max": 0.0834,
+        "strength_p25": 0.0685,
+        "gradient_dir_deg": 78.3,
+        "front_orientation_deg": 168.3,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -74.98,
+            38.54
+          ],
+          [
+            -74.98,
+            38.52
+          ],
+          [
+            -74.98,
+            38.5
+          ],
+          [
+            -74.98,
+            38.48
+          ],
+          [
+            -74.98,
+            38.46
+          ],
+          [
+            -74.98,
+            38.44
+          ],
+          [
+            -74.98,
+            38.42
+          ],
+          [
+            -74.98,
+            38.4
+          ],
+          [
+            -74.96,
+            38.4
+          ],
+          [
+            -74.96,
+            38.38
+          ],
+          [
+            -74.96,
+            38.36
+          ],
+          [
+            -74.96,
+            38.34
+          ],
+          [
+            -74.96,
+            38.32
+          ],
+          [
+            -74.96,
+            38.3
+          ],
+          [
+            -74.94,
+            38.28
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 8,
+        "length_km": 31.29,
+        "pixel_count": 15,
+        "strength_median": 0.0562,
+        "strength_max": 0.073,
+        "strength_p25": 0.0465,
+        "gradient_dir_deg": 11.7,
+        "front_orientation_deg": 101.7,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -74.98,
+            38.02
+          ],
+          [
+            -74.98,
+            38.0
+          ],
+          [
+            -74.98,
+            37.98
+          ],
+          [
+            -74.96,
+            37.98
+          ],
+          [
+            -74.94,
+            37.98
+          ],
+          [
+            -74.94,
+            37.96
+          ],
+          [
+            -74.94,
+            37.94
+          ],
+          [
+            -74.94,
+            37.92
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 11,
+        "length_km": 14.64,
+        "pixel_count": 8,
+        "strength_median": 0.0484,
+        "strength_max": 0.0708,
+        "strength_p25": 0.0435,
+        "gradient_dir_deg": 48.2,
+        "front_orientation_deg": 138.2,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -74.12,
+            38.8
+          ],
+          [
+            -74.14,
+            38.8
+          ],
+          [
+            -74.16,
+            38.8
+          ],
+          [
+            -74.18,
+            38.8
+          ],
+          [
+            -74.2,
+            38.8
+          ],
+          [
+            -74.22,
+            38.8
+          ],
+          [
+            -74.24,
+            38.8
+          ],
+          [
+            -74.24,
+            38.78
+          ],
+          [
+            -74.26,
+            38.78
+          ],
+          [
+            -74.28,
+            38.78
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 7,
+        "length_km": 16.11,
+        "pixel_count": 10,
+        "strength_median": 0.0586,
+        "strength_max": 0.066,
+        "strength_p25": 0.047,
+        "gradient_dir_deg": 99.4,
+        "front_orientation_deg": 9.4,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -76.12,
+            37.02
+          ],
+          [
+            -76.1,
+            37.02
+          ],
+          [
+            -76.08,
+            37.04
+          ],
+          [
+            -76.06,
+            37.04
+          ],
+          [
+            -76.06,
+            37.02
+          ],
+          [
+            -76.04,
+            37.02
+          ],
+          [
+            -76.04,
+            37.0
+          ],
+          [
+            -76.04,
+            36.98
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 15,
+        "length_km": 14.86,
+        "pixel_count": 8,
+        "strength_median": 0.0538,
+        "strength_max": 0.0635,
+        "strength_p25": 0.0444,
+        "gradient_dir_deg": 232.6,
+        "front_orientation_deg": 142.6,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -75.38,
+            35.6
+          ],
+          [
+            -75.36,
+            35.6
+          ],
+          [
+            -75.34,
+            35.6
+          ],
+          [
+            -75.32,
+            35.6
+          ],
+          [
+            -75.3,
+            35.6
+          ],
+          [
+            -75.28,
+            35.6
+          ],
+          [
+            -75.26,
+            35.6
+          ],
+          [
+            -75.24,
+            35.6
+          ],
+          [
+            -75.22,
+            35.6
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 17,
+        "length_km": 14.48,
+        "pixel_count": 9,
+        "strength_median": 0.0407,
+        "strength_max": 0.0599,
+        "strength_p25": 0.0385,
+        "gradient_dir_deg": 65.4,
+        "front_orientation_deg": 155.4,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -74.12,
+            38.98
+          ],
+          [
+            -74.12,
+            38.96
+          ],
+          [
+            -74.12,
+            38.94
+          ],
+          [
+            -74.12,
+            38.92
+          ],
+          [
+            -74.12,
+            38.9
+          ],
+          [
+            -74.12,
+            38.88
+          ],
+          [
+            -74.12,
+            38.86
+          ],
+          [
+            -74.14,
+            38.84
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 5,
+        "length_km": 16.18,
+        "pixel_count": 8,
+        "strength_median": 0.0407,
+        "strength_max": 0.0558,
+        "strength_p25": 0.0383,
+        "gradient_dir_deg": 351.6,
+        "front_orientation_deg": 81.6,
+        "strength_unit": "degC_per_km"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            -76.28,
+            37.34
+          ],
+          [
+            -76.28,
+            37.32
+          ],
+          [
+            -76.28,
+            37.3
+          ],
+          [
+            -76.28,
+            37.28
+          ],
+          [
+            -76.26,
+            37.28
+          ],
+          [
+            -76.24,
+            37.28
+          ],
+          [
+            -76.24,
+            37.26
+          ],
+          [
+            -76.24,
+            37.24
+          ],
+          [
+            -76.24,
+            37.22
+          ]
+        ]
+      },
+      "properties": {
+        "front_id": 14,
+        "length_km": 16.9,
+        "pixel_count": 9,
+        "strength_median": 0.0444,
+        "strength_max": 0.0524,
+        "strength_p25": 0.0398,
+        "gradient_dir_deg": 191.7,
+        "front_orientation_deg": 101.7,
+        "strength_unit": "degC_per_km"
+      }
+    }
+  ]
+}

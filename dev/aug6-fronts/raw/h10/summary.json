@@ -1,0 +1,104 @@
+{
+  "source": "sst_usec_md_2026218_20260806_10_g19.json",
+  "front_count": 22,
+  "strength_median_dist": {
+    "p25": 0.0514,
+    "p50": 0.0616,
+    "p75": 0.0783,
+    "max": 0.2475
+  },
+  "strength_max_dist": {
+    "p25": 0.0624,
+    "p50": 0.0757,
+    "p75": 0.1061,
+    "max": 0.3147
+  },
+  "length_km_dist": {
+    "p25": 15.63,
+    "p50": 18.92,
+    "p75": 23.15,
+    "max": 41.46
+  },
+  "top10_by_strength": [
+    {
+      "id": 1,
+      "strength_max": 0.3147,
+      "strength_median": 0.2475,
+      "length_km": 21.2,
+      "gradient_dir_deg": 187.0,
+      "front_orientation_deg": 97.0
+    },
+    {
+      "id": 6,
+      "strength_max": 0.2952,
+      "strength_median": 0.1146,
+      "length_km": 24.06,
+      "gradient_dir_deg": 178.1,
+      "front_orientation_deg": 88.1
+    },
+    {
+      "id": 21,
+      "strength_max": 0.2633,
+      "strength_median": 0.2352,
+      "length_km": 21.96,
+      "gradient_dir_deg": 165.6,
+      "front_orientation_deg": 75.6
+    },
+    {
+      "id": 4,
+      "strength_max": 0.1355,
+      "strength_median": 0.07,
+      "length_km": 41.46,
+      "gradient_dir_deg": 189.4,
+      "front_orientation_deg": 99.4
+    },
+    {
+      "id": 9,
+      "strength_max": 0.1175,
+      "strength_median": 0.1071,
+      "length_km": 8.07,
+      "gradient_dir_deg": 77.0,
+      "front_orientation_deg": 167.0
+    },
+    {
+      "id": 2,
+      "strength_max": 0.1081,
+      "strength_median": 0.0723,
+      "length_km": 15.58,
+      "gradient_dir_deg": 359.6,
+      "front_orientation_deg": 89.6
+    },
+    {
+      "id": 17,
+      "strength_max": 0.1001,
+      "strength_median": 0.0779,
+      "length_km": 34.66,
+      "gradient_dir_deg": 2.0,
+      "front_orientation_deg": 92.0
+    },
+    {
+      "id": 12,
+      "strength_max": 0.0866,
+      "strength_median": 0.0836,
+      "length_km": 24.99,
+      "gradient_dir_deg": 76.3,
+      "front_orientation_deg": 166.3
+    },
+    {
+      "id": 16,
+      "strength_max": 0.0861,
+      "strength_median": 0.0784,
+      "length_km": 15.33,
+      "gradient_dir_deg": 240.2,
+      "front_orientation_deg": 150.2
+    },
+    {
+      "id": 8,
+      "strength_max": 0.0766,
+      "strength_median": 0.0606,
+      "length_km": 30.15,
+      "gradient_dir_deg": 6.7,
+      "front_orientation_deg": 96.7
+    }
+  ]
+}
