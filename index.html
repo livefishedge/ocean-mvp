@@ -6926,10 +6926,10 @@ async function renderMobileFrame(frameMeta) {
     document.body.classList.remove("mobile-map-ready");
     showFrame();
   });
-  if (mobileMapState.imageUrl && mobileMapState.imageUrl.startsWith("blob:")) {
-    URL.revokeObjectURL(mobileMapState.imageUrl);
-  }
-  mobileMapState.imageUrl = url;
+  // (legacy blob-URL cleanup removed: renderMobileFrame() now uses
+  //  ol.source.ImageCanvas (see b13739edcc2), which never round-trips through
+  //  a blob URL, so imageUrl is never assigned and `url` is undefined here.
+  //  Previously raised: ReferenceError: Can't find variable: url.)
   if (mobileMapState.imageLayer) {
     mobileMapState.imageLayer.setSource(source);
   } else {
