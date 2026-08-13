@@ -563,7 +563,20 @@
       #toolbar{ gap:6px; padding-right:58px; }
       #nav-bar{ order:1; flex-basis:100%; }
       #toolbar-status{ order:2; flex:1 1 100%; white-space:normal; }
-      #menu-panel{ top:58px; right:8px; width:min(280px, calc(100vw - 16px)); }
+      #menu-panel{
+        top:58px; right:6px; width:min(360px, calc(100vw - 12px));
+        max-height:calc(100dvh - 66px); padding:10px; gap:8px;
+      }
+      #menu-panel .hamburger-range-block{
+        display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+        gap:7px; align-items:center;
+      }
+      #menu-panel .hamburger-range-block .range-name,
+      #menu-panel .hamburger-range-block .range-actions{ grid-column:1 / -1; }
+      #menu-panel .hamburger-range-block input{ width:100%; min-width:0; }
+      #menu-panel .range-actions{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+      #hamburger-cbar{ width:100%; height:68px; }
+      #hamburger-cbar svg{ width:100%; height:54px; }
     }
 
     /* Plot: full viewport */
@@ -4533,31 +4546,38 @@ function buildUvContourLayer(dataObj, gridInfo) {
         }));
       }
     }
-    // Put one unambiguous label on the zero contour, on its longest segment.
+    // Put one unambiguous label on the zero contour as a dedicated point
+    // feature. LineString text placement is unreliable for short marching-
+    // squares segments, especially on mobile.
     if (ft === 0 && levelFeatures.length) {
       levelFeatures.sort((a, b) => b.getGeometry().getLength() - a.getGeometry().getLength());
-      levelFeatures[0].set("label", "0");
+      const labelGeometry = levelFeatures[0].getGeometry();
+      features.push(new ol.Feature({
+        geometry: new ol.geom.Point(labelGeometry.getCoordinateAt(0.5)),
+        label: "0",
+        contourLabel: true
+      }));
     }
     features.push(...levelFeatures);
   }
   return new ol.layer.Vector({
     source: new ol.source.Vector({ features }), zIndex: 26,
     updateWhileAnimating: true, updateWhileInteracting: true,
-    style: feature => new ol.style.Style({
-      stroke: new ol.style.Stroke({
-        color: "rgba(25,25,25,0.96)",
-        width: feature.get("major") ? 2 : 1,
-        lineCap: "round", lineJoin: "round"
-      }),
-      text: feature.get("label") ? new ol.style.Text({
+    style: feature => feature.get("contourLabel")
+      ? new ol.style.Style({ text: new ol.style.Text({
         text: feature.get("label"),
         font: "700 12px Arial",
         fill: new ol.style.Fill({ color: "#111820" }),
         stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.9)", width: 3 }),
-        placement: "line",
+        placement: "point",
         overflow: true
-      }) : undefined
-    })
+      }) })
+      : new ol.style.Style({ stroke: new ol.style.Stroke({
+        color: "rgba(25,25,25,0.96)",
+        width: feature.get("major") ? 2 : 1,
+        lineDash: feature.get("major") && feature.get("contourLevel") !== 0 ? [4, 3] : undefined,
+        lineCap: "round", lineJoin: "round"
+      }) })
   });
 }
 
