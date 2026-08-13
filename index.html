@@ -1775,7 +1775,7 @@ const DEFAULT_RANGES = {
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   chl_front: { vmin: 1.0, vmax: 3.0, unit: "fold/km" },
   sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
-  uv:    { vmin: -0.5, vmax: 1.5, unit: "m" }, /* ADT/SSH range: -0.5 covers cold slope water (negative ADT clipped at 0 before); 1.5 covers warm Gulf Stream intrusions. Real MidAtl ADT roughly -0.4..+0.7 m. */
+  uv:    { vmin: -1.5, vmax: 5.0, unit: "Height (ft)" }, /* ADT/SSH in FEET (US captain convention). m->ft: -0.5m=-1.640ft, 1.5m=4.921ft. Rounded to -1.5..5.0 ft for clean 0.5 ft ticks. */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" },
   thermal_fronts: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
   combined: { vmin: 0.0, vmax: 1.0, unit: "" }
@@ -1810,7 +1810,7 @@ function formatSigValue(value, digits) {
   return Number(value.toPrecision(digits)).toString();
 }
 function formatChlValue(value) { return `${value.toFixed(2)} mg/m3`; }
-function formatSshValue(value) { return `${value.toFixed(3)}m`; }
+function formatSshValue(value) { const ft = value * 3.28084; return `${ft.toFixed(2)} ft`; }
 function formatSstValue(celsius) {
   const value = tempUnit === "F" ? cToF(celsius) : celsius;
   return `${formatSigValue(value, 4)}${tempUnitLabel()}`;
@@ -3744,6 +3744,11 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
   } else if (varKey === "uv") {
     chosenScale = UV_SCALE;
     cValues = [cmin, cmax];
+    /* Explicit 0.5 ft ticks from -1.5 to +5.0 (matches ADT contour interval).
+       The "0" tick is the deep frontal location (climatological mean current axis). */
+    tickmode = "array";
+    tickvals = [-1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
+    ticktext = tickvals.map(v => v.toFixed(1));
   } else if (varKey === "bathy") {
     chosenScale = BATHY_SCALE;
     cValues = [cmin, cmax];
@@ -3949,28 +3954,34 @@ function buildUv(gridInfo, dataObj) {
   const vmin = userRanges.uv.vmin;
   const vmax = userRanges.uv.vmax;
 
+  /* ADT is stored in meters in dataObj.adt. Display in FEET (US captain
+     convention). 1 m = 3.28084 ft. vmin/vmax/ticks/contours are all in feet
+     — see DEFAULT_RANGES.uv and the uv branch of renderFooterColorbarToDiv. */
+  const M_TO_FT = 3.28084;
+  const adtFt = adt.map(row => row.map(v => v * M_TO_FT));
+
   const bg = {
     type:"heatmap",
     x:xAxis, y:yAxis,
-    z:adt,
-    customdata:adt,
+    z:adtFt,
+    customdata:adtFt,
     hoverinfo:"none",
     showscale:false,
     zauto:false, zmin:vmin, zmax:vmax,
     colorscale: UV_SCALE,
-    // Colorbar uses the 'uv' key which now has the unit 'm'
+    // Colorbar uses the 'uv' key; title comes from DEFAULT_RANGES.uv.unit ("Height (ft)")
     colorbar: colorbarFor("uv"),
     zsmooth:false,
-    // ADT contour overlay — 10 cm intervals across the full vmin..vmax range.
+    // ADT contour overlay in FEET — 0.5 ft intervals from -1.5..+5.0.
     // The 0-level contour IS the deep frontal location: it marks the line
     // where ADT crosses the climatological mean (MDT reference), which is
     // the geostrophic current axis / subsurface thermohaline boundary.
     // showlabels=true makes the value visible on each line so the captain
     // can read the front position directly off the map.
     contours: {
-      start: vmin,
-      end:   vmax,
-      size:  0.1,                 /* 10 cm intervals */
+      start: vmin,                 /* -1.5 ft */
+      end:   vmax,                 /* +5.0 ft */
+      size:  0.5,                  /* 0.5 ft intervals (~15 cm) */
       coloring: "lines",           /* keep heatmap fill, draw lines on top */
       showlines: true,
       color: "rgba(255,255,255,0.92)",
