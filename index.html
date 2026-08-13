@@ -2046,6 +2046,7 @@ let mobileMapState = {
   bathyContourLayerBBox: null,    // bbox the contour layer was last built for
   bathyContourLayerURL: null,     // bathy URL the contour layer was last built for
   arrowLayer: null,
+  uvContourLayer: null,
   placeLayer: null,
   cursorLayer: null,
   cursorFeature: null,
@@ -2062,6 +2063,7 @@ let desktopMapState = {
   landLayerURL: null,     // bathy URL the current land canvas was built for
   placeLayer: null,
   arrowLayer: null,
+  uvContourLayer: null,
   bathyContourLayer: null,
   currentGridInfo: null,
   currentDataObj: null,
@@ -2443,6 +2445,11 @@ async function renderDesktopFrame(frameMeta) {
   if (currentVar === "uv") {
     desktopMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
     if (desktopMapState.arrowLayer) map.addLayer(desktopMapState.arrowLayer);
+    clearUvContourLayer(desktopMapState);
+    desktopMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo);
+    if (desktopMapState.uvContourLayer) map.addLayer(desktopMapState.uvContourLayer);
+  } else {
+    clearUvContourLayer(desktopMapState);
   }
   if (desktopMapState.arrowLayer) desktopMapState.arrowLayer.setVisible(currentVar === "uv");
   if (thermalFrontState.frontLayer) thermalFrontState.frontLayer.setVisible(false);
@@ -4494,6 +4501,47 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
   });
 }
 
+function clearUvContourLayer(state) {
+  if (state?.map && state.uvContourLayer) state.map.removeLayer(state.uvContourLayer);
+  if (state) state.uvContourLayer = null;
+}
+
+// Render ADT contours as OL vectors so width is measured in screen pixels,
+// not low-resolution raster pixels. This is the authoritative Currents path.
+function buildUvContourLayer(dataObj, gridInfo) {
+  const d = (dataObj?.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+  const z = d?.adt || d?.z;
+  const xs = gridInfo?.xAxis || [], ys = gridInfo?.yAxis || [];
+  if (!is2D(z) || xs.length < 2 || ys.length < 2) return null;
+  const features = [];
+  for (let level = -1.5; level <= 5.0001; level += 0.5) {
+    const ft = Number(level.toFixed(1));
+    for (let j = 0; j < ys.length - 1; j++) for (let i = 0; i < xs.length - 1; i++) {
+      const raw = [z[j]?.[i], z[j]?.[i + 1], z[j + 1]?.[i + 1], z[j + 1]?.[i]].map(Number);
+      if (raw.some(v => !Number.isFinite(v))) continue;
+      const val = raw.map(v => v * 3.28084);
+      const p = [[xs[i],ys[j]],[xs[i+1],ys[j]],[xs[i+1],ys[j+1]],[xs[i],ys[j+1]]];
+      const hits = [];
+      for (const [a,b] of [[0,1],[1,2],[2,3],[3,0]]) {
+        if ((val[a] < ft) !== (val[b] < ft)) {
+          const t = (ft - val[a]) / (val[b] - val[a]);
+          hits.push([p[a][0] + (p[b][0]-p[a][0])*t, p[a][1] + (p[b][1]-p[a][1])*t]);
+        }
+      }
+      for (let k = 0; k + 1 < hits.length; k += 2) {
+        features.push(new ol.Feature({ geometry: new ol.geom.LineString(hits.slice(k,k+2).map(toMapProjection)) }));
+      }
+    }
+  }
+  return new ol.layer.Vector({
+    source: new ol.source.Vector({ features }), zIndex: 26,
+    updateWhileAnimating: true, updateWhileInteracting: true,
+    style: new ol.style.Style({ stroke: new ol.style.Stroke({
+      color: "rgba(25,25,25,0.96)", width: 2, lineCap: "round", lineJoin: "round"
+    }) })
+  });
+}
+
 // Draw a line using direct pixel manipulation (Bresenham-inspired)
 // to avoid canvas stroke anti-aliasing edge bleed that corrupts nearby heatmap pixels
 function drawLinePixels(imgData, x0, y0, x1, y1, color, imgWidth, lineWidth) {
@@ -5146,7 +5194,6 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  if (varKey === "uv") drawUvContours(ctx, z, nx, ny, xFlip, yFlip);
   return canvas;
 }
 
@@ -7024,6 +7071,11 @@ async function renderMobileFrame(frameMeta) {
   if (currentVar === "uv") {
     mobileMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
     if (mobileMapState.arrowLayer) map.addLayer(mobileMapState.arrowLayer);
+    clearUvContourLayer(mobileMapState);
+    mobileMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo);
+    if (mobileMapState.uvContourLayer) map.addLayer(mobileMapState.uvContourLayer);
+  } else {
+    clearUvContourLayer(mobileMapState);
   }
   await ensureMobileLandLayer(map);
   ensureMobilePlaceLayer(map);
