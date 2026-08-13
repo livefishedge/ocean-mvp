@@ -1346,7 +1346,7 @@ body.combined-mode #combined-menu-btn{
             <polyline points="54,10 46,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
             <polyline points="54,10 46,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
           </svg>
-          <span style="font-weight:800;color:rgba(255,255,255,0.9);">0.5 m/s</span>
+          <span style="font-weight:800;color:rgba(255,255,255,0.9);">1.0 m/s · 2.49 grid-cell lengths</span>
         </div>
       </div>
       <label class="combined-toggle">
@@ -1434,7 +1434,7 @@ body.combined-mode #combined-menu-btn{
             <polyline points="50,10 42,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
             <polyline points="50,10 42,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
           </svg>
-          <span>Current speed · reference arrow = 0.5 m/s</span>
+          <span>Current speed · 1.0 m/s = 2.49 grid-cell lengths</span>
         </div>
       </div>
       <div id="hamburger-cbar"></div>
@@ -1802,6 +1802,31 @@ const VAR_TO_GRID = {
 
 // UV/ADT source values are metres; the product presents height in feet.
 const UV_M_TO_FT = 3.28084;
+const UV_ARROW_MIN_SPEED = 0.035;
+const UV_ARROW_MAX_SPEED = 1.2;
+const UV_ARROW_MIN_LENGTH_CELLS = 0.95;
+const UV_ARROW_MAX_LENGTH_CELLS = 2.8;
+const UV_ARROW_REFERENCE_SPEED = 1.0;
+
+function uvArrowLengthCells(speed) {
+  const scaled = Math.min(Math.max(Number(speed) || 0, 0), UV_ARROW_MAX_SPEED) / UV_ARROW_MAX_SPEED;
+  return UV_ARROW_MIN_LENGTH_CELLS + (UV_ARROW_MAX_LENGTH_CELLS - UV_ARROW_MIN_LENGTH_CELLS) * scaled;
+}
+
+function uvContourLevels(vmin = userRanges?.uv?.vmin ?? -1, vmax = userRanges?.uv?.vmax ?? 5) {
+  const levels = [];
+  const first = Math.ceil((Number(vmin) - 1e-9) / 0.4);
+  const last = Math.floor((Number(vmax) + 1e-9) / 0.4);
+  for (let n = first; n <= last; n++) levels.push(Number((n * 0.4).toFixed(1)));
+  // Zero is a semantic reference line, not a range-dependent contour.
+  if (!levels.includes(0)) levels.push(0);
+  levels.sort((a, b) => a - b);
+  return levels;
+}
+
+function uvContourIsMajor(level) {
+  return Number(level) === 0 || (Math.round(Math.abs(Number(level)) / 0.4) % 5 === 0);
+}
 
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.02, vmax: 10.0, unit: "mg/m3" },
@@ -2297,6 +2322,43 @@ function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
   return { value, row, col };
 }
 
+// Fill only isolated missing vector cells from their valid neighbors. Large
+// null regions remain null (normally land/coastal mask), so this removes
+// speckled holes without inventing currents across the shoreline.
+function uvVectorAt(u, v, row, col) {
+  const directU = Number(u?.[row]?.[col]);
+  const directV = Number(v?.[row]?.[col]);
+  if (Number.isFinite(directU) && Number.isFinite(directV)) return [directU, directV];
+  const neighbors = [];
+  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+    if (!di && !dj) continue;
+    const uu = Number(u?.[row + dj]?.[col + di]);
+    const vv = Number(v?.[row + dj]?.[col + di]);
+    if (Number.isFinite(uu) && Number.isFinite(vv)) neighbors.push([uu, vv]);
+  }
+  if (neighbors.length < 5) return null;
+  return [
+    neighbors.reduce((sum, pair) => sum + pair[0], 0) / neighbors.length,
+    neighbors.reduce((sum, pair) => sum + pair[1], 0) / neighbors.length
+  ];
+}
+
+function formatUvReadout(base, gridInfo, dataObj, lon, lat, map, pixel, fallbackHeightFt = null) {
+  const sample = sampleRasterValueAt("uv", gridInfo, dataObj, lon, lat);
+  const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+  let speed = null;
+  let heightFt = sample?.value ?? fallbackHeightFt;
+  if (sample) {
+    const vector = uvVectorAt(d?.u, d?.v, sample.row, sample.col);
+    if (vector) speed = Math.hypot(vector[0], vector[1]);
+  }
+  if (speed === null && map && pixel) speed = uvArrowSpeedAtPixel(map, pixel);
+  const parts = [];
+  if (Number.isFinite(speed)) parts.push(`${speed.toFixed(2)} m/s`);
+  if (Number.isFinite(heightFt)) parts.push(`${Number(heightFt).toFixed(2)} ft`);
+  return parts.length ? `${base}, ${parts.join(", ")}` : base;
+}
+
 function renderDesktopReadout(lon, lat, pixel) {
   // The desktop non-combined map's view is EPSG:3857 (Web Mercator), so
   // ev.coordinate from pointermove/click is in meters. The readout text
@@ -2315,6 +2377,10 @@ function renderDesktopReadout(lon, lat, pixel) {
   const gridInfo = desktopMapState.currentGridInfo;
   const dataObj = desktopMapState.currentDataObj;
   const base = formatReadoutCoords(lon, lat);
+  if (currentVar === "uv") {
+    setReadout(formatUvReadout(base, gridInfo, dataObj, lon, lat, desktopMapState.map, pixel));
+    return;
+  }
   // Bathy contour-line priority: if the click pixel is on (or near) a purple
   // bathy contour feature, show that contour's level instead of the raster
   // depth at the click pixel. The raster value at the exact line is rarely
@@ -2326,13 +2392,6 @@ function renderDesktopReadout(lon, lat, pixel) {
     const contourDepth = bathyContourDepthAtPixel(desktopMapState.map, pixel);
     if (contourDepth !== null) {
       setReadout(`${base}, ${contourDepth}m (contour)`);
-      return;
-    }
-  }
-  if (currentVar === "uv" && pixel && desktopMapState.arrowLayer) {
-    const arrowSpeed = uvArrowSpeedAtPixel(desktopMapState.map, pixel);
-    if (arrowSpeed !== null) {
-      setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (arrow)`);
       return;
     }
   }
@@ -4003,6 +4062,7 @@ function buildUv(gridInfo, dataObj) {
   // Use the UV range, which is now configured for ADT (Sea Surface Height)
   const vmin = userRanges.uv.vmin;
   const vmax = userRanges.uv.vmax;
+  const contourLevelsForPlot = uvContourLevels(vmin, vmax);
 
   // ADT is stored in metres; render the product in feet end-to-end.
   const adtFeet = adt.map(row => row.map(v => Number(v) * UV_M_TO_FT));
@@ -4038,8 +4098,8 @@ function buildUv(gridInfo, dataObj) {
     xaxis: "x",
     yaxis: "y",
     contours: {
-      start: vmin,                 /* -1 ft */
-      end:   vmax,                 /* +5 ft */
+      start: contourLevelsForPlot[0],
+      end:   contourLevelsForPlot[contourLevelsForPlot.length - 1],
       size:  0.4,                  /* 0.4 ft intervals */
       coloring: "lines",           /* lines only, no fill */
       showlabels: true,
@@ -4064,23 +4124,19 @@ function buildUv(gridInfo, dataObj) {
   const headAngle = (24 * Math.PI) / 180;
 
   const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 18));
-  const maxSpeed = 1.2;
-  const minSpeed = 0.035;
-  const minLen = 0.75 * cell;
-  const maxLen = 2.25 * cell;
 
   for (let j=0;j<ny;j+=step){
     const lat0 = yAxis[j];
     for (let i=0;i<nx;i+=step){
       const lon0 = xAxis[i];
-      const uu = u[j][i], vv = v[j][i];
+      const vector = uvVectorAt(u, v, j, i);
+      const uu = vector?.[0], vv = vector?.[1];
       const sp = Math.hypot(uu, vv);
 
       if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp)) continue;
-      if (sp < minSpeed) continue;
+      if (sp < UV_ARROW_MIN_SPEED) continue;
 
-      const scaled = Math.min(sp, maxSpeed) / maxSpeed;
-      const len = minLen + (maxLen - minLen) * scaled;
+      const len = uvArrowLengthCells(sp) * cell;
       const lon1 = lon0 + (uu / sp) * len;
       const lat1 = lat0 + (vv / sp) * len;
 
@@ -4344,10 +4400,7 @@ function isMobileMissingValue(varKey, rawValue, numericValue) {
 // path.  The Plotly contour trace is not used when OL owns #map, so keeping
 // this in the canvas path is what makes contours appear on desktop and mobile.
 function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
-  const levels = [];
-  for (let level = -1; level <= 5.0001; level += 0.4) levels.push(Number(level.toFixed(1)));
-  if (!levels.includes(0)) levels.push(0);
-  levels.sort((a, b) => a - b);
+  const levels = uvContourLevels();
   const toCanvas = (x, y) => [xFlip ? (nx - 1 - x) : x, yFlip ? (ny - 1 - y) : y];
   const edgePoint = (a, b, va, vb, level) => {
     const den = vb - va;
@@ -4381,7 +4434,8 @@ function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
     }
     ctx.strokeStyle = "rgba(35,35,35,0.94)";
     // One 2px major line every five 0.4-ft contours; the other lines are 1px.
-    ctx.lineWidth = (levelIndex % 5 === 0) ? 2 : 1;
+    ctx.lineWidth = uvContourIsMajor(level) ? 2 : 1;
+    ctx.strokeStyle = level === 0 ? "#000000" : "rgba(35,35,35,0.94)";
     ctx.stroke();
   }
   ctx.restore();
@@ -4430,8 +4484,9 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
     const srcJ = yFlip ? (ny - 1 - row) : row;
     for (let col = 0; col < nx; col += step) {
       const srcI = xAscending ? col : (nx - 1 - col);
-      const uu = u[srcJ]?.[srcI];
-      const vv = v[srcJ]?.[srcI];
+      const vector = uvVectorAt(u, v, srcJ, srcI);
+      const uu = vector?.[0];
+      const vv = vector?.[1];
       if (!isFinite(uu) || !isFinite(vv)) continue;
       const x = col * sx;
       const y = row * sy;
@@ -4477,10 +4532,6 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
   // Sample more of the native current grid; the previous step made the
   // direction field look sparse on both desktop and mobile.
   const step = Math.max(2, Math.floor(Math.sqrt(nx * ny) / 48));
-  const maxSpeed = 1.2;
-  const minSpeed = 0.035;
-  const minLen = 0.95 * cell;
-  const maxLen = 2.80 * cell;
   const headAngle = Math.PI / 6;
   const features = [];
 
@@ -4488,13 +4539,13 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
     const lat0 = yAxis[j];
     for (let i = 0; i < nx; i += step) {
       const lon0 = xAxis[i];
-      const uu = u[j]?.[i];
-      const vv = v[j]?.[i];
+      const vector = uvVectorAt(u, v, j, i);
+      const uu = vector?.[0];
+      const vv = vector?.[1];
       const sp = Math.hypot(uu, vv);
-      if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp) || sp < minSpeed) continue;
+      if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp) || sp < UV_ARROW_MIN_SPEED) continue;
 
-      const scaled = Math.min(sp, maxSpeed) / maxSpeed;
-      const len = minLen + (maxLen - minLen) * scaled;
+      const len = uvArrowLengthCells(sp) * cell;
       const lon1 = lon0 + (uu / sp) * len;
       const lat1 = lat0 + (vv / sp) * len;
       const theta = Math.atan2(lat1 - lat0, lon1 - lon0);
@@ -4560,10 +4611,7 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
   const xs = gridInfo?.xAxis || [], ys = gridInfo?.yAxis || [];
   if (!is2D(z) || xs.length < 2 || ys.length < 2) return null;
   const features = [];
-  const levels = [];
-  for (let level = -1; level <= 5.0001; level += 0.4) levels.push(Number(level.toFixed(1)));
-  if (!levels.includes(0)) levels.push(0);
-  levels.sort((a, b) => a - b);
+  const levels = uvContourLevels();
   for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
     const ft = levels[levelIndex];
     const levelFeatures = [];
@@ -4583,7 +4631,7 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
         levelFeatures.push(new ol.Feature({
           geometry: new ol.geom.LineString(hits.slice(k,k+2).map(pt => toMapProjection(pt))),
           contourLevel: ft,
-          major: levelIndex % 5 === 0
+          major: uvContourIsMajor(ft)
         }));
       }
     }
@@ -4642,9 +4690,9 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
     source: new ol.source.Vector({ features }), zIndex: 16,
     updateWhileAnimating: true, updateWhileInteracting: true,
     style: feature => new ol.style.Style({ stroke: new ol.style.Stroke({
-        color: "rgba(25,25,25,0.96)",
-        width: feature.get("major") ? 2 : 1,
-        lineDash: feature.get("major") && feature.get("contourLevel") !== 0 ? [4, 3] : undefined,
+        color: feature.get("contourLevel") === 0 ? "#000000" : "rgba(25,25,25,0.96)",
+        width: feature.get("contourLevel") === 0 || feature.get("major") ? 2 : 1,
+        lineDash: feature.get("contourLevel") !== 0 && feature.get("major") ? [4, 3] : undefined,
         lineCap: "round", lineJoin: "round"
       }) })
   });
@@ -5157,6 +5205,10 @@ function renderMobileReadout(lon, lat) {
 function renderMobileReadoutFromLonLat(lon, lat, pixel) {
   if (!isFinite(lon) || !isFinite(lat)) return;
   const base = formatReadoutCoords(lon, lat);
+  if (currentVar === "uv") {
+    setReadout(formatUvReadout(base, mobileMapState.currentGridInfo, mobileMapState.currentDataObj, lon, lat, mobileMapState.map, pixel));
+    return;
+  }
   // Feature priority (mirror of desktop + combined):
   //   - bathy contour (depth) — requires mobile bathy contour layer to exist
   //   - UV arrow (current speed) — the arrows carry a per-arrow speed
@@ -5165,13 +5217,6 @@ function renderMobileReadoutFromLonLat(lon, lat, pixel) {
     const contourDepth = bathyContourDepthAtPixel(mobileMapState.map, pixel);
     if (contourDepth !== null) {
       setReadout(`${base}, ${contourDepth}m (contour)`);
-      return;
-    }
-  }
-  if (pixel && mobileMapState.arrowLayer && currentVar === "uv") {
-    const arrowSpeed = uvArrowSpeedAtPixel(mobileMapState.map, pixel);
-    if (arrowSpeed !== null) {
-      setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (arrow)`);
       return;
     }
   }
@@ -5187,7 +5232,7 @@ function renderMobileReadoutFromLonLat(lon, lat, pixel) {
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshFeet(val)}`);
+  else if (currentVar === "uv") setReadout(formatUvReadout(base, mobileMapState.currentGridInfo, mobileMapState.currentDataObj, lon, lat, mobileMapState.map, null, val));
   else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
@@ -6000,21 +6045,17 @@ function buildDesktopUvArrowLayer(data, grid) {
   const dxg = Math.abs((xAxis[1] ?? xAxis[0]) - xAxis[0]) || 0.01;
   const dyg = Math.abs((yAxis[1] ?? yAxis[0]) - yAxis[0]) || 0.01;
   const cell = Math.min(dxg, dyg);
-  const minSpeed = 0.035;
-  const maxSpeed = 1.2;
-  const minLen = 0.95 * cell;
-  const maxLen = 2.8 * cell;
   for (let row = 0; row < ny; row += step) {
     for (let col = 0; col < nx; col += step) {
-      const u = uvData.u?.[row]?.[col];
-      const v = uvData.v?.[row]?.[col];
+      const vector = uvVectorAt(uvData.u, uvData.v, row, col);
+      const u = vector?.[0];
+      const v = vector?.[1];
       if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
       const spd = Math.sqrt(u * u + v * v);
-      if (spd < minSpeed || spd > 3) continue;
+      if (spd < UV_ARROW_MIN_SPEED || spd > 3) continue;
       const lon = xAxis[col];
       const lat = yAxis[row];
-      const scaled = Math.min(spd, maxSpeed) / maxSpeed;
-      const arrowLen = minLen + (maxLen - minLen) * scaled;
+      const arrowLen = uvArrowLengthCells(spd) * cell;
       const geom = buildArrowGeometry(lon, lat, u, v, arrowLen, cell);
       if (geom) features.push(new ol.Feature({ geometry: geom, speed: spd }));
     }
@@ -6966,19 +7007,17 @@ async function buildUvCompositeLayer(map, count) {
   const dyg = Math.abs((yAxis[1] ?? yAxis[0]) - yAxis[0]) || 0.01;
   const cell = Math.min(dxg, dyg);
   const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 36));
-  const minSpeed = 0.035, maxSpeed = 1.2;
-  const minLen = 0.95 * cell, maxLen = 2.8 * cell;
   const features = [];
   for (let row = 0; row < ny; row += step) {
     for (let col = 0; col < nx; col += step) {
-      const u = uMedian[row]?.[col];
-      const v = vMedian[row]?.[col];
+      const vector = uvVectorAt(uMedian, vMedian, row, col);
+      const u = vector?.[0];
+      const v = vector?.[1];
       if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
       const spd = Math.sqrt(u * u + v * v);
-      if (spd < minSpeed || spd > 3) continue;
+      if (spd < UV_ARROW_MIN_SPEED || spd > 3) continue;
       const lon = xAxis[col], lat = yAxis[row];
-      const scaled = Math.min(spd, maxSpeed) / maxSpeed;
-      const arrowLen = minLen + (maxLen - minLen) * scaled;
+      const arrowLen = uvArrowLengthCells(spd) * cell;
       const geom = buildArrowGeometry(lon, lat, u, v, arrowLen, cell);
       if (geom) features.push(new ol.Feature({ geometry: geom, speed: spd }));
     }
@@ -7358,7 +7397,7 @@ function renderReadoutFromPoint(p) {
 
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshFeet(val)}`);
+  else if (currentVar === "uv") setReadout(formatUvReadout(base, desktopMapState.currentGridInfo, desktopMapState.currentDataObj, lon, lat, desktopMapState.map, null, val));
   else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
