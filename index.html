@@ -4529,7 +4529,7 @@ function buildUvContourLayer(dataObj, gridInfo) {
         }
       }
       for (let k = 0; k + 1 < hits.length; k += 2) {
-        features.push(new ol.Feature({ geometry: new ol.geom.LineString(hits.slice(k,k+2).map(toMapProjection)) }));
+        features.push(new ol.Feature({ geometry: new ol.geom.LineString(hits.slice(k,k+2).map(pt => toMapProjection(pt))) }));
       }
     }
   }
