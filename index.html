@@ -4515,6 +4515,9 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
 function clearUvContourLayer(state) {
   if (state?.map && state.uvContourLayer) state.map.removeLayer(state.uvContourLayer);
   if (state?.map && state.uvZeroLabelOverlay) state.map.removeOverlay(state.uvZeroLabelOverlay);
+  if (state?.uvZeroLabelOverlay?.__angleListener && ol?.Observable?.unByKey) {
+    ol.Observable.unByKey(state.uvZeroLabelOverlay.__angleListener);
+  }
   if (state) state.uvZeroLabelOverlay = null;
   if (state) state.uvContourLayer = null;
 }
@@ -4560,18 +4563,33 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
       const labelCoordinate = labelGeometry.getCoordinateAt(0.5);
       const labelFeature = new ol.Feature({
         geometry: new ol.geom.Point(labelCoordinate),
-        label: "— 0 —",
+        label: "0",
         contourLabel: true
       });
       features.push(labelFeature);
       if (map) {
         const labelEl = document.createElement("div");
-        labelEl.textContent = "— 0 —";
+        const labelText = document.createElement("span");
+        labelText.textContent = "0";
+        labelEl.appendChild(labelText);
         labelEl.setAttribute("aria-label", "zero metre contour");
-        labelEl.style.cssText = "color:#111820;background:rgba(255,255,255,0.92);border:1px solid rgba(17,24,32,0.85);border-radius:4px;padding:1px 4px;font:700 12px/1 Arial,sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.45);";
+        labelEl.style.cssText = "pointer-events:none;width:0;height:0;overflow:visible;";
+        labelText.style.cssText = "display:block;color:#111820;font:700 13px/1 Arial,sans-serif;white-space:nowrap;transform-origin:50% 50%;transform:translate(-50%,-50%);text-shadow:-1px -1px 0 rgba(255,255,255,.95),1px -1px 0 rgba(255,255,255,.95),-1px 1px 0 rgba(255,255,255,.95),1px 1px 0 rgba(255,255,255,.95);";
         const overlay = new ol.Overlay({ element: labelEl, positioning: "center-center", stopEvent: false, offset: [0, 0] });
         overlay.setPosition(labelCoordinate);
         map.addOverlay(overlay);
+        const updateLabelAngle = () => {
+          const coords = labelGeometry.getCoordinates();
+          const p0 = map.getPixelFromCoordinate(coords[0]);
+          const p1 = map.getPixelFromCoordinate(coords[1]);
+          if (!p0 || !p1) return;
+          let angle = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180 / Math.PI;
+          if (angle > 90 || angle < -90) angle += 180;
+          labelText.style.transform = `translate(-50%,-50%) rotate(${angle.toFixed(1)}deg)`;
+        };
+        updateLabelAngle();
+        overlay.__angleListener = map.on("moveend", updateLabelAngle);
+        overlay.__updateLabelAngle = updateLabelAngle;
         // Keep the overlay handle on the layer for deterministic cleanup.
         // The owning state also receives it immediately after construction.
         features._uvZeroLabelOverlay = overlay;
