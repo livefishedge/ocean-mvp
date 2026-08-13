@@ -2459,7 +2459,8 @@ async function renderDesktopFrame(frameMeta) {
     desktopMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
     if (desktopMapState.arrowLayer) map.addLayer(desktopMapState.arrowLayer);
     clearUvContourLayer(desktopMapState);
-    desktopMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo);
+    desktopMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo, map);
+    desktopMapState.uvZeroLabelOverlay = desktopMapState.uvContourLayer?.__uvZeroLabelOverlay || null;
     if (desktopMapState.uvContourLayer) map.addLayer(desktopMapState.uvContourLayer);
   } else {
     clearUvContourLayer(desktopMapState);
@@ -4513,12 +4514,14 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
 
 function clearUvContourLayer(state) {
   if (state?.map && state.uvContourLayer) state.map.removeLayer(state.uvContourLayer);
+  if (state?.map && state.uvZeroLabelOverlay) state.map.removeOverlay(state.uvZeroLabelOverlay);
+  if (state) state.uvZeroLabelOverlay = null;
   if (state) state.uvContourLayer = null;
 }
 
 // Render ADT contours as OL vectors so width is measured in screen pixels,
 // not low-resolution raster pixels. This is the authoritative Currents/Height path.
-function buildUvContourLayer(dataObj, gridInfo) {
+function buildUvContourLayer(dataObj, gridInfo, map) {
   const d = (dataObj?.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
   const z = d?.adt || d?.z;
   const xs = gridInfo?.xAxis || [], ys = gridInfo?.yAxis || [];
@@ -4554,15 +4557,29 @@ function buildUvContourLayer(dataObj, gridInfo) {
     if (ft === 0 && levelFeatures.length) {
       levelFeatures.sort((a, b) => b.getGeometry().getLength() - a.getGeometry().getLength());
       const labelGeometry = levelFeatures[0].getGeometry();
-      features.push(new ol.Feature({
-        geometry: new ol.geom.Point(labelGeometry.getCoordinateAt(0.5)),
+      const labelCoordinate = labelGeometry.getCoordinateAt(0.5);
+      const labelFeature = new ol.Feature({
+        geometry: new ol.geom.Point(labelCoordinate),
         label: "— 0 —",
         contourLabel: true
-      }));
+      });
+      features.push(labelFeature);
+      if (map) {
+        const labelEl = document.createElement("div");
+        labelEl.textContent = "— 0 —";
+        labelEl.setAttribute("aria-label", "zero metre contour");
+        labelEl.style.cssText = "color:#111820;background:rgba(255,255,255,0.92);border:1px solid rgba(17,24,32,0.85);border-radius:4px;padding:1px 4px;font:700 12px/1 Arial,sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.45);";
+        const overlay = new ol.Overlay({ element: labelEl, positioning: "center-center", stopEvent: false, offset: [0, 0] });
+        overlay.setPosition(labelCoordinate);
+        map.addOverlay(overlay);
+        // Keep the overlay handle on the layer for deterministic cleanup.
+        // The owning state also receives it immediately after construction.
+        features._uvZeroLabelOverlay = overlay;
+      }
     }
     features.push(...levelFeatures);
   }
-  return new ol.layer.Vector({
+  const layer = new ol.layer.Vector({
     source: new ol.source.Vector({ features }), zIndex: 26,
     updateWhileAnimating: true, updateWhileInteracting: true,
     style: feature => feature.get("contourLabel")
@@ -4581,6 +4598,8 @@ function buildUvContourLayer(dataObj, gridInfo) {
         lineCap: "round", lineJoin: "round"
       }) })
   });
+  layer.__uvZeroLabelOverlay = features._uvZeroLabelOverlay || null;
+  return layer;
 }
 
 // Draw a line using direct pixel manipulation (Bresenham-inspired)
@@ -7113,7 +7132,8 @@ async function renderMobileFrame(frameMeta) {
     mobileMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
     if (mobileMapState.arrowLayer) map.addLayer(mobileMapState.arrowLayer);
     clearUvContourLayer(mobileMapState);
-    mobileMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo);
+    mobileMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo, map);
+    mobileMapState.uvZeroLabelOverlay = mobileMapState.uvContourLayer?.__uvZeroLabelOverlay || null;
     if (mobileMapState.uvContourLayer) map.addLayer(mobileMapState.uvContourLayer);
   } else {
     clearUvContourLayer(mobileMapState);
