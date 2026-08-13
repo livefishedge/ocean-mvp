@@ -549,6 +549,8 @@
       letter-spacing:.01em;
     }
     #hamburger-cbar svg{ display:block; width:100%; max-width:100%; height:68px; }
+    .hamburger-current-legend{ color:#e0e6ee; font-size:12px; font-weight:700; }
+    .hamburger-current-legend .combined-legend-row{ margin:0; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
@@ -1423,6 +1425,16 @@ body.combined-mode #combined-menu-btn{
         <div class="range-actions">
           <button id="hamburger-apply">Apply</button>
           <button id="hamburger-reset">Reset</button>
+        </div>
+      </div>
+      <div id="hamburger-current-legend" class="hamburger-current-legend" hidden>
+        <div class="combined-legend-row">
+          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;background:#fff;border-radius:4px;">
+            <line x1="5" y1="10" x2="50" y2="10" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round"/>
+            <polyline points="50,10 42,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+            <polyline points="50,10 42,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+          </svg>
+          <span>Current direction</span>
         </div>
       </div>
       <div id="hamburger-cbar"></div>
@@ -2460,7 +2472,7 @@ async function renderDesktopFrame(frameMeta) {
     if (desktopMapState.arrowLayer) map.addLayer(desktopMapState.arrowLayer);
     clearUvContourLayer(desktopMapState);
     desktopMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo, map);
-    desktopMapState.uvZeroLabelOverlay = desktopMapState.uvContourLayer?.__uvZeroLabelOverlay || null;
+    desktopMapState.uvZeroLabelOverlays = desktopMapState.uvContourLayer?.__uvZeroLabelOverlays || [];
     if (desktopMapState.uvContourLayer) map.addLayer(desktopMapState.uvContourLayer);
   } else {
     clearUvContourLayer(desktopMapState);
@@ -4515,10 +4527,15 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
 function clearUvContourLayer(state) {
   if (state?.map && state.uvContourLayer) state.map.removeLayer(state.uvContourLayer);
   if (state?.map && state.uvZeroLabelOverlay) state.map.removeOverlay(state.uvZeroLabelOverlay);
+  for (const overlay of state?.uvZeroLabelOverlays || []) {
+    if (state.map) state.map.removeOverlay(overlay);
+    if (overlay.__angleListener && ol?.Observable?.unByKey) ol.Observable.unByKey(overlay.__angleListener);
+  }
   if (state?.uvZeroLabelOverlay?.__angleListener && ol?.Observable?.unByKey) {
     ol.Observable.unByKey(state.uvZeroLabelOverlay.__angleListener);
   }
   if (state) state.uvZeroLabelOverlay = null;
+  if (state) state.uvZeroLabelOverlays = [];
   if (state) state.uvContourLayer = null;
 }
 
@@ -4554,45 +4571,52 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
         }));
       }
     }
-    // Put one unambiguous label on the zero contour as a dedicated point
-    // feature. LineString text placement is unreliable for short marching-
-    // squares segments, especially on mobile.
+    // Put plain labels directly on the zero contour. Marching-squares emits
+    // short segments, so select midpoint candidates in screen space: this
+    // yields one label per visible contour branch and additional labels on
+    // long branches without stacking labels on adjacent cells.
     if (ft === 0 && levelFeatures.length) {
-      levelFeatures.sort((a, b) => b.getGeometry().getLength() - a.getGeometry().getLength());
-      const labelGeometry = levelFeatures[0].getGeometry();
-      const labelCoordinate = labelGeometry.getCoordinateAt(0.5);
-      const labelFeature = new ol.Feature({
-        geometry: new ol.geom.Point(labelCoordinate),
-        label: "0",
-        contourLabel: true
-      });
-      features.push(labelFeature);
+      const labelOverlays = [];
       if (map) {
-        const labelEl = document.createElement("div");
-        const labelText = document.createElement("span");
-        labelText.textContent = "0";
-        labelEl.appendChild(labelText);
-        labelEl.setAttribute("aria-label", "zero metre contour");
-        labelEl.style.cssText = "pointer-events:none;width:0;height:0;overflow:visible;";
-        labelText.style.cssText = "display:block;color:#111820;font:700 13px/1 Arial,sans-serif;white-space:nowrap;transform-origin:50% 50%;transform:translate(-50%,-50%);text-shadow:-1px -1px 0 rgba(255,255,255,.95),1px -1px 0 rgba(255,255,255,.95),-1px 1px 0 rgba(255,255,255,.95),1px 1px 0 rgba(255,255,255,.95);";
-        const overlay = new ol.Overlay({ element: labelEl, positioning: "center-center", stopEvent: false, offset: [0, 0] });
-        overlay.setPosition(labelCoordinate);
-        map.addOverlay(overlay);
-        const updateLabelAngle = () => {
-          const coords = labelGeometry.getCoordinates();
-          const p0 = map.getPixelFromCoordinate(coords[0]);
-          const p1 = map.getPixelFromCoordinate(coords[1]);
-          if (!p0 || !p1) return;
-          let angle = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180 / Math.PI;
-          if (angle > 90 || angle < -90) angle += 180;
-          labelText.style.transform = `translate(-50%,-50%) rotate(${angle.toFixed(1)}deg)`;
-        };
-        updateLabelAngle();
-        overlay.__angleListener = map.on("moveend", updateLabelAngle);
-        overlay.__updateLabelAngle = updateLabelAngle;
-        // Keep the overlay handle on the layer for deterministic cleanup.
-        // The owning state also receives it immediately after construction.
-        features._uvZeroLabelOverlay = overlay;
+        const candidates = levelFeatures.map(feature => {
+          const geometry = feature.getGeometry();
+          const coordinate = geometry.getCoordinateAt(0.5);
+          const p0 = map.getPixelFromCoordinate(geometry.getCoordinates()[0]);
+          const p1 = map.getPixelFromCoordinate(geometry.getCoordinates()[1]);
+          return { geometry, coordinate, pixel: map.getPixelFromCoordinate(coordinate), angle: Math.atan2(p1[1]-p0[1], p1[0]-p0[0]) * 180 / Math.PI };
+        }).filter(candidate => candidate.pixel && Number.isFinite(candidate.pixel[0]) && Number.isFinite(candidate.pixel[1]));
+        candidates.sort((a, b) => a.pixel[1] - b.pixel[1] || a.pixel[0] - b.pixel[0]);
+        const chosen = [];
+        for (const candidate of candidates) {
+          if (chosen.every(other => Math.hypot(candidate.pixel[0]-other.pixel[0], candidate.pixel[1]-other.pixel[1]) >= 90)) {
+            chosen.push(candidate);
+          }
+        }
+        for (const candidate of chosen) {
+          const labelEl = document.createElement("div");
+          const labelText = document.createElement("span");
+          labelText.textContent = "0";
+          labelEl.appendChild(labelText);
+          labelEl.setAttribute("aria-label", "zero metre contour");
+          labelEl.style.cssText = "pointer-events:none;width:0;height:0;overflow:visible;";
+          labelText.style.cssText = "display:block;color:#111820;font:700 13px/1 Arial,sans-serif;white-space:nowrap;transform-origin:50% 50%;transform:translate(-50%,-50%);text-shadow:-1px -1px 0 rgba(255,255,255,.95),1px -1px 0 rgba(255,255,255,.95),-1px 1px 0 rgba(255,255,255,.95),1px 1px 0 rgba(255,255,255,.95);";
+          const overlay = new ol.Overlay({ element: labelEl, positioning: "center-center", stopEvent: false, offset: [0, 0] });
+          overlay.setPosition(candidate.coordinate);
+          map.addOverlay(overlay);
+          const updateLabelAngle = () => {
+            const coords = candidate.geometry.getCoordinates();
+            const p0 = map.getPixelFromCoordinate(coords[0]);
+            const p1 = map.getPixelFromCoordinate(coords[1]);
+            if (!p0 || !p1) return;
+            let angle = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180 / Math.PI;
+            if (angle > 90 || angle < -90) angle += 180;
+            labelText.style.transform = `translate(-50%,-50%) rotate(${angle.toFixed(1)}deg)`;
+          };
+          updateLabelAngle();
+          overlay.__angleListener = map.on("moveend", updateLabelAngle);
+          labelOverlays.push(overlay);
+        }
+        features._uvZeroLabelOverlays = labelOverlays;
       }
     }
     features.push(...levelFeatures);
@@ -4600,23 +4624,14 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
   const layer = new ol.layer.Vector({
     source: new ol.source.Vector({ features }), zIndex: 26,
     updateWhileAnimating: true, updateWhileInteracting: true,
-    style: feature => feature.get("contourLabel")
-      ? new ol.style.Style({ text: new ol.style.Text({
-        text: feature.get("label"),
-        font: "700 12px Arial",
-        fill: new ol.style.Fill({ color: "#111820" }),
-        stroke: new ol.style.Stroke({ color: "rgba(255,255,255,0.9)", width: 3 }),
-        placement: "point",
-        overflow: true
-      }) })
-      : new ol.style.Style({ stroke: new ol.style.Stroke({
+    style: feature => new ol.style.Style({ stroke: new ol.style.Stroke({
         color: "rgba(25,25,25,0.96)",
         width: feature.get("major") ? 2 : 1,
         lineDash: feature.get("major") && feature.get("contourLevel") !== 0 ? [4, 3] : undefined,
         lineCap: "round", lineJoin: "round"
       }) })
   });
-  layer.__uvZeroLabelOverlay = features._uvZeroLabelOverlay || null;
+  layer.__uvZeroLabelOverlays = features._uvZeroLabelOverlays || [];
   return layer;
 }
 
@@ -7151,7 +7166,7 @@ async function renderMobileFrame(frameMeta) {
     if (mobileMapState.arrowLayer) map.addLayer(mobileMapState.arrowLayer);
     clearUvContourLayer(mobileMapState);
     mobileMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo, map);
-    mobileMapState.uvZeroLabelOverlay = mobileMapState.uvContourLayer?.__uvZeroLabelOverlay || null;
+    mobileMapState.uvZeroLabelOverlays = mobileMapState.uvContourLayer?.__uvZeroLabelOverlays || [];
     if (mobileMapState.uvContourLayer) map.addLayer(mobileMapState.uvContourLayer);
   } else {
     clearUvContourLayer(mobileMapState);
@@ -7366,7 +7381,9 @@ function syncRangeInputsToVar() {
   if (!userRanges[currentVar]) userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
   if (hVmin) hVmin.value = userRanges[currentVar].vmin;
   if (hVmax) hVmax.value = userRanges[currentVar].vmax;
-  if (hTitle) hTitle.textContent = VAR_LABELS[currentVar] || currentVar;
+  if (hTitle) hTitle.textContent = currentVar === "uv" ? "Height" : (VAR_LABELS[currentVar] || currentVar);
+  const currentLegend = document.getElementById("hamburger-current-legend");
+  if (currentLegend) currentLegend.hidden = currentVar !== "uv";
   syncProductSelectors();
   if (hamburgerRegionSelect) hamburgerRegionSelect.value = REGION_ID;
   updateTempUnitUI();
