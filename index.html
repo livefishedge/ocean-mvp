@@ -1434,7 +1434,7 @@ body.combined-mode #combined-menu-btn{
             <polyline points="50,10 42,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
             <polyline points="50,10 42,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
           </svg>
-          <span>Current direction</span>
+          <span>Current speed · reference arrow = 0.5 m/s</span>
         </div>
       </div>
       <div id="hamburger-cbar"></div>
@@ -1800,12 +1800,15 @@ const VAR_TO_GRID = {
   combined: null
 };
 
+// UV/ADT source values are metres; the product presents height in feet.
+const UV_M_TO_FT = 3.28084;
+
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.02, vmax: 10.0, unit: "mg/m3" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   chl_front: { vmin: 1.0, vmax: 3.0, unit: "fold/km" },
   sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
-  uv:    { vmin: -0.5, vmax: 1.5, unit: "Height (m)" }, /* ADT/SSH is stored and displayed in metric units. */
+  uv:    { vmin: -1.0, vmax: 5.0, unit: "Height (ft)" }, /* ADT/SSH is stored in metres and displayed in feet. */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" },
   thermal_fronts: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
   combined: { vmin: 0.0, vmax: 1.0, unit: "" }
@@ -1840,7 +1843,8 @@ function formatSigValue(value, digits) {
   return Number(value.toPrecision(digits)).toString();
 }
 function formatChlValue(value) { return `${value.toFixed(2)} mg/m3`; }
-function formatSshValue(value) { return `${value.toFixed(2)} m`; }
+function formatSshValue(value) { return `${(value * UV_M_TO_FT).toFixed(2)} ft`; }
+function formatSshFeet(value) { return `${value.toFixed(2)} ft`; }
 function formatSstValue(celsius) {
   const value = tempUnit === "F" ? cToF(celsius) : celsius;
   return `${formatSigValue(value, 4)}${tempUnitLabel()}`;
@@ -3786,10 +3790,9 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
   } else if (varKey === "uv") {
     chosenScale = UV_SCALE;
     cValues = [cmin, cmax];
-    /* Keep the contour interval at 0.1 m, but label the compact colorbar at
-       0.2 m so all labels fit on a phone. */
+    /* Height is displayed in feet; contours use 0.4-ft spacing. */
     tickmode = "array";
-    tickvals = [-0.5, -0.3, -0.1, 0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5];
+    tickvals = [-1.0, -0.2, 0.6, 1.4, 2.2, 3.0, 3.8, 4.6, 5.0];
     ticktext = tickvals.map(v => v.toFixed(1));
   } else if (varKey === "bathy") {
     chosenScale = BATHY_SCALE;
@@ -4001,19 +4004,19 @@ function buildUv(gridInfo, dataObj) {
   const vmin = userRanges.uv.vmin;
   const vmax = userRanges.uv.vmax;
 
-  /* ADT is stored in metres and is displayed in metres end-to-end. */
-  const adtMetric = adt.map(row => row.map(v => Number(v)));
+  // ADT is stored in metres; render the product in feet end-to-end.
+  const adtFeet = adt.map(row => row.map(v => Number(v) * UV_M_TO_FT));
 
   const bg = {
     type:"heatmap",
     x:xAxis, y:yAxis,
-    z:adtMetric,
-    customdata:adtMetric,
+    z:adtFeet,
+    customdata:adtFeet,
     hoverinfo:"none",
     showscale:false,
     zauto:false, zmin:vmin, zmax:vmax,
     colorscale: UV_SCALE,
-    // Colorbar uses the 'uv' key; title comes from DEFAULT_RANGES.uv.unit ("Height (m)")
+    // Colorbar uses the 'uv' key; title comes from DEFAULT_RANGES.uv.unit ("Height (ft)")
     colorbar: colorbarFor("uv"),
     zsmooth:false
     /* heatmap.contours removed — replaced by a separate type:"contour" trace
@@ -4022,22 +4025,22 @@ function buildUv(gridInfo, dataObj) {
        the bulletproof way to draw labeled contour lines on a Plotly heatmap. */
   };
 
-  /* ADT contour overlay as a SEPARATE Plotly trace — metric 0.1 m intervals.
+  /* ADT contour overlay as a SEPARATE Plotly trace — 0.4 ft intervals.
      The "0" level contour is the deep frontal location and is explicitly
      labeled. The OpenLayers path applies the 2px-every-fifth hierarchy. */
   const contourLines = {
     type: "contour",
     x: xAxis,
     y: yAxis,
-    z: adtMetric,
+    z: adtFeet,
     showscale: false,
     hoverinfo: "none",
     xaxis: "x",
     yaxis: "y",
     contours: {
-      start: vmin,                 /* -0.5 m */
-      end:   vmax,                 /* +1.5 m */
-      size:  0.1,                  /* 0.1 m intervals */
+      start: vmin,                 /* -1 ft */
+      end:   vmax,                 /* +5 ft */
+      size:  0.4,                  /* 0.4 ft intervals */
       coloring: "lines",           /* lines only, no fill */
       showlabels: true,
       labelfont: { size: 10, color: "#0c1723", family: "Arial Black" }
@@ -4322,7 +4325,8 @@ function mobileZForVar(varKey, dataObj) {
   if (varKey === "sst") return dataObj.sst || dataObj.z || dataObj.data;
   if (varKey === "uv") {
     const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
-    return d?.adt || dataObj?.meta?.grid?.adt || d?.z;
+    const adt = d?.adt || dataObj?.meta?.grid?.adt || d?.z;
+    return is2D(adt) ? adt.map(row => row.map(v => Number(v) * UV_M_TO_FT)) : adt;
   }
   if (varKey === "bathy") return dataObj.depth;
   return null;
@@ -4341,7 +4345,9 @@ function isMobileMissingValue(varKey, rawValue, numericValue) {
 // this in the canvas path is what makes contours appear on desktop and mobile.
 function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
   const levels = [];
-  for (let level = -0.5; level <= 1.5001; level += 0.1) levels.push(Number(level.toFixed(1)));
+  for (let level = -1; level <= 5.0001; level += 0.4) levels.push(Number(level.toFixed(1)));
+  if (!levels.includes(0)) levels.push(0);
+  levels.sort((a, b) => a - b);
   const toCanvas = (x, y) => [xFlip ? (nx - 1 - x) : x, yFlip ? (ny - 1 - y) : y];
   const edgePoint = (a, b, va, vb, level) => {
     const den = vb - va;
@@ -4351,7 +4357,8 @@ function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  for (const level of levels) {
+  for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+    const level = levels[levelIndex];
     ctx.beginPath();
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
@@ -4373,8 +4380,8 @@ function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
       }
     }
     ctx.strokeStyle = "rgba(35,35,35,0.94)";
-    // One 2px major line every five 0.1m contours; the other lines are 1px.
-    ctx.lineWidth = (Math.round((level + 0.5) * 10) % 5 === 0) ? 2 : 1;
+    // One 2px major line every five 0.4-ft contours; the other lines are 1px.
+    ctx.lineWidth = (levelIndex % 5 === 0) ? 2 : 1;
     ctx.stroke();
   }
   ctx.restore();
@@ -4500,7 +4507,8 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
         lon1 + headLen * Math.cos(theta + Math.PI + headAngle),
         lat1 + headLen * Math.sin(theta + Math.PI + headAngle)
       ];
-      features.push(new ol.Feature({
+        features.push(new ol.Feature({
+        speed: sp,
         geometry: new ol.geom.MultiLineString([
           [toMapProjection([lon0, lat0]), toMapProjection([lon1, lat1])],
           [toMapProjection([lon1, lat1]), toMapProjection(left)],
@@ -4547,11 +4555,15 @@ function clearUvContourLayer(state) {
 // not low-resolution raster pixels. This is the authoritative Currents/Height path.
 function buildUvContourLayer(dataObj, gridInfo, map) {
   const d = (dataObj?.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
-  const z = d?.adt || d?.z;
+  const zMeters = d?.adt || d?.z;
+  const z = is2D(zMeters) ? zMeters.map(row => row.map(v => Number(v) * UV_M_TO_FT)) : zMeters;
   const xs = gridInfo?.xAxis || [], ys = gridInfo?.yAxis || [];
   if (!is2D(z) || xs.length < 2 || ys.length < 2) return null;
   const features = [];
-  const levels = Array.from({ length: 21 }, (_, index) => Number((-0.5 + index * 0.1).toFixed(1)));
+  const levels = [];
+  for (let level = -1; level <= 5.0001; level += 0.4) levels.push(Number(level.toFixed(1)));
+  if (!levels.includes(0)) levels.push(0);
+  levels.sort((a, b) => a - b);
   for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
     const ft = levels[levelIndex];
     const levelFeatures = [];
@@ -4601,7 +4613,7 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
           const labelText = document.createElement("span");
           labelText.textContent = "0";
           labelEl.appendChild(labelText);
-          labelEl.setAttribute("aria-label", "zero metre contour");
+          labelEl.setAttribute("aria-label", "zero foot contour");
           labelEl.style.cssText = "pointer-events:none;width:0;height:0;overflow:visible;";
           labelText.style.cssText = "display:block;color:#111820;font:700 13px/1 Arial,sans-serif;white-space:nowrap;transform-origin:50% 50%;transform:translate(-50%,-50%);text-shadow:-1px -1px 0 rgba(255,255,255,.95),1px -1px 0 rgba(255,255,255,.95),-1px 1px 0 rgba(255,255,255,.95),1px 1px 0 rgba(255,255,255,.95);";
           const overlay = new ol.Overlay({ element: labelEl, positioning: "center-center", stopEvent: false, offset: [0, 0] });
@@ -5175,7 +5187,7 @@ function renderMobileReadoutFromLonLat(lon, lat, pixel) {
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshValue(val)}`);
+  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshFeet(val)}`);
   else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
@@ -7346,7 +7358,7 @@ function renderReadoutFromPoint(p) {
 
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshValue(val)}`);
+  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshFeet(val)}`);
   else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
