@@ -4342,8 +4342,9 @@ function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
     }
     ctx.strokeStyle = level === 0 ? "rgba(20,20,20,0.98)" : "rgba(45,45,45,0.92)";
     // The source raster is enlarged by OpenLayers (64x40 -> map pixels).
-    // 0.15 source pixels renders as approximately 2px on the map.
-    ctx.lineWidth = 0.15;
+    // 0.35 source pixels survives the low-resolution raster resampling and
+    // renders as a crisp ~2-3px line on the map (not a multi-cell band).
+    ctx.lineWidth = 0.35;
     ctx.stroke();
   }
   ctx.restore();
