@@ -542,8 +542,8 @@
     #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
     #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
-    #hamburger-cbar{ width:100%; height:68px; overflow:hidden; }
-    #hamburger-cbar svg{ display:block; max-width:100%; height:68px; }
+    #hamburger-cbar{ width:100%; height:96px; overflow:visible; }
+    #hamburger-cbar svg{ display:block; max-width:100%; height:96px; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
@@ -3781,7 +3781,7 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
       colorscale: chosenScale,
       showscale: true,
       colorbar: {
-        title: { text: unit, side: "top" },
+        title: { text: unit, side: "top", font: { color: "#e0e6ee", size: 13, family: "Arial" } },
         orientation: "h",
         x: 0.5, xanchor: "center",
         y: 0.5, yanchor: "middle",
@@ -3789,13 +3789,13 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
         tickmode, tickvals, ticktext,
         ticks: "outside", ticklen: 4, tickwidth: 1,
         tickfont: { color: "#e0e6ee", size: 11 },
-        titlefont: { color: "#e0e6ee", size: 11 }
+        titlefont: { color: "#e0e6ee", size: 13, family: "Arial" }
       }
     }
   };
 
   const layout = {
-    margin: { l: 0, r: 0, t: 0, b: 0 },
+    margin: { l: 4, r: 4, t: 32, b: 6 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     xaxis: { visible: false },
@@ -3971,23 +3971,39 @@ function buildUv(gridInfo, dataObj) {
     colorscale: UV_SCALE,
     // Colorbar uses the 'uv' key; title comes from DEFAULT_RANGES.uv.unit ("Height (ft)")
     colorbar: colorbarFor("uv"),
-    zsmooth:false,
-    // ADT contour overlay in FEET — 0.5 ft intervals from -1.5..+5.0.
-    // The 0-level contour IS the deep frontal location: it marks the line
-    // where ADT crosses the climatological mean (MDT reference), which is
-    // the geostrophic current axis / subsurface thermohaline boundary.
-    // showlabels=true makes the value visible on each line so the captain
-    // can read the front position directly off the map.
+    zsmooth:false
+    /* heatmap.contours removed — replaced by a separate type:"contour" trace
+       below. The heatmap contours property wasn't rendering reliably across
+       browser cache + Cloudflare edge scenarios; a dedicated contour trace is
+       the bulletproof way to draw labeled contour lines on a Plotly heatmap. */
+  };
+
+  /* ADT contour overlay as a SEPARATE Plotly trace — guaranteed line draw.
+     0.5 ft intervals from -1.5..+5.0. The "0" level contour IS the deep
+     frontal location: it marks the line where ADT crosses the climatological
+     mean (MDT reference), which is the geostrophic current axis / subsurface
+     thermohaline boundary. showlabels=true puts the value on each line. */
+  const contourLines = {
+    type: "contour",
+    x: xAxis,
+    y: yAxis,
+    z: adtFt,
+    showscale: false,
+    hoverinfo: "none",
+    xaxis: "x",
+    yaxis: "y",
     contours: {
       start: vmin,                 /* -1.5 ft */
       end:   vmax,                 /* +5.0 ft */
       size:  0.5,                  /* 0.5 ft intervals (~15 cm) */
-      coloring: "lines",           /* keep heatmap fill, draw lines on top */
-      showlines: true,
-      color: "rgba(30,30,30,0.92)", /* dark gray — visible on cream/yellow half of UV_SCALE (white was invisible there) */
-      width: 1.4,
+      coloring: "lines",           /* lines only, no fill */
       showlabels: true,
-      labelfont: { size: 9, color: "#0c1723", family: "Arial" }
+      labelfont: { size: 10, color: "#0c1723", family: "Arial Black" }
+    },
+    line: {                         /* explicit line color/width (not via contours.color which Plotly 2.34 can ignore) */
+      color: "rgba(30,30,30,0.95)",
+      width: 1.8,
+      smoothing: 0
     }
   };
 
@@ -4054,7 +4070,7 @@ function buildUv(gridInfo, dataObj) {
     showlegend:false
   };
 
-  return { data:[bg, arrows], layout: stableLayout() };
+  return { data:[bg, contourLines, arrows], layout: stableLayout() };
 }
 
 function buildFrontLines(gridInfo, dataObj, varKey) {
