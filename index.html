@@ -4403,7 +4403,8 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   if (!is2D(u) || !is2D(v)) return;
   const ny = z.length;
   const nx = z[0].length;
-  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 36));
+  // Keep arrows readable but substantially denser on the map.
+  const step = Math.max(2, Math.floor(Math.sqrt(nx * ny) / 48));
   const sx = ctx.canvas.width / Math.max(1, nx - 1);
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
 
@@ -4466,7 +4467,9 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
   const dxg = Math.abs(xAxis[1] - xAxis[0]);
   const dyg = Math.abs(yAxis[1] - yAxis[0]);
   const cell = Math.min(dxg, dyg);
-  const step = Math.max(4, Math.floor(Math.sqrt(nx * ny) / 36));
+  // Sample more of the native current grid; the previous step made the
+  // direction field look sparse on both desktop and mobile.
+  const step = Math.max(2, Math.floor(Math.sqrt(nx * ny) / 48));
   const maxSpeed = 1.2;
   const minSpeed = 0.035;
   const minLen = 0.95 * cell;
@@ -4510,7 +4513,8 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
   const source = new ol.source.Vector({ features, projection: "EPSG:4326" });
   return new ol.layer.Vector({
     source,
-    zIndex: 25,
+    // Land mask is z20; keep currents below it so arrows stop at the coast.
+    zIndex: 15,
     updateWhileAnimating: true,
     updateWhileInteracting: true,
     style: new ol.style.Style({
@@ -4622,7 +4626,8 @@ function buildUvContourLayer(dataObj, gridInfo, map) {
     features.push(...levelFeatures);
   }
   const layer = new ol.layer.Vector({
-    source: new ol.source.Vector({ features }), zIndex: 26,
+    // Land mask is z20; keep contours below it so they cannot paint on land.
+    source: new ol.source.Vector({ features }), zIndex: 16,
     updateWhileAnimating: true, updateWhileInteracting: true,
     style: feature => new ol.style.Style({ stroke: new ol.style.Stroke({
         color: "rgba(25,25,25,0.96)",
