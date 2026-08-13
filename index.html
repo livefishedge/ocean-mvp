@@ -4620,7 +4620,6 @@ function makeMobileLandCanvas(bathy) {
     }
   }
   ctx.putImageData(img, 0, 0);
-  if (varKey === "uv") drawUvContours(ctx, z, nx, ny, xFlip, yFlip);
   return canvas;
 }
 
@@ -5143,6 +5142,7 @@ function makeMobileRasterCanvas(varKey, gridInfo, dataObj) {
     }
   }
   ctx.putImageData(img, 0, 0);
+  if (varKey === "uv") drawUvContours(ctx, z, nx, ny, xFlip, yFlip);
   return canvas;
 }
 
