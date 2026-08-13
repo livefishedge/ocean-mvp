@@ -542,13 +542,13 @@
     #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
     #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
-    #hamburger-cbar{ width:min(100%, 252px); height:74px; overflow:hidden; align-self:center; }
+    #hamburger-cbar{ width:100%; height:82px; overflow:hidden; align-self:center; }
     #hamburger-cbar::before{
       content:attr(data-title); display:block; height:14px; line-height:14px;
       text-align:center; color:#e0e6ee; font:700 11px/12px Arial,sans-serif;
       letter-spacing:.01em;
     }
-    #hamburger-cbar svg{ display:block; max-width:100%; height:60px; }
+    #hamburger-cbar svg{ display:block; width:100%; max-width:100%; height:68px; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
@@ -575,8 +575,8 @@
       #menu-panel .hamburger-range-block .range-actions{ grid-column:1 / -1; }
       #menu-panel .hamburger-range-block input{ width:100%; min-width:0; }
       #menu-panel .range-actions{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
-      #hamburger-cbar{ width:100%; height:68px; }
-      #hamburger-cbar svg{ width:100%; height:54px; }
+      #hamburger-cbar{ width:100%; height:82px; }
+      #hamburger-cbar svg{ width:100%; height:66px; }
     }
 
     /* Plot: full viewport */
@@ -3817,11 +3817,11 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
         orientation: "h",
         x: 0.5, xanchor: "center",
         y: 0.5, yanchor: "middle",
-        len: 0.86, thickness: 12,
+        len: 0.92, thickness: 14,
         tickmode, tickvals, ticktext,
         ticks: "outside", ticklen: 4, tickwidth: 1,
         nticks: tickvals ? tickvals.length : undefined,
-        tickfont: { color: "#e0e6ee", size: varKey === "uv" ? 8 : 11 },
+        tickfont: { color: "#e0e6ee", size: varKey === "uv" ? 10 : 11 },
         titlefont: { color: "#e0e6ee", size: 11, family: "Arial" }
       }
     }
@@ -3833,8 +3833,8 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
     plot_bgcolor: "rgba(0,0,0,0)",
     xaxis: { visible: false },
     yaxis: { visible: false },
-    width: Math.max(210, Math.min(252, targetDiv.clientWidth || 252)),
-    height: 58
+    width: Math.max(280, Math.min(330, targetDiv.clientWidth || 330)),
+    height: 68
   };
 
   await Plotly.newPlot(targetDiv, [trace], layout, { displayModeBar: false, responsive: true });
