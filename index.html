@@ -542,8 +542,13 @@
     #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
     #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
-    #hamburger-cbar{ width:100%; height:96px; overflow:visible; }
-    #hamburger-cbar svg{ display:block; max-width:100%; height:96px; }
+    #hamburger-cbar{ width:100%; height:112px; overflow:visible; }
+    #hamburger-cbar::before{
+      content:attr(data-title); display:block; height:20px; line-height:20px;
+      text-align:center; color:#e0e6ee; font:700 13px/20px Arial,sans-serif;
+      letter-spacing:.01em;
+    }
+    #hamburger-cbar svg{ display:block; max-width:100%; height:88px; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
@@ -3695,6 +3700,10 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
   if (!targetDiv) return;
 
   const unit = varKey === "sst" ? tempUnitLabel() : (DEFAULT_RANGES[varKey]?.unit || "");
+  // Keep the title outside Plotly's SVG as well. The live OL map hides the
+  // Plotly map, and Plotly can clip a horizontal colorbar title at small
+  // mobile widths; this explicit label is always visible in the product menu.
+  targetDiv.dataset.title = unit;
   // CRITICAL: fall back to DEFAULT_RANGES when userRanges[varKey] is missing
   // or has invalid vmin/vmax. Without this, NaN tickvals / constant arrays
   // trigger Plotly "axis scaling" errors during doAutoRange.
@@ -4271,7 +4280,7 @@ function mobileValueConfig(varKey) {
     return { scale: CHL_ALGAE, lo, hi, transform: v => Math.log10(Math.max(0.001, v)) };
   }
   if (varKey === "sst") return { scale: SST_SCALE, lo: userRanges.sst.vmin, hi: userRanges.sst.vmax, transform: v => v };
-  if (varKey === "uv") return { scale: UV_SCALE, lo: userRanges.uv.vmin, hi: userRanges.uv.vmax, transform: v => v };
+  if (varKey === "uv") return { scale: UV_SCALE, lo: userRanges.uv.vmin, hi: userRanges.uv.vmax, transform: v => v * 3.28084 };
   return { scale: BATHY_SCALE, lo: userRanges.bathy.vmin, hi: userRanges.bathy.vmax, transform: v => v };
 }
 
@@ -4292,6 +4301,49 @@ function isMobileMissingValue(varKey, rawValue, numericValue) {
   if (Math.abs(numericValue) >= 1e20) return true;
   if ((varKey === "chl" || varKey === "sst") && numericValue <= 0) return true;
   return false;
+}
+
+// Draw ADT isolines into the same canvas used by the live OpenLayers raster
+// path.  The Plotly contour trace is not used when OL owns #map, so keeping
+// this in the canvas path is what makes contours appear on desktop and mobile.
+function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
+  const levels = [];
+  for (let level = -1.5; level <= 5.0001; level += 0.5) levels.push(Number(level.toFixed(1)));
+  const toCanvas = (x, y) => [xFlip ? (nx - 1 - x) : x, yFlip ? (ny - 1 - y) : y];
+  const edgePoint = (a, b, va, vb, level) => {
+    const den = vb - va;
+    const t = Math.abs(den) < 1e-12 ? 0.5 : (level - va) / den;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  };
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  for (const level of levels) {
+    ctx.beginPath();
+    for (let j = 0; j < ny - 1; j++) {
+      for (let i = 0; i < nx - 1; i++) {
+        const raw = [z[j]?.[i], z[j]?.[i + 1], z[j + 1]?.[i + 1], z[j + 1]?.[i]];
+        const nums = raw.map(Number);
+        if (raw.some((v, k) => isMobileMissingValue("uv", v, nums[k]))) continue;
+        const [va, vb, vc, vd] = nums.map(v => v * 3.28084);
+        const p0 = [i, j], p1 = [i + 1, j], p2 = [i + 1, j + 1], p3 = [i, j + 1];
+        const hits = [];
+        if ((va < level) !== (vb < level)) hits.push(edgePoint(p0, p1, va, vb, level));
+        if ((vb < level) !== (vc < level)) hits.push(edgePoint(p1, p2, vb, vc, level));
+        if ((vc < level) !== (vd < level)) hits.push(edgePoint(p2, p3, vc, vd, level));
+        if ((vd < level) !== (va < level)) hits.push(edgePoint(p3, p0, vd, va, level));
+        for (let k = 0; k + 1 < hits.length; k += 2) {
+          const a = toCanvas(hits[k][0], hits[k][1]);
+          const b = toCanvas(hits[k + 1][0], hits[k + 1][1]);
+          ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]);
+        }
+      }
+    }
+    ctx.strokeStyle = level === 0 ? "rgba(20,20,20,0.98)" : "rgba(45,45,45,0.92)";
+    ctx.lineWidth = level === 0 ? 1.8 : 1.15;
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function clearMobileUvArrowLayer(map) {
@@ -4568,6 +4620,7 @@ function makeMobileLandCanvas(bathy) {
     }
   }
   ctx.putImageData(img, 0, 0);
+  if (varKey === "uv") drawUvContours(ctx, z, nx, ny, xFlip, yFlip);
   return canvas;
 }
 
