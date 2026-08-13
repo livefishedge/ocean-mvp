@@ -1346,7 +1346,7 @@ body.combined-mode #combined-menu-btn{
             <polyline points="54,10 46,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
             <polyline points="54,10 46,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
           </svg>
-          <span style="font-weight:800;color:rgba(255,255,255,0.9);">1.0 m/s · 2.49 grid-cell lengths</span>
+          <span style="font-weight:800;color:rgba(255,255,255,0.9);">1.0 m/s</span>
         </div>
       </div>
       <label class="combined-toggle">
@@ -1434,7 +1434,7 @@ body.combined-mode #combined-menu-btn{
             <polyline points="50,10 42,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
             <polyline points="50,10 42,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
           </svg>
-          <span>Current speed · 1.0 m/s = 2.49 grid-cell lengths</span>
+          <span>1.0 m/s</span>
         </div>
       </div>
       <div id="hamburger-cbar"></div>
@@ -1815,9 +1815,9 @@ function uvArrowLengthCells(speed) {
 
 function uvContourLevels(vmin = userRanges?.uv?.vmin ?? -1, vmax = userRanges?.uv?.vmax ?? 5) {
   const levels = [];
-  const first = Math.ceil((Number(vmin) - 1e-9) / 0.4);
-  const last = Math.floor((Number(vmax) + 1e-9) / 0.4);
-  for (let n = first; n <= last; n++) levels.push(Number((n * 0.4).toFixed(1)));
+  const first = Math.ceil((Number(vmin) - 1e-9) / 0.2);
+  const last = Math.floor((Number(vmax) + 1e-9) / 0.2);
+  for (let n = first; n <= last; n++) levels.push(Number((n * 0.2).toFixed(1)));
   // Zero is a semantic reference line, not a range-dependent contour.
   if (!levels.includes(0)) levels.push(0);
   levels.sort((a, b) => a - b);
@@ -1825,7 +1825,7 @@ function uvContourLevels(vmin = userRanges?.uv?.vmin ?? -1, vmax = userRanges?.u
 }
 
 function uvContourIsMajor(level) {
-  return Number(level) === 0 || (Math.round(Math.abs(Number(level)) / 0.4) % 5 === 0);
+  return Number(level) === 0 || (Math.round(Math.abs(Number(level)) / 0.2) % 5 === 0);
 }
 
 const DEFAULT_RANGES = {
@@ -2322,21 +2322,21 @@ function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
   return { value, row, col };
 }
 
-// Fill only isolated missing vector cells from their valid neighbors. Large
-// null regions remain null (normally land/coastal mask), so this removes
-// speckled holes without inventing currents across the shoreline.
+// Fill small missing patches from nearby valid vectors. Large contiguous null
+// regions remain null (normally land/coastal mask), so ocean gaps are closed
+// without inventing a current field across the shoreline.
 function uvVectorAt(u, v, row, col) {
   const directU = Number(u?.[row]?.[col]);
   const directV = Number(v?.[row]?.[col]);
   if (Number.isFinite(directU) && Number.isFinite(directV)) return [directU, directV];
   const neighbors = [];
-  for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+  for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
     if (!di && !dj) continue;
     const uu = Number(u?.[row + dj]?.[col + di]);
     const vv = Number(v?.[row + dj]?.[col + di]);
     if (Number.isFinite(uu) && Number.isFinite(vv)) neighbors.push([uu, vv]);
   }
-  if (neighbors.length < 5) return null;
+  if (neighbors.length < 8) return null;
   return [
     neighbors.reduce((sum, pair) => sum + pair[0], 0) / neighbors.length,
     neighbors.reduce((sum, pair) => sum + pair[1], 0) / neighbors.length
@@ -3849,7 +3849,7 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
   } else if (varKey === "uv") {
     chosenScale = UV_SCALE;
     cValues = [cmin, cmax];
-    /* Height is displayed in feet; contours use 0.4-ft spacing. */
+    /* Height is displayed in feet; contours use 0.2-ft spacing. */
     tickmode = "array";
     tickvals = [-1.0, -0.2, 0.6, 1.4, 2.2, 3.0, 3.8, 4.6, 5.0];
     ticktext = tickvals.map(v => v.toFixed(1));
@@ -4085,7 +4085,7 @@ function buildUv(gridInfo, dataObj) {
        the bulletproof way to draw labeled contour lines on a Plotly heatmap. */
   };
 
-  /* ADT contour overlay as a SEPARATE Plotly trace — 0.4 ft intervals.
+  /* ADT contour overlay as a SEPARATE Plotly trace — 0.2 ft intervals.
      The "0" level contour is the deep frontal location and is explicitly
      labeled. The OpenLayers path applies the 2px-every-fifth hierarchy. */
   const contourLines = {
@@ -4100,7 +4100,7 @@ function buildUv(gridInfo, dataObj) {
     contours: {
       start: contourLevelsForPlot[0],
       end:   contourLevelsForPlot[contourLevelsForPlot.length - 1],
-      size:  0.4,                  /* 0.4 ft intervals */
+      size:  0.2,                  /* 0.2 ft intervals */
       coloring: "lines",           /* lines only, no fill */
       showlabels: true,
       labelfont: { size: 10, color: "#0c1723", family: "Arial Black" }
@@ -4433,7 +4433,7 @@ function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
       }
     }
     ctx.strokeStyle = "rgba(35,35,35,0.94)";
-    // One 2px major line every five 0.4-ft contours; the other lines are 1px.
+    // One 2px major line every five 0.2-ft contours; the other lines are 1px.
     ctx.lineWidth = uvContourIsMajor(level) ? 2 : 1;
     ctx.strokeStyle = level === 0 ? "#000000" : "rgba(35,35,35,0.94)";
     ctx.stroke();
