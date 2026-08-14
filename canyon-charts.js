@@ -9,17 +9,16 @@
 (function () {
   'use strict';
 
-  var SOURCE_LABEL = 'GEBCO / IHO-IOC';
+  var SOURCE_LABEL = 'BOEM US Submarine Canyons';
   var SERVICE_ROOT =
-    'https://services2.arcgis.com/C8EMgrsFcRFL6LrL/arcgis/rest/services/' +
-    'Undersea_Features/FeatureServer/';
+    'https://services.arcgis.com/bDAhvQYMG4WL8O5o/arcgis/rest/services/' +
+    'US_Submarine_Canyons/FeatureServer/';
   var ATTRIBUTION =
-    'Permanent grounds: IHO-IOC GEBCO Gazetteer of Undersea Feature Names (www.gebco.net)';
+    'Permanent canyon systems: BOEM US Submarine Canyons';
   var CACHE_TTL_MS = 6 * 60 * 60 * 1000;
   var FETCH_TIMEOUT_MS = 12000;
   var BBOX_PAD = 0.05;
   var MAX_FEATURES = 250;
-  var GROUND_TYPES = ['Canyon', 'Seamount', 'Knoll', 'Bank'];
   var BASEMAP_ZINDEX = 5;
   var REGION_BBOXES = {
     usec_south: [-81, 31, -73, 36],
@@ -61,12 +60,6 @@
     return REGION_BBOXES[region] || null;
   }
 
-  function whereIn(field, values) {
-    return field + ' IN (' + values.map(function (v) {
-      return "'" + v.replace(/'/g, "''") + "'";
-    }).join(',') + ')';
-  }
-
   function collectCoords(value, out) {
     if (!Array.isArray(value)) return;
     if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
@@ -92,7 +85,7 @@
       geometryType: 'esriGeometryEnvelope',
       inSR: '4326',
       outSR: '4326',
-      outFields: 'NAME,TYPE',
+      outFields: 'Name,Region,Sys_Can,DepthMin_m,DepthMax_m,Length_Km',
       f: 'geojson',
       returnGeometry: 'true',
       resultRecordCount: String(MAX_FEATURES),
@@ -110,8 +103,9 @@
         return (j.features || []).map(function (f) {
           var point = featurePoint(f);
           if (!point) return null;
-          return { point: point, name: (f.properties && f.properties.NAME) || 'Unnamed',
-            type: (f.properties && f.properties.TYPE) || 'Ground' };
+          return { point: point, name: (f.properties && f.properties.Name) || 'Unnamed',
+            type: 'Canyon', region: f.properties && f.properties.Region,
+            system: f.properties && f.properties.Sys_Can };
         }).filter(Boolean);
       })
       .finally(function () { clearTimeout(timeout); });
@@ -122,15 +116,7 @@
     var cached = state.cache.get(key);
     if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return Promise.resolve(cached.features);
     if (state.inflight.has(key)) return state.inflight.get(key);
-    var promise = Promise.all([
-      // The Gazetteer service is not geometrically normalized: canyons may
-      // be points in layer 0, while other named grounds may be lines in
-      // layer 1. Query both layers so a canyon cannot disappear merely
-      // because its source geometry is represented differently.
-      fetchLayer(0, whereIn('TYPE', GROUND_TYPES), bbox),
-      fetchLayer(1, whereIn('TYPE', GROUND_TYPES), bbox),
-    ]).then(function (sets) {
-      var features = sets[0].concat(sets[1]);
+    var promise = fetchLayer(0, '1=1', bbox).then(function (features) {
       state.cache.set(key, { features: features, fetchedAt: Date.now() });
       return features;
     }).catch(function (err) {
@@ -187,7 +173,8 @@
         source.clear();
         source.addFeatures(items.map(function (item) {
           var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat(item.point)),
-            name: item.name, type: item.type, source: SOURCE_LABEL });
+            name: item.name, type: item.type, region: item.region,
+            system: item.system, source: SOURCE_LABEL });
           return f;
         }));
         log('refreshed', items.length, 'permanent grounds');
