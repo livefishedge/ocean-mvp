@@ -21,6 +21,10 @@
   var MAX_FEATURES = 250;
   var GROUND_TYPES = ['Canyon', 'Seamount', 'Knoll', 'Bank'];
   var BASEMAP_ZINDEX = 5;
+  var REGION_BBOXES = {
+    usec_south: [-81, 31, -73, 36],
+    usec_md: [-76.5, 35.5, -71.5, 40.5],
+  };
 
   var state = {
     layers: new Map(),
@@ -50,6 +54,11 @@
       Math.max(-180, min[0] - dx), Math.max(-90, min[1] - dy),
       Math.min(180, max[0] + dx), Math.min(90, max[1] + dy),
     ];
+  }
+
+  function selectedRegionBbox() {
+    var region = new URLSearchParams(window.location.search).get('region');
+    return REGION_BBOXES[region] || null;
   }
 
   function whereIn(field, values) {
@@ -171,7 +180,10 @@
     state.layers.set(map, layer);
     function refresh() {
       var extent = map.getView().calculateExtent(map.getSize() || [800, 600]);
-      fetchGrounds(paddedBbox(extent)).then(function (items) {
+      // Never let a broad/temporarily-unfitted map viewport turn a regional
+      // dashboard into a worldwide feature-name layer.
+      var bbox = selectedRegionBbox() || paddedBbox(extent);
+      fetchGrounds(bbox).then(function (items) {
         source.clear();
         source.addFeatures(items.map(function (item) {
           var f = new ol.Feature({ geometry: new ol.geom.Point(ol.proj.fromLonLat(item.point)),
