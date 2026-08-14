@@ -187,6 +187,13 @@
   }
 
   function scoutMaps() {
+    // The dashboard keeps desktopMapState/mobileMapState module-scoped, so
+    // they are not available as window properties. Its map instrumentation
+    // exposes the live OpenLayers instances here; use those as the primary
+    // attachment path and retain the older globals for compatibility.
+    if (window.__fishedgeMaps && window.__fishedgeMaps.length) {
+      window.__fishedgeMaps.forEach(attachToMap);
+    }
     if (window.desktopMapState && window.desktopMapState.map) attachToMap(window.desktopMapState.map);
     if (window.mobileMapState && window.mobileMapState.map) attachToMap(window.mobileMapState.map);
     if (window._combinedMap) attachToMap(window._combinedMap);
@@ -216,4 +223,3 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
-
