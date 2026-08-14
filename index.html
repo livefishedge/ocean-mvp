@@ -549,8 +549,6 @@
       letter-spacing:.01em;
     }
     #hamburger-cbar svg{ display:block; width:100%; max-width:100%; height:68px; }
-    .hamburger-current-legend{ color:#e0e6ee; font-size:12px; font-weight:700; }
-    .hamburger-current-legend .combined-legend-row{ margin:0; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
@@ -1340,14 +1338,6 @@ body.combined-mode #combined-menu-btn{
         <option value="48">Last 48 hours</option>
       </select>
       <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
-        <div class="combined-legend-row">
-          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;background:#fff;border-radius:4px;">
-            <line x1="2" y1="10" x2="54" y2="10" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round"/>
-            <polyline points="54,10 46,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-            <polyline points="54,10 46,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          </svg>
-          <span style="font-weight:800;color:rgba(255,255,255,0.9);">1.0 m/s</span>
-        </div>
       </div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-bathy" checked>
@@ -1425,16 +1415,6 @@ body.combined-mode #combined-menu-btn{
         <div class="range-actions">
           <button id="hamburger-apply">Apply</button>
           <button id="hamburger-reset">Reset</button>
-        </div>
-      </div>
-      <div id="hamburger-current-legend" class="hamburger-current-legend" hidden>
-        <div class="combined-legend-row">
-          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;background:#fff;border-radius:4px;">
-            <line x1="5" y1="10" x2="50" y2="10" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round"/>
-            <polyline points="50,10 42,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-            <polyline points="50,10 42,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          </svg>
-          <span>1.0 m/s</span>
         </div>
       </div>
       <div id="hamburger-cbar"></div>
