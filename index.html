@@ -527,7 +527,7 @@
       padding:0;
     }
     #menu-panel{
-      position:fixed; top:62px; right:8px; z-index:1001; width:min(320px, calc(100vw - 16px));
+      position:fixed; top:62px; right:8px; z-index:1001; width:min(280px, calc(100vw - 16px));
       display:none; flex-direction:column; gap:10px; padding:12px;
       background:rgba(5,11,16,0.94); border:1px solid rgba(255,255,255,0.22); border-radius:8px;
       box-shadow:0 12px 30px rgba(0,0,0,0.45); backdrop-filter:blur(8px);
@@ -542,13 +542,13 @@
     #menu-panel button.active{ background:#1d4f91; border-color:#4d7dff; }
     #menu-panel .mode-row{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
     #menu-panel #all-day-toggle{ flex-direction:row; align-items:center; justify-content:flex-start; color:var(--fg); }
-    #hamburger-cbar{ width:100%; height:82px; overflow:visible; }
+    #hamburger-cbar{ width:100%; height:82px; overflow:hidden; align-self:center; }
     #hamburger-cbar::before{
-      content:attr(data-title); display:block; height:12px; line-height:12px;
+      content:attr(data-title); display:block; height:14px; line-height:14px;
       text-align:center; color:#e0e6ee; font:700 11px/12px Arial,sans-serif;
       letter-spacing:.01em;
     }
-    #hamburger-cbar svg{ display:block; max-width:100%; height:70px; }
+    #hamburger-cbar svg{ display:block; width:100%; max-width:100%; height:68px; }
     #all-day-cb{ width:15px; height:15px; accent-color:#d84bff; }
 
     @media (max-width:720px){
@@ -563,7 +563,20 @@
       #toolbar{ gap:6px; padding-right:58px; }
       #nav-bar{ order:1; flex-basis:100%; }
       #toolbar-status{ order:2; flex:1 1 100%; white-space:normal; }
-      #menu-panel{ top:58px; right:8px; }
+      #menu-panel{
+        top:58px; right:6px; width:min(360px, calc(100vw - 12px));
+        max-height:calc(100dvh - 66px); padding:10px; gap:8px;
+      }
+      #menu-panel .hamburger-range-block{
+        display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+        gap:7px; align-items:center;
+      }
+      #menu-panel .hamburger-range-block .range-name,
+      #menu-panel .hamburger-range-block .range-actions{ grid-column:1 / -1; }
+      #menu-panel .hamburger-range-block input{ width:100%; min-width:0; }
+      #menu-panel .range-actions{ display:grid; grid-template-columns:1fr 1fr; gap:7px; }
+      #hamburger-cbar{ width:100%; height:82px; }
+      #hamburger-cbar svg{ width:100%; height:66px; }
     }
 
     /* Plot: full viewport */
@@ -1244,7 +1257,7 @@ body.combined-mode #combined-menu-btn{
         <option value="chl">Chlorophyll</option>
         <option value="sst">Temperature</option>
         <option value="thermal_fronts">Thermal Fronts</option>
-        <option value="uv">Currents</option>
+        <option value="uv">Currents/Height</option>
         <option value="bathy">Bathymetry</option>
       </select>
     </div>
@@ -1314,7 +1327,7 @@ body.combined-mode #combined-menu-btn{
         <input type="checkbox" id="chk-combined-uv" checked>
         <span class="box"></span>
         <span class="combined-dot dot-uv"></span>
-        <span>Currents</span>
+        <span>Currents/Height</span>
       </label>
       <select id="combined-uv-hours" style="margin:6px 0 4px 28px;font-size:13px;">
         <option value="latest" selected>Latest</option>
@@ -1325,14 +1338,6 @@ body.combined-mode #combined-menu-btn{
         <option value="48">Last 48 hours</option>
       </select>
       <div id="combined-uv-scan-time" style="font-size:11px;color:#9fb0c3;margin-left:28px;margin-bottom:8px;"></div>
-        <div class="combined-legend-row">
-          <svg width="60" height="20" viewBox="0 0 60 20" style="flex-shrink:0;background:#fff;border-radius:4px;">
-            <line x1="2" y1="10" x2="54" y2="10" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round"/>
-            <polyline points="54,10 46,5" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-            <polyline points="54,10 46,15" stroke="rgba(0,0,0,0.85)" stroke-width="2.5" stroke-linecap="round" fill="none"/>
-          </svg>
-          <span style="font-weight:800;color:rgba(255,255,255,0.9);">0.5 m/s</span>
-        </div>
       </div>
       <label class="combined-toggle">
         <input type="checkbox" id="chk-combined-bathy" checked>
@@ -1365,7 +1370,7 @@ body.combined-mode #combined-menu-btn{
           <option value="chl">Chlorophyll</option>
           <option value="sst">Temperature</option>
           <option value="thermal_fronts">Thermal Fronts</option>
-          <option value="uv">Currents</option>
+          <option value="uv">Currents/Height</option>
           <option value="bathy">Bathymetry</option>
         </select>
       </label>
@@ -1421,7 +1426,7 @@ body.combined-mode #combined-menu-btn{
 
 <script>
 /* ========================= CONFIG ========================= */
-const CTO_TEST_LABEL = "hello pages rebuild";
+const CTO_TEST_LABEL = "hello pages rebuild"; // 2026-08-13 zero-label overlay verification
 const CTO_THERMAL_BUILD = "2026-06-16T11-33Z-v10-zoomfix-v2"; // bumps on each push
 // Captain's Dashboard ("combined" mode) build fingerprint. Mike,
 // 2026-06-13 14:01 ET: "the captain's dashboard in index.html needs
@@ -1761,7 +1766,7 @@ window.__applyAuthRegion = function(profiles, granted, session, userId) {
 const VAR_LABELS = {
   chl:"Chlorophyll", sst:"Temperature",
   chl_front:"CHL Fronts", sst_front:"SST Fronts",
-  uv:"Currents",
+  uv:"Currents/Height",
   bathy:"Bathymetry",
   thermal_fronts:"Thermal Fronts",
   combined:"Captain's Dashboard"
@@ -1775,12 +1780,40 @@ const VAR_TO_GRID = {
   combined: null
 };
 
+// UV/ADT source values are metres; the product presents height in feet.
+const UV_M_TO_FT = 3.28084;
+const UV_ARROW_MIN_SPEED = 0.035;
+const UV_ARROW_MAX_SPEED = 1.2;
+const UV_ARROW_MIN_LENGTH_CELLS = 0.95;
+const UV_ARROW_MAX_LENGTH_CELLS = 2.8;
+const UV_ARROW_REFERENCE_SPEED = 1.0;
+
+function uvArrowLengthCells(speed) {
+  const scaled = Math.min(Math.max(Number(speed) || 0, 0), UV_ARROW_MAX_SPEED) / UV_ARROW_MAX_SPEED;
+  return UV_ARROW_MIN_LENGTH_CELLS + (UV_ARROW_MAX_LENGTH_CELLS - UV_ARROW_MIN_LENGTH_CELLS) * scaled;
+}
+
+function uvContourLevels(vmin = userRanges?.uv?.vmin ?? -1, vmax = userRanges?.uv?.vmax ?? 5) {
+  const levels = [];
+  const first = Math.ceil((Number(vmin) - 1e-9) / 0.2);
+  const last = Math.floor((Number(vmax) + 1e-9) / 0.2);
+  for (let n = first; n <= last; n++) levels.push(Number((n * 0.2).toFixed(1)));
+  // Zero is a semantic reference line, not a range-dependent contour.
+  if (!levels.includes(0)) levels.push(0);
+  levels.sort((a, b) => a - b);
+  return levels;
+}
+
+function uvContourIsMajor(level) {
+  return Number(level) === 0 || (Math.round(Math.abs(Number(level)) / 0.2) % 5 === 0);
+}
+
 const DEFAULT_RANGES = {
   chl:   { vmin: 0.02, vmax: 10.0, unit: "mg/m3" },
   sst:   { vmin: 23.0, vmax: 28.0, unit: "°C" },
   chl_front: { vmin: 1.0, vmax: 3.0, unit: "fold/km" },
   sst_front: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
-  uv:    { vmin: -1.5, vmax: 5.0, unit: "Height (ft)" }, /* ADT/SSH in FEET (US captain convention). m->ft: -0.5m=-1.640ft, 1.5m=4.921ft. Rounded to -1.5..5.0 ft for clean 0.5 ft ticks. */
+  uv:    { vmin: -1.0, vmax: 5.0, unit: "Height (ft)" }, /* ADT/SSH is stored in metres and displayed in feet. */
   bathy: { vmin: 0.0,  vmax: 3000.0, unit: "m" },
   thermal_fronts: { vmin: 0.0, vmax: 1.0, unit: "°C/km" },
   combined: { vmin: 0.0, vmax: 1.0, unit: "" }
@@ -1815,7 +1848,8 @@ function formatSigValue(value, digits) {
   return Number(value.toPrecision(digits)).toString();
 }
 function formatChlValue(value) { return `${value.toFixed(2)} mg/m3`; }
-function formatSshValue(value) { const ft = value * 3.28084; return `${ft.toFixed(2)} ft`; }
+function formatSshValue(value) { return `${(value * UV_M_TO_FT).toFixed(2)} ft`; }
+function formatSshFeet(value) { return `${value.toFixed(2)} ft`; }
 function formatSstValue(celsius) {
   const value = tempUnit === "F" ? cToF(celsius) : celsius;
   return `${formatSigValue(value, 4)}${tempUnitLabel()}`;
@@ -2268,6 +2302,43 @@ function sampleRasterValueAt(varKey, gridInfo, dataObj, lon, lat) {
   return { value, row, col };
 }
 
+// Fill small missing patches from nearby valid vectors. Large contiguous null
+// regions remain null (normally land/coastal mask), so ocean gaps are closed
+// without inventing a current field across the shoreline.
+function uvVectorAt(u, v, row, col) {
+  const directU = Number(u?.[row]?.[col]);
+  const directV = Number(v?.[row]?.[col]);
+  if (Number.isFinite(directU) && Number.isFinite(directV)) return [directU, directV];
+  const neighbors = [];
+  for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+    if (!di && !dj) continue;
+    const uu = Number(u?.[row + dj]?.[col + di]);
+    const vv = Number(v?.[row + dj]?.[col + di]);
+    if (Number.isFinite(uu) && Number.isFinite(vv)) neighbors.push([uu, vv]);
+  }
+  if (neighbors.length < 8) return null;
+  return [
+    neighbors.reduce((sum, pair) => sum + pair[0], 0) / neighbors.length,
+    neighbors.reduce((sum, pair) => sum + pair[1], 0) / neighbors.length
+  ];
+}
+
+function formatUvReadout(base, gridInfo, dataObj, lon, lat, map, pixel, fallbackHeightFt = null) {
+  const sample = sampleRasterValueAt("uv", gridInfo, dataObj, lon, lat);
+  const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
+  let speed = null;
+  let heightFt = sample?.value ?? fallbackHeightFt;
+  if (sample) {
+    const vector = uvVectorAt(d?.u, d?.v, sample.row, sample.col);
+    if (vector) speed = Math.hypot(vector[0], vector[1]);
+  }
+  if (speed === null && map && pixel) speed = uvArrowSpeedAtPixel(map, pixel);
+  const parts = [];
+  if (Number.isFinite(speed)) parts.push(`${speed.toFixed(2)} m/s`);
+  if (Number.isFinite(heightFt)) parts.push(`${Number(heightFt).toFixed(2)} ft`);
+  return parts.length ? `${base}, ${parts.join(", ")}` : base;
+}
+
 function renderDesktopReadout(lon, lat, pixel) {
   // The desktop non-combined map's view is EPSG:3857 (Web Mercator), so
   // ev.coordinate from pointermove/click is in meters. The readout text
@@ -2286,6 +2357,10 @@ function renderDesktopReadout(lon, lat, pixel) {
   const gridInfo = desktopMapState.currentGridInfo;
   const dataObj = desktopMapState.currentDataObj;
   const base = formatReadoutCoords(lon, lat);
+  if (currentVar === "uv") {
+    setReadout(formatUvReadout(base, gridInfo, dataObj, lon, lat, desktopMapState.map, pixel));
+    return;
+  }
   // Bathy contour-line priority: if the click pixel is on (or near) a purple
   // bathy contour feature, show that contour's level instead of the raster
   // depth at the click pixel. The raster value at the exact line is rarely
@@ -2297,13 +2372,6 @@ function renderDesktopReadout(lon, lat, pixel) {
     const contourDepth = bathyContourDepthAtPixel(desktopMapState.map, pixel);
     if (contourDepth !== null) {
       setReadout(`${base}, ${contourDepth}m (contour)`);
-      return;
-    }
-  }
-  if (currentVar === "uv" && pixel && desktopMapState.arrowLayer) {
-    const arrowSpeed = uvArrowSpeedAtPixel(desktopMapState.map, pixel);
-    if (arrowSpeed !== null) {
-      setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (arrow)`);
       return;
     }
   }
@@ -2446,7 +2514,8 @@ async function renderDesktopFrame(frameMeta) {
     desktopMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
     if (desktopMapState.arrowLayer) map.addLayer(desktopMapState.arrowLayer);
     clearUvContourLayer(desktopMapState);
-    desktopMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo);
+    desktopMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo, map);
+    desktopMapState.uvZeroLabelOverlays = desktopMapState.uvContourLayer?.__uvZeroLabelOverlays || [];
     if (desktopMapState.uvContourLayer) map.addLayer(desktopMapState.uvContourLayer);
   } else {
     clearUvContourLayer(desktopMapState);
@@ -3760,10 +3829,9 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
   } else if (varKey === "uv") {
     chosenScale = UV_SCALE;
     cValues = [cmin, cmax];
-    /* Explicit 0.5 ft ticks from -1.5 to +5.0 (matches ADT contour interval).
-       The "0" tick is the deep frontal location (climatological mean current axis). */
+    /* Height is displayed in feet; contours use 0.2-ft spacing. */
     tickmode = "array";
-    tickvals = [-1.5, -1.0, -0.5, 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
+    tickvals = [-1.0, -0.2, 0.6, 1.4, 2.2, 3.0, 3.8, 4.6, 5.0];
     ticktext = tickvals.map(v => v.toFixed(1));
   } else if (varKey === "bathy") {
     chosenScale = BATHY_SCALE;
@@ -3797,16 +3865,18 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
       colorscale: chosenScale,
       showscale: true,
       colorbar: {
-        title: { text: varKey === "uv" ? "" : unit, side: "top", font: { color: "#e0e6ee", size: 13, family: "Arial" } },
+        // The compact title is rendered by #hamburger-cbar::before. Keeping
+        // Plotly's title empty prevents a second title floating above it.
+        title: { text: "", side: "top" },
         orientation: "h",
         x: 0.5, xanchor: "center",
         y: 0.5, yanchor: "middle",
-        len: 1.0, thickness: 14,
+        len: 0.92, thickness: 14,
         tickmode, tickvals, ticktext,
         ticks: "outside", ticklen: 4, tickwidth: 1,
         nticks: tickvals ? tickvals.length : undefined,
-        tickfont: { color: "#e0e6ee", size: varKey === "uv" ? 8 : 11 },
-        titlefont: { color: "#e0e6ee", size: 13, family: "Arial" }
+        tickfont: { color: "#e0e6ee", size: varKey === "uv" ? 10 : 11 },
+        titlefont: { color: "#e0e6ee", size: 11, family: "Arial" }
       }
     }
   };
@@ -3816,7 +3886,9 @@ async function renderFooterColorbarToDiv(targetDiv, varKey) {
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     xaxis: { visible: false },
-    yaxis: { visible: false }
+    yaxis: { visible: false },
+    width: Math.max(280, Math.min(330, targetDiv.clientWidth || 330)),
+    height: 68
   };
 
   await Plotly.newPlot(targetDiv, [trace], layout, { displayModeBar: false, responsive: true });
@@ -3970,18 +4042,16 @@ function buildUv(gridInfo, dataObj) {
   // Use the UV range, which is now configured for ADT (Sea Surface Height)
   const vmin = userRanges.uv.vmin;
   const vmax = userRanges.uv.vmax;
+  const contourLevelsForPlot = uvContourLevels(vmin, vmax);
 
-  /* ADT is stored in meters in dataObj.adt. Display in FEET (US captain
-     convention). 1 m = 3.28084 ft. vmin/vmax/ticks/contours are all in feet
-     — see DEFAULT_RANGES.uv and the uv branch of renderFooterColorbarToDiv. */
-  const M_TO_FT = 3.28084;
-  const adtFt = adt.map(row => row.map(v => v * M_TO_FT));
+  // ADT is stored in metres; render the product in feet end-to-end.
+  const adtFeet = adt.map(row => row.map(v => Number(v) * UV_M_TO_FT));
 
   const bg = {
     type:"heatmap",
     x:xAxis, y:yAxis,
-    z:adtFt,
-    customdata:adtFt,
+    z:adtFeet,
+    customdata:adtFeet,
     hoverinfo:"none",
     showscale:false,
     zauto:false, zmin:vmin, zmax:vmax,
@@ -3995,31 +4065,29 @@ function buildUv(gridInfo, dataObj) {
        the bulletproof way to draw labeled contour lines on a Plotly heatmap. */
   };
 
-  /* ADT contour overlay as a SEPARATE Plotly trace — guaranteed line draw.
-     0.5 ft intervals from -1.5..+5.0. The "0" level contour IS the deep
-     frontal location: it marks the line where ADT crosses the climatological
-     mean (MDT reference), which is the geostrophic current axis / subsurface
-     thermohaline boundary. showlabels=true puts the value on each line. */
+  /* ADT contour overlay as a SEPARATE Plotly trace — 0.2 ft intervals.
+     The "0" level contour is the deep frontal location and is explicitly
+     labeled. The OpenLayers path applies the 2px-every-fifth hierarchy. */
   const contourLines = {
     type: "contour",
     x: xAxis,
     y: yAxis,
-    z: adtFt,
+    z: adtFeet,
     showscale: false,
     hoverinfo: "none",
     xaxis: "x",
     yaxis: "y",
     contours: {
-      start: vmin,                 /* -1.5 ft */
-      end:   vmax,                 /* +5.0 ft */
-      size:  0.5,                  /* 0.5 ft intervals (~15 cm) */
+      start: contourLevelsForPlot[0],
+      end:   contourLevelsForPlot[contourLevelsForPlot.length - 1],
+      size:  0.2,                  /* 0.2 ft intervals */
       coloring: "lines",           /* lines only, no fill */
       showlabels: true,
       labelfont: { size: 10, color: "#0c1723", family: "Arial Black" }
     },
     line: {                         /* explicit line color/width (not via contours.color which Plotly 2.34 can ignore) */
       color: "rgba(30,30,30,0.95)",
-      width: 1.8,
+      width: 1,
       smoothing: 0
     }
   };
@@ -4036,23 +4104,19 @@ function buildUv(gridInfo, dataObj) {
   const headAngle = (24 * Math.PI) / 180;
 
   const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 18));
-  const maxSpeed = 1.2;
-  const minSpeed = 0.035;
-  const minLen = 0.75 * cell;
-  const maxLen = 2.25 * cell;
 
   for (let j=0;j<ny;j+=step){
     const lat0 = yAxis[j];
     for (let i=0;i<nx;i+=step){
       const lon0 = xAxis[i];
-      const uu = u[j][i], vv = v[j][i];
+      const vector = uvVectorAt(u, v, j, i);
+      const uu = vector?.[0], vv = vector?.[1];
       const sp = Math.hypot(uu, vv);
 
       if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp)) continue;
-      if (sp < minSpeed) continue;
+      if (sp < UV_ARROW_MIN_SPEED) continue;
 
-      const scaled = Math.min(sp, maxSpeed) / maxSpeed;
-      const len = minLen + (maxLen - minLen) * scaled;
+      const len = uvArrowLengthCells(sp) * cell;
       const lon1 = lon0 + (uu / sp) * len;
       const lat1 = lat0 + (vv / sp) * len;
 
@@ -4288,7 +4352,7 @@ function mobileValueConfig(varKey) {
     return { scale: CHL_ALGAE, lo, hi, transform: v => Math.log10(Math.max(0.001, v)) };
   }
   if (varKey === "sst") return { scale: SST_SCALE, lo: userRanges.sst.vmin, hi: userRanges.sst.vmax, transform: v => v };
-  if (varKey === "uv") return { scale: UV_SCALE, lo: userRanges.uv.vmin, hi: userRanges.uv.vmax, transform: v => v * 3.28084 };
+  if (varKey === "uv") return { scale: UV_SCALE, lo: userRanges.uv.vmin, hi: userRanges.uv.vmax, transform: v => v };
   return { scale: BATHY_SCALE, lo: userRanges.bathy.vmin, hi: userRanges.bathy.vmax, transform: v => v };
 }
 
@@ -4297,7 +4361,8 @@ function mobileZForVar(varKey, dataObj) {
   if (varKey === "sst") return dataObj.sst || dataObj.z || dataObj.data;
   if (varKey === "uv") {
     const d = (dataObj && dataObj.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
-    return d?.adt || dataObj?.meta?.grid?.adt || d?.z;
+    const adt = d?.adt || dataObj?.meta?.grid?.adt || d?.z;
+    return is2D(adt) ? adt.map(row => row.map(v => Number(v) * UV_M_TO_FT)) : adt;
   }
   if (varKey === "bathy") return dataObj.depth;
   return null;
@@ -4315,8 +4380,7 @@ function isMobileMissingValue(varKey, rawValue, numericValue) {
 // path.  The Plotly contour trace is not used when OL owns #map, so keeping
 // this in the canvas path is what makes contours appear on desktop and mobile.
 function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
-  const levels = [];
-  for (let level = -1.5; level <= 5.0001; level += 0.5) levels.push(Number(level.toFixed(1)));
+  const levels = uvContourLevels();
   const toCanvas = (x, y) => [xFlip ? (nx - 1 - x) : x, yFlip ? (ny - 1 - y) : y];
   const edgePoint = (a, b, va, vb, level) => {
     const den = vb - va;
@@ -4326,14 +4390,15 @@ function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
   ctx.save();
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  for (const level of levels) {
+  for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+    const level = levels[levelIndex];
     ctx.beginPath();
     for (let j = 0; j < ny - 1; j++) {
       for (let i = 0; i < nx - 1; i++) {
         const raw = [z[j]?.[i], z[j]?.[i + 1], z[j + 1]?.[i + 1], z[j + 1]?.[i]];
         const nums = raw.map(Number);
         if (raw.some((v, k) => isMobileMissingValue("uv", v, nums[k]))) continue;
-        const [va, vb, vc, vd] = nums.map(v => v * 3.28084);
+        const [va, vb, vc, vd] = nums;
         const p0 = [i, j], p1 = [i + 1, j], p2 = [i + 1, j + 1], p3 = [i, j + 1];
         const hits = [];
         if ((va < level) !== (vb < level)) hits.push(edgePoint(p0, p1, va, vb, level));
@@ -4347,11 +4412,10 @@ function drawUvContours(ctx, z, nx, ny, xFlip, yFlip) {
         }
       }
     }
-    ctx.strokeStyle = level === 0 ? "rgba(20,20,20,0.98)" : "rgba(45,45,45,0.92)";
-    // The source raster is enlarged by OpenLayers (64x40 -> map pixels).
-    // 0.35 source pixels survives the low-resolution raster resampling and
-    // renders as a crisp ~2-3px line on the map (not a multi-cell band).
-    ctx.lineWidth = 0.35;
+    ctx.strokeStyle = "rgba(35,35,35,0.94)";
+    // One 2px major line every five 0.2-ft contours; the other lines are 1px.
+    ctx.lineWidth = uvContourIsMajor(level) ? 2 : 1;
+    ctx.strokeStyle = level === 0 ? "#000000" : "rgba(35,35,35,0.94)";
     ctx.stroke();
   }
   ctx.restore();
@@ -4380,7 +4444,8 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
   if (!is2D(u) || !is2D(v)) return;
   const ny = z.length;
   const nx = z[0].length;
-  const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 36));
+  // Keep arrows readable but substantially denser on the map.
+  const step = Math.max(2, Math.floor(Math.sqrt(nx * ny) / 48));
   const sx = ctx.canvas.width / Math.max(1, nx - 1);
   const sy = ctx.canvas.height / Math.max(1, ny - 1);
 
@@ -4399,8 +4464,9 @@ function drawMobileUvArrows(ctx, dataObj, z, xAxis, yAxis, xAscending, yAscendin
     const srcJ = yFlip ? (ny - 1 - row) : row;
     for (let col = 0; col < nx; col += step) {
       const srcI = xAscending ? col : (nx - 1 - col);
-      const uu = u[srcJ]?.[srcI];
-      const vv = v[srcJ]?.[srcI];
+      const vector = uvVectorAt(u, v, srcJ, srcI);
+      const uu = vector?.[0];
+      const vv = vector?.[1];
       if (!isFinite(uu) || !isFinite(vv)) continue;
       const x = col * sx;
       const y = row * sy;
@@ -4443,11 +4509,9 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
   const dxg = Math.abs(xAxis[1] - xAxis[0]);
   const dyg = Math.abs(yAxis[1] - yAxis[0]);
   const cell = Math.min(dxg, dyg);
-  const step = Math.max(4, Math.floor(Math.sqrt(nx * ny) / 36));
-  const maxSpeed = 1.2;
-  const minSpeed = 0.035;
-  const minLen = 0.95 * cell;
-  const maxLen = 2.80 * cell;
+  // Sample more of the native current grid; the previous step made the
+  // direction field look sparse on both desktop and mobile.
+  const step = Math.max(2, Math.floor(Math.sqrt(nx * ny) / 48));
   const headAngle = Math.PI / 6;
   const features = [];
 
@@ -4455,13 +4519,13 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
     const lat0 = yAxis[j];
     for (let i = 0; i < nx; i += step) {
       const lon0 = xAxis[i];
-      const uu = u[j]?.[i];
-      const vv = v[j]?.[i];
+      const vector = uvVectorAt(u, v, j, i);
+      const uu = vector?.[0];
+      const vv = vector?.[1];
       const sp = Math.hypot(uu, vv);
-      if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp) || sp < minSpeed) continue;
+      if (!isFinite(uu) || !isFinite(vv) || !isFinite(sp) || sp < UV_ARROW_MIN_SPEED) continue;
 
-      const scaled = Math.min(sp, maxSpeed) / maxSpeed;
-      const len = minLen + (maxLen - minLen) * scaled;
+      const len = uvArrowLengthCells(sp) * cell;
       const lon1 = lon0 + (uu / sp) * len;
       const lat1 = lat0 + (vv / sp) * len;
       const theta = Math.atan2(lat1 - lat0, lon1 - lon0);
@@ -4474,7 +4538,8 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
         lon1 + headLen * Math.cos(theta + Math.PI + headAngle),
         lat1 + headLen * Math.sin(theta + Math.PI + headAngle)
       ];
-      features.push(new ol.Feature({
+        features.push(new ol.Feature({
+        speed: sp,
         geometry: new ol.geom.MultiLineString([
           [toMapProjection([lon0, lat0]), toMapProjection([lon1, lat1])],
           [toMapProjection([lon1, lat1]), toMapProjection(left)],
@@ -4487,7 +4552,8 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
   const source = new ol.source.Vector({ features, projection: "EPSG:4326" });
   return new ol.layer.Vector({
     source,
-    zIndex: 25,
+    // Land mask is z20; keep currents below it so arrows stop at the coast.
+    zIndex: 15,
     updateWhileAnimating: true,
     updateWhileInteracting: true,
     style: new ol.style.Style({
@@ -4503,23 +4569,36 @@ function buildMobileUvArrowLayer(dataObj, gridInfo) {
 
 function clearUvContourLayer(state) {
   if (state?.map && state.uvContourLayer) state.map.removeLayer(state.uvContourLayer);
+  if (state?.map && state.uvZeroLabelOverlay) state.map.removeOverlay(state.uvZeroLabelOverlay);
+  for (const overlay of state?.uvZeroLabelOverlays || []) {
+    if (state.map) state.map.removeOverlay(overlay);
+    if (overlay.__angleListener && ol?.Observable?.unByKey) ol.Observable.unByKey(overlay.__angleListener);
+  }
+  if (state?.uvZeroLabelOverlay?.__angleListener && ol?.Observable?.unByKey) {
+    ol.Observable.unByKey(state.uvZeroLabelOverlay.__angleListener);
+  }
+  if (state) state.uvZeroLabelOverlay = null;
+  if (state) state.uvZeroLabelOverlays = [];
   if (state) state.uvContourLayer = null;
 }
 
 // Render ADT contours as OL vectors so width is measured in screen pixels,
-// not low-resolution raster pixels. This is the authoritative Currents path.
-function buildUvContourLayer(dataObj, gridInfo) {
+// not low-resolution raster pixels. This is the authoritative Currents/Height path.
+function buildUvContourLayer(dataObj, gridInfo, map) {
   const d = (dataObj?.data && !Array.isArray(dataObj.data)) ? dataObj.data : dataObj;
-  const z = d?.adt || d?.z;
+  const zMeters = d?.adt || d?.z;
+  const z = is2D(zMeters) ? zMeters.map(row => row.map(v => Number(v) * UV_M_TO_FT)) : zMeters;
   const xs = gridInfo?.xAxis || [], ys = gridInfo?.yAxis || [];
   if (!is2D(z) || xs.length < 2 || ys.length < 2) return null;
   const features = [];
-  for (let level = -1.5; level <= 5.0001; level += 0.5) {
-    const ft = Number(level.toFixed(1));
+  const levels = uvContourLevels();
+  for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+    const ft = levels[levelIndex];
+    const levelFeatures = [];
     for (let j = 0; j < ys.length - 1; j++) for (let i = 0; i < xs.length - 1; i++) {
       const raw = [z[j]?.[i], z[j]?.[i + 1], z[j + 1]?.[i + 1], z[j + 1]?.[i]].map(Number);
       if (raw.some(v => !Number.isFinite(v))) continue;
-      const val = raw.map(v => v * 3.28084);
+      const val = raw;
       const p = [[xs[i],ys[j]],[xs[i+1],ys[j]],[xs[i+1],ys[j+1]],[xs[i],ys[j+1]]];
       const hits = [];
       for (const [a,b] of [[0,1],[1,2],[2,3],[3,0]]) {
@@ -4529,17 +4608,76 @@ function buildUvContourLayer(dataObj, gridInfo) {
         }
       }
       for (let k = 0; k + 1 < hits.length; k += 2) {
-        features.push(new ol.Feature({ geometry: new ol.geom.LineString(hits.slice(k,k+2).map(pt => toMapProjection(pt))) }));
+        levelFeatures.push(new ol.Feature({
+          geometry: new ol.geom.LineString(hits.slice(k,k+2).map(pt => toMapProjection(pt))),
+          contourLevel: ft,
+          major: uvContourIsMajor(ft)
+        }));
       }
     }
+    // Put plain labels directly on the zero contour. Marching-squares emits
+    // short segments, so select midpoint candidates in screen space: this
+    // yields one label per visible contour branch and additional labels on
+    // long branches without stacking labels on adjacent cells.
+    if (ft === 0 && levelFeatures.length) {
+      const labelOverlays = [];
+      if (map) {
+        const candidates = levelFeatures.map(feature => {
+          const geometry = feature.getGeometry();
+          const coordinate = geometry.getCoordinateAt(0.5);
+          const p0 = map.getPixelFromCoordinate(geometry.getCoordinates()[0]);
+          const p1 = map.getPixelFromCoordinate(geometry.getCoordinates()[1]);
+          return { geometry, coordinate, pixel: map.getPixelFromCoordinate(coordinate), angle: Math.atan2(p1[1]-p0[1], p1[0]-p0[0]) * 180 / Math.PI };
+        }).filter(candidate => candidate.pixel && Number.isFinite(candidate.pixel[0]) && Number.isFinite(candidate.pixel[1]));
+        candidates.sort((a, b) => a.pixel[1] - b.pixel[1] || a.pixel[0] - b.pixel[0]);
+        const chosen = [];
+        for (const candidate of candidates) {
+          if (chosen.every(other => Math.hypot(candidate.pixel[0]-other.pixel[0], candidate.pixel[1]-other.pixel[1]) >= 90)) {
+            chosen.push(candidate);
+          }
+        }
+        for (const candidate of chosen) {
+          const labelEl = document.createElement("div");
+          const labelText = document.createElement("span");
+          labelText.textContent = "0";
+          labelEl.appendChild(labelText);
+          labelEl.setAttribute("aria-label", "zero foot contour");
+          labelEl.style.cssText = "pointer-events:none;width:0;height:0;overflow:visible;";
+          labelText.style.cssText = "display:block;color:#111820;font:700 13px/1 Arial,sans-serif;white-space:nowrap;transform-origin:50% 50%;transform:translate(-50%,-50%);text-shadow:-1px -1px 0 rgba(255,255,255,.95),1px -1px 0 rgba(255,255,255,.95),-1px 1px 0 rgba(255,255,255,.95),1px 1px 0 rgba(255,255,255,.95);";
+          const overlay = new ol.Overlay({ element: labelEl, positioning: "center-center", stopEvent: false, offset: [0, 0] });
+          overlay.setPosition(candidate.coordinate);
+          map.addOverlay(overlay);
+          const updateLabelAngle = () => {
+            const coords = candidate.geometry.getCoordinates();
+            const p0 = map.getPixelFromCoordinate(coords[0]);
+            const p1 = map.getPixelFromCoordinate(coords[1]);
+            if (!p0 || !p1) return;
+            let angle = Math.atan2(p1[1] - p0[1], p1[0] - p0[0]) * 180 / Math.PI;
+            if (angle > 90 || angle < -90) angle += 180;
+            labelText.style.transform = `translate(-50%,-50%) rotate(${angle.toFixed(1)}deg)`;
+          };
+          updateLabelAngle();
+          overlay.__angleListener = map.on("moveend", updateLabelAngle);
+          labelOverlays.push(overlay);
+        }
+        features._uvZeroLabelOverlays = labelOverlays;
+      }
+    }
+    features.push(...levelFeatures);
   }
-  return new ol.layer.Vector({
-    source: new ol.source.Vector({ features }), zIndex: 26,
+  const layer = new ol.layer.Vector({
+    // Land mask is z20; keep contours below it so they cannot paint on land.
+    source: new ol.source.Vector({ features }), zIndex: 16,
     updateWhileAnimating: true, updateWhileInteracting: true,
-    style: new ol.style.Style({ stroke: new ol.style.Stroke({
-      color: "rgba(25,25,25,0.96)", width: 2, lineCap: "round", lineJoin: "round"
-    }) })
+    style: feature => new ol.style.Style({ stroke: new ol.style.Stroke({
+        color: feature.get("contourLevel") === 0 ? "#000000" : "rgba(25,25,25,0.96)",
+        width: feature.get("contourLevel") === 0 || feature.get("major") ? 2 : 1,
+        lineDash: feature.get("contourLevel") !== 0 && feature.get("major") ? [4, 3] : undefined,
+        lineCap: "round", lineJoin: "round"
+      }) })
   });
+  layer.__uvZeroLabelOverlays = features._uvZeroLabelOverlays || [];
+  return layer;
 }
 
 // Draw a line using direct pixel manipulation (Bresenham-inspired)
@@ -5047,6 +5185,10 @@ function renderMobileReadout(lon, lat) {
 function renderMobileReadoutFromLonLat(lon, lat, pixel) {
   if (!isFinite(lon) || !isFinite(lat)) return;
   const base = formatReadoutCoords(lon, lat);
+  if (currentVar === "uv") {
+    setReadout(formatUvReadout(base, mobileMapState.currentGridInfo, mobileMapState.currentDataObj, lon, lat, mobileMapState.map, pixel));
+    return;
+  }
   // Feature priority (mirror of desktop + combined):
   //   - bathy contour (depth) — requires mobile bathy contour layer to exist
   //   - UV arrow (current speed) — the arrows carry a per-arrow speed
@@ -5055,13 +5197,6 @@ function renderMobileReadoutFromLonLat(lon, lat, pixel) {
     const contourDepth = bathyContourDepthAtPixel(mobileMapState.map, pixel);
     if (contourDepth !== null) {
       setReadout(`${base}, ${contourDepth}m (contour)`);
-      return;
-    }
-  }
-  if (pixel && mobileMapState.arrowLayer && currentVar === "uv") {
-    const arrowSpeed = uvArrowSpeedAtPixel(mobileMapState.map, pixel);
-    if (arrowSpeed !== null) {
-      setReadout(`${base}, ${arrowSpeed.toFixed(2)} m/s (arrow)`);
       return;
     }
   }
@@ -5077,7 +5212,7 @@ function renderMobileReadoutFromLonLat(lon, lat, pixel) {
   const unit = DEFAULT_RANGES[currentVar]?.unit || "";
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshValue(val)}`);
+  else if (currentVar === "uv") setReadout(formatUvReadout(base, mobileMapState.currentGridInfo, mobileMapState.currentDataObj, lon, lat, mobileMapState.map, null, val));
   else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
@@ -5890,21 +6025,17 @@ function buildDesktopUvArrowLayer(data, grid) {
   const dxg = Math.abs((xAxis[1] ?? xAxis[0]) - xAxis[0]) || 0.01;
   const dyg = Math.abs((yAxis[1] ?? yAxis[0]) - yAxis[0]) || 0.01;
   const cell = Math.min(dxg, dyg);
-  const minSpeed = 0.035;
-  const maxSpeed = 1.2;
-  const minLen = 0.95 * cell;
-  const maxLen = 2.8 * cell;
   for (let row = 0; row < ny; row += step) {
     for (let col = 0; col < nx; col += step) {
-      const u = uvData.u?.[row]?.[col];
-      const v = uvData.v?.[row]?.[col];
+      const vector = uvVectorAt(uvData.u, uvData.v, row, col);
+      const u = vector?.[0];
+      const v = vector?.[1];
       if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
       const spd = Math.sqrt(u * u + v * v);
-      if (spd < minSpeed || spd > 3) continue;
+      if (spd < UV_ARROW_MIN_SPEED || spd > 3) continue;
       const lon = xAxis[col];
       const lat = yAxis[row];
-      const scaled = Math.min(spd, maxSpeed) / maxSpeed;
-      const arrowLen = minLen + (maxLen - minLen) * scaled;
+      const arrowLen = uvArrowLengthCells(spd) * cell;
       const geom = buildArrowGeometry(lon, lat, u, v, arrowLen, cell);
       if (geom) features.push(new ol.Feature({ geometry: geom, speed: spd }));
     }
@@ -6856,19 +6987,17 @@ async function buildUvCompositeLayer(map, count) {
   const dyg = Math.abs((yAxis[1] ?? yAxis[0]) - yAxis[0]) || 0.01;
   const cell = Math.min(dxg, dyg);
   const step = Math.max(3, Math.floor(Math.sqrt(nx * ny) / 36));
-  const minSpeed = 0.035, maxSpeed = 1.2;
-  const minLen = 0.95 * cell, maxLen = 2.8 * cell;
   const features = [];
   for (let row = 0; row < ny; row += step) {
     for (let col = 0; col < nx; col += step) {
-      const u = uMedian[row]?.[col];
-      const v = vMedian[row]?.[col];
+      const vector = uvVectorAt(uMedian, vMedian, row, col);
+      const u = vector?.[0];
+      const v = vector?.[1];
       if (!Number.isFinite(u) || !Number.isFinite(v)) continue;
       const spd = Math.sqrt(u * u + v * v);
-      if (spd < minSpeed || spd > 3) continue;
+      if (spd < UV_ARROW_MIN_SPEED || spd > 3) continue;
       const lon = xAxis[col], lat = yAxis[row];
-      const scaled = Math.min(spd, maxSpeed) / maxSpeed;
-      const arrowLen = minLen + (maxLen - minLen) * scaled;
+      const arrowLen = uvArrowLengthCells(spd) * cell;
       const geom = buildArrowGeometry(lon, lat, u, v, arrowLen, cell);
       if (geom) features.push(new ol.Feature({ geometry: geom, speed: spd }));
     }
@@ -7072,7 +7201,8 @@ async function renderMobileFrame(frameMeta) {
     mobileMapState.arrowLayer = buildMobileUvArrowLayer(dataObj, gridInfo);
     if (mobileMapState.arrowLayer) map.addLayer(mobileMapState.arrowLayer);
     clearUvContourLayer(mobileMapState);
-    mobileMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo);
+    mobileMapState.uvContourLayer = buildUvContourLayer(dataObj, gridInfo, map);
+    mobileMapState.uvZeroLabelOverlays = mobileMapState.uvContourLayer?.__uvZeroLabelOverlays || [];
     if (mobileMapState.uvContourLayer) map.addLayer(mobileMapState.uvContourLayer);
   } else {
     clearUvContourLayer(mobileMapState);
@@ -7247,7 +7377,7 @@ function renderReadoutFromPoint(p) {
 
   if (currentVar === "sst") setReadout(`${base}, ${formatSstValue(val)}`);
   else if (currentVar === "bathy") setReadout(`${base}, ${val.toFixed(0)}${unit}`);
-  else if (currentVar === "uv") setReadout(`${base}, SSH ${formatSshValue(val)}`);
+  else if (currentVar === "uv") setReadout(formatUvReadout(base, desktopMapState.currentGridInfo, desktopMapState.currentDataObj, lon, lat, desktopMapState.map, null, val));
   else setReadout(`${base} ${formatChlValue(val)}`);
 }
 
@@ -7287,7 +7417,9 @@ function syncRangeInputsToVar() {
   if (!userRanges[currentVar]) userRanges[currentVar] = { ...DEFAULT_RANGES[currentVar] };
   if (hVmin) hVmin.value = userRanges[currentVar].vmin;
   if (hVmax) hVmax.value = userRanges[currentVar].vmax;
-  if (hTitle) hTitle.textContent = VAR_LABELS[currentVar] || currentVar;
+  if (hTitle) hTitle.textContent = currentVar === "uv" ? "Height" : (VAR_LABELS[currentVar] || currentVar);
+  const currentLegend = document.getElementById("hamburger-current-legend");
+  if (currentLegend) currentLegend.hidden = currentVar !== "uv";
   syncProductSelectors();
   if (hamburgerRegionSelect) hamburgerRegionSelect.value = REGION_ID;
   updateTempUnitUI();
