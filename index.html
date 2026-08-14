@@ -7418,8 +7418,6 @@ function syncRangeInputsToVar() {
   if (hVmin) hVmin.value = userRanges[currentVar].vmin;
   if (hVmax) hVmax.value = userRanges[currentVar].vmax;
   if (hTitle) hTitle.textContent = currentVar === "uv" ? "Height" : (VAR_LABELS[currentVar] || currentVar);
-  const currentLegend = document.getElementById("hamburger-current-legend");
-  if (currentLegend) currentLegend.hidden = currentVar !== "uv";
   syncProductSelectors();
   if (hamburgerRegionSelect) hamburgerRegionSelect.value = REGION_ID;
   updateTempUnitUI();
