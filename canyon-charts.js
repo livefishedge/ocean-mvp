@@ -19,7 +19,7 @@
   var FETCH_TIMEOUT_MS = 12000;
   var BBOX_PAD = 0.05;
   var MAX_FEATURES = 250;
-  var POINT_TYPES = ['Seamount', 'Knoll', 'Bank'];
+  var GROUND_TYPES = ['Canyon', 'Seamount', 'Knoll', 'Bank'];
   var BASEMAP_ZINDEX = 5;
 
   var state = {
@@ -114,8 +114,12 @@
     if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return Promise.resolve(cached.features);
     if (state.inflight.has(key)) return state.inflight.get(key);
     var promise = Promise.all([
-      fetchLayer(1, "TYPE='Canyon'", bbox),
-      fetchLayer(0, whereIn('TYPE', POINT_TYPES), bbox),
+      // The Gazetteer service is not geometrically normalized: canyons may
+      // be points in layer 0, while other named grounds may be lines in
+      // layer 1. Query both layers so a canyon cannot disappear merely
+      // because its source geometry is represented differently.
+      fetchLayer(0, whereIn('TYPE', GROUND_TYPES), bbox),
+      fetchLayer(1, whereIn('TYPE', GROUND_TYPES), bbox),
     ]).then(function (sets) {
       var features = sets[0].concat(sets[1]);
       state.cache.set(key, { features: features, fetchedAt: Date.now() });
@@ -212,5 +216,4 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
-
 
