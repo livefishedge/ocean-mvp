@@ -19,7 +19,7 @@
   var POINT_TYPES = ['Seamount', 'Knoll', 'Bank'];
 
   var state = {
-    enabled: false,
+    enabled: true,
     layers: new Map(),
     cache: new Map(),
     inflight: new Map(),
@@ -200,12 +200,16 @@
     btn.className = 'captain-tool-btn';
     btn.title = 'Permanent fishing grounds: canyons, seamounts, banks';
     btn.setAttribute('aria-label', 'Toggle permanent fishing grounds');
-    btn.setAttribute('aria-pressed', 'false');
-    btn.innerHTML = '<span style="font-size:18px;line-height:1">▲</span>';
+    btn.setAttribute('aria-pressed', 'true');
+    btn.style.color = 'var(--accent2, #ff8c00)';
+    btn.innerHTML = '<span style="font-size:13px;font-weight:700;letter-spacing:.02em">▲ Grounds</span>';
     btn.addEventListener('click', function () {
       state.enabled = !state.enabled;
       btn.setAttribute('aria-pressed', state.enabled ? 'true' : 'false');
       btn.style.color = state.enabled ? 'var(--accent2, #ff8c00)' : '';
+      btn.innerHTML = state.enabled
+        ? '<span style="font-size:13px;font-weight:700;letter-spacing:.02em">▲ Grounds</span>'
+        : '<span style="font-size:13px;font-weight:700;letter-spacing:.02em;opacity:.55">△ Grounds</span>';
       state.layers.forEach(function (layer, map) {
         layer.setVisible(state.enabled);
         if (state.enabled) map.dispatchEvent('moveend'); else layer.getSource().clear();
@@ -213,6 +217,7 @@
       if (state.attributionEl) state.attributionEl.style.opacity = state.enabled ? '1' : '0';
     });
     tools.appendChild(btn);
+    if (state.attributionEl) state.attributionEl.style.opacity = '1';
   }
 
   function init() {
@@ -223,7 +228,13 @@
     showAttribution();
     var tick = 0;
     scoutMaps();
-    var interval = setInterval(function () { scoutMaps(); if (++tick > 60) clearInterval(interval); }, 500);
+    var interval = setInterval(function () {
+      scoutMaps();
+      if (state.enabled) {
+        state.layers.forEach(function (layer, map) { layer.setVisible(true); map.dispatchEvent('moveend'); });
+      }
+      if (++tick > 60) clearInterval(interval);
+    }, 500);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
